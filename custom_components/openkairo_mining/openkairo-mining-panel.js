@@ -361,7 +361,7 @@ class OpenKairoMiningPanel extends LitElement {
 
               ${(hashrateValue || tempValue) ? html`
               <div class="miner-controls" style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
-                <p style="margin: 0 0 10px 0; font-size: 0.8em; color: #888; text-transform: uppercase;">⚡ Hass-Miner Steuerung</p>
+                <p style="margin: 0 0 10px 0; font-size: 0.8em; color: #888; text-transform: uppercase;">⚡ Hass-Miner Steuerung <span style="font-size: 0.8em; color: #666; text-transform: none;">(Nicht für S9)</span></p>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                     <button class="btn-control mode-low" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'low' })}" title="Low Power Modus">LOW</button>
                     <button class="btn-control mode-normal" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'normal' })}" title="Normaler Modus">NORM</button>
