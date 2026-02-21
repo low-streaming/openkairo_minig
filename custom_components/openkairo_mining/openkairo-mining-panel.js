@@ -227,7 +227,7 @@ class OpenKairoMiningPanel extends LitElement {
         };
 
         return html`
-      <div class="miners-grid">
+      <div class="miners-grid ${this.config.miners.length === 1 ? 'single-miner' : ''}">
         ${this.config.miners.map(miner => {
             let switchState = 'Unbekannt';
             if (this.hass && miner.switch && this.hass.states[miner.switch]) {
@@ -453,9 +453,9 @@ class OpenKairoMiningPanel extends LitElement {
         font-weight: 600;
       }
       
-      .tabs { display: flex; justify-content: center; margin-bottom: 35px; gap: 15px; }
+      .tabs { display: flex; justify-content: center; margin-bottom: 35px; gap: 15px; flex-wrap: wrap; }
       .tab {
-        padding: 14px 35px; 
+        padding: 14px 25px; 
         background: rgba(30, 30, 30, 0.6); 
         border: 1px solid rgba(247, 147, 26, 0.2); 
         border-radius: 8px; 
@@ -464,6 +464,10 @@ class OpenKairoMiningPanel extends LitElement {
         transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); 
         color: #a0a0a0;
         backdrop-filter: blur(10px);
+        text-align: center;
+        flex: 1 1 auto;
+        min-width: 140px;
+        max-width: 300px;
       }
       .tab:hover { background: rgba(247, 147, 26, 0.1); color: #F7931A; transform: translateY(-2px); }
       .tab.active { 
@@ -499,6 +503,15 @@ class OpenKairoMiningPanel extends LitElement {
       
       /* Grid for Miners Dashboard */
       .miners-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
+      
+      /* Single Miner Layout */
+      .miners-grid.single-miner { display: flex; justify-content: center; }
+      .miners-grid.single-miner .miner-card { width: 100%; max-width: 700px; padding: 40px; }
+      .miners-grid.single-miner .miner-header h3 { font-size: 2.2em; }
+      .miners-grid.single-miner .status-badge { font-size: 1.5em; padding: 15px 30px; }
+      .miners-grid.single-miner .miner-details p { font-size: 1.1em; }
+      .miners-grid.single-miner .btn-power { font-size: 1.8em; padding: 0 30px; }
+      .miners-grid.single-miner .tech-box { padding: 20px; }
       
       .miner-card { 
         background: linear-gradient(180deg, rgba(35,35,40,1) 0%, rgba(20,20,22,1) 100%);
@@ -641,11 +654,16 @@ class OpenKairoMiningPanel extends LitElement {
       }
       .btn-cancel:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: #888; }
       
-      @media (max-width: 600px) {
+      @media (max-width: 768px) {
         .form-row { flex-direction: column; gap: 0; }
         .header h1 { font-size: 2.2em; }
         .miners-grid { grid-template-columns: 1fr; }
+        .miners-grid.single-miner .miner-card { padding: 25px; }
         .btn-cancel, .btn-save { flex: 1; }
+        .tab { min-width: 100%; }
+        .miner-status { flex-direction: column; }
+        .btn-power { padding: 15px; }
+        .content { padding: 0 10px; }
       }
 
       .footer {
