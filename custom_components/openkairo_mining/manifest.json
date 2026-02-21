@@ -1,0 +1,14 @@
+{
+    "domain": "openkairo_mining",
+    "name": "OpenKairo Mining",
+    "version": "1.0.0",
+    "documentation": "https://github.com/low-streaming/openkairo_minig",
+    "dependencies": [],
+    "codeowners": [
+        "@low-streaming"
+    ],
+    "requirements": [],
+    "iot_class": "local_polling",
+    "config_flow": false,
+    "issue_tracker": "https://github.com/low-streaming/openkairo_minig/issues"
+}
