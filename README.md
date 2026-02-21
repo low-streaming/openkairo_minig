@@ -2,6 +2,9 @@
 
 Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intelligent nach PV-Überschuss oder dynamischen Strompreisen zu steuern. *Powered by OpenKairo*
 
+## Voraussetzungen
+> **⚠️ Wichtig:** Um die Miner in Home Assistant steuern und überwachen zu können (z.B. Hashrate, Temperatur, Power Limit, Restart), wird zusätzlich die **Hass-Miner Integration** benötigt. Diese stellt die eigentlichen Entitäten der Miner bereit, welche dann im OpenKairo Mining Panel verknüpft und gesteuert werden.
+
 ## Features
 - **Eigenes Dashboard-Panel** in der Seitenleiste zur einfachen Konfiguration und Überwachung.
 - **PV-Überschuss-Steuerung:** Miner (bzw. deren smarte Steckdose) automatisch bei genügend Netzeinspeisung einschalten.
@@ -10,6 +13,7 @@ Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intellig
   - Verknüpfe Sensoren (Hashrate, Temperatur), die direkt und optisch ansprechend auf der Dashboard-Karte deines Miners angezeigt werden.
   - **Neu: Power Limit Modus!** Steuere das Strom-Limit von ASIC Minern (wie z.B. dem Antminer S9 mit Braiins OS+) **live über einen Slider auf dem Dashboard**.
   - Sende Knopfdruck-Befehle (Restart, Reboot, Low/Normal/High Power Mode) direkt über die Dashboard-Karte an deine Miner.
+- **Neu: Profitabilitäts-Rechner:** Berechne und zeige deinen Live-Profit auf dem Dashboard an, basierend auf aktuellem Krypto-Ertrag (z.B. BTC/Tag), Coin-Preis, Stromverbrauch und Strompreis.
 - **Miner Bilder:** Lade Fotos deiner eigenen Hardware auf das Dashboard hoch, um sie noch schicker zu präsentieren!
 
 ## Installation via HACS (Custom Repository)
@@ -30,6 +34,13 @@ Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intellig
 2. Suche nach "OpenKairo Mining" und füge es hinzu. *(Alternative: Wenn in der manifest.json config_flow auf false steht, füge einfach `openkairo_mining:` zu deiner `configuration.yaml` hinzu).*
 3. Aktualisiere dein Browser-Fenster (F5). Du siehst nun ein "OpenKairo Mining" Panel links in deiner Seitenleiste.
 4. Öffne das Panel und wähle im Tab **"Einstellungen & Miner verwalten"** alle Sensoren (PV, Preis, Hashrate, Temperatur, Power Limit) und Schwellenwerte aus.
+
+## 🚀 Roadmap / Geplante Features
+Wir haben noch einiges vor! Hier sind einige der Features, die wir für zukünftige Updates planen:
+- [ ] **Stufenloses Power-Limit (PV-Abhängig):** Automatische Anpassung der Miner-Leistung passend zum exakten Überschuss, nicht nur An/Aus.
+- [ ] **Erweiterte Alarmierungen:** Native Benachrichtigungen bei zu hoher Temperatur oder wenn die Hashrate droppt.
+- [ ] **Grafiken & Historien:** Schönere und integrierte Graphen direkt im OpenKairo Mining Panel (Vergleich Stromverbrauch vs. Hashrate).
+- [ ] **Unterstützung für weitere Systeme:** Bessere Integration für HiveOS, ASIC Hub etc.
 
 ---
 **Powered by OpenKairo** | [openkairo.de](https://openkairo.de)

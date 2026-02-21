@@ -1,200 +1,220 @@
 import {
-    LitElement,
-    html,
-    css,
+  LitElement,
+  html,
+  css,
 } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 
 class OpenKairoMiningPanel extends LitElement {
-    static get properties() {
-        return {
-            hass: { type: Object },
-            config: { type: Object },
-            activeTab: { type: String },
-            editingMinerId: { type: String },
-            editForm: { type: Object }
-        };
-    }
+  static get properties() {
+    return {
+      hass: { type: Object },
+      config: { type: Object },
+      activeTab: { type: String },
+      editingMinerId: { type: String },
+      editForm: { type: Object }
+    };
+  }
 
-    constructor() {
-        super();
-        this.config = { miners: [] };
-        this.activeTab = 'dashboard';
-        this.editingMinerId = null;
-        this.editForm = {};
-    }
+  constructor() {
+    super();
+    this.config = { miners: [] };
+    this.activeTab = 'dashboard';
+    this.editingMinerId = null;
+    this.editForm = {};
+    this.btcDifficulty = null;
+  }
 
-    firstUpdated() {
-        this.loadConfig();
-    }
+  firstUpdated() {
+    this.loadConfig();
+    this.fetchBtcDifficulty();
+  }
 
-    async loadConfig() {
-        try {
-            const response = await fetch('/api/openkairo_mining/data', {
-                headers: {
-                    'Authorization': `Bearer ${this.hass?.auth?.token?.access_token || ''}`
-                }
-            });
-            if (response.ok) {
-                const data = await response.json();
-                if (data.config && data.config.miners) {
-                    this.config = data.config;
-                } else {
-                    this.config = { miners: [] };
-                }
-            }
-        } catch (error) {
-            console.error("Error loading config", error);
-        }
-    }
-
-    async saveConfig() {
-        try {
-            await fetch('/api/openkairo_mining/data', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.hass?.auth?.token?.access_token || ''}`
-                },
-                body: JSON.stringify(this.config)
-            });
-            alert('Einstellungen erfolgreich gespeichert!');
-            this.editingMinerId = null; // Zurück zur Liste
-        } catch (error) {
-            console.error("Error saving config", error);
-            alert('Fehler beim Speichern der Einstellungen.');
-        }
-    }
-
-    generateId() {
-        return Math.random().toString(36).substr(2, 9);
-    }
-
-    startAddMiner() {
-        this.editingMinerId = 'new';
-        this.editForm = {
-            id: this.generateId(),
-            name: 'Neuer Miner',
-            switch: '',
-            mode: 'manual',
-            priority: this.config.miners.length + 1,
-            pv_on: 1000,
-            pv_off: 500,
-            price_on: 20,
-            price_off: 25,
-            pv_sensor: '',
-            price_sensor: '',
-            image: '',
-            hashrate_sensor: '',
-            temp_sensor: '',
-            power_entity: ''
-        };
-    }
-
-    startEditMiner(miner) {
-        this.editingMinerId = miner.id;
-        this.editForm = { ...miner };
-    }
-
-    deleteMiner(id) {
-        if (confirm("Möchtest du diesen Miner wirklich löschen?")) {
-            this.config.miners = this.config.miners.filter(m => m.id !== id);
-            this.saveConfig();
-        }
-    }
-
-    cancelEdit() {
-        this.editingMinerId = null;
-    }
-
-    handleImageUpload(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                this.editForm = { ...this.editForm, image: event.target.result };
-            };
-            reader.readAsDataURL(file);
-        }
-    }
-
-    toggleMiner(entityId) {
-        if (!this.hass || !entityId) return;
-        this.hass.callService("switch", "toggle", { entity_id: entityId });
-    }
-
-    callMinerService(miner, serviceName, serviceData = {}) {
-        if (!this.hass || !miner.switch) {
-            alert("Es muss ein Schalter hinterlegt sein, um den Miner zu steuern.");
-            return;
-        }
-
-        const deviceId = this.hass.states[miner.switch]?.attributes?.device_id;
-
-        if (!deviceId) {
-            alert("Konnte die zugehörige Hass-Miner Device-ID nicht finden.");
-            return;
-        }
-
-        const finalData = { device_id: deviceId, ...serviceData };
-
-        if (serviceName === 'reboot' && !confirm("Möchtest du den Miner wirklich neustarten?")) return;
-        if (serviceName === 'restart_backend' && !confirm("Möchtest du das Mining (Backend) auf dem Miner wirklich neustarten?")) return;
-
-        this.hass.callService("miner", serviceName, finalData)
-            .then(() => alert(`Befehl '${serviceName}' erfolgreich gesendet!`))
-            .catch(err => alert(`Fehler beim Senden des Befehls: ${err.message}`));
-    }
-
-    handleFormInput(e) {
-        const { name, value } = e.target;
-        this.editForm = { ...this.editForm, [name]: value };
+  async fetchBtcDifficulty() {
+    try {
+      const response = await fetch('https://mempool.space/api/v1/difficulty-adjustment');
+      const data = await response.json();
+      if (data && data.difficulty) {
+        this.btcDifficulty = data.difficulty;
         this.requestUpdate();
+      }
+    } catch (e) {
+      console.error("Failed to fetch BTC difficulty", e);
     }
+  }
 
-    setPowerLimit(entityId, value) {
-        if (!this.hass || !entityId) return;
-        this.hass.callService("number", "set_value", { entity_id: entityId, value: value })
-            .then(() => console.log(`Power Limit gesetzt: ${value}`))
-            .catch(err => alert(`Fehler beim Setzen des Power Limits: ${err.message}`));
-    }
-
-    saveForm() {
-        if (this.editingMinerId === 'new') {
-            this.config.miners.push(this.editForm);
-        } else {
-            const index = this.config.miners.findIndex(m => m.id === this.editingMinerId);
-            if (index > -1) {
-                this.config.miners[index] = this.editForm;
-            }
+  async loadConfig() {
+    try {
+      const response = await fetch('/api/openkairo_mining/data', {
+        headers: {
+          'Authorization': `Bearer ${this.hass?.auth?.token?.access_token || ''}`
         }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.config && data.config.miners) {
+          this.config = data.config;
+        } else {
+          this.config = { miners: [] };
+        }
+      }
+    } catch (error) {
+      console.error("Error loading config", error);
+    }
+  }
 
-        // Nach Priorität sortieren
-        this.config.miners.sort((a, b) => parseInt(a.priority || 99) - parseInt(b.priority || 99));
+  async saveConfig() {
+    try {
+      await fetch('/api/openkairo_mining/data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.hass?.auth?.token?.access_token || ''}`
+        },
+        body: JSON.stringify(this.config)
+      });
+      alert('Einstellungen erfolgreich gespeichert!');
+      this.editingMinerId = null; // Zurück zur Liste
+    } catch (error) {
+      console.error("Error saving config", error);
+      alert('Fehler beim Speichern der Einstellungen.');
+    }
+  }
 
-        this.saveConfig();
+  generateId() {
+    return Math.random().toString(36).substr(2, 9);
+  }
+
+  startAddMiner() {
+    this.editingMinerId = 'new';
+    this.editForm = {
+      id: this.generateId(),
+      name: 'Neuer Miner',
+      switch: '',
+      mode: 'manual',
+      priority: this.config.miners.length + 1,
+      pv_on: 1000,
+      pv_off: 500,
+      price_on: 20,
+      price_off: 25,
+      pv_sensor: '',
+      price_sensor: '',
+      image: '',
+      hashrate_sensor: '',
+      temp_sensor: '',
+      power_entity: '',
+      calc_method: 'sensor',
+      crypto_revenue_sensor: '',
+      coin_price_sensor: '',
+      power_consumption_sensor: '',
+      electricity_price_sensor: ''
+    };
+  }
+
+  startEditMiner(miner) {
+    this.editingMinerId = miner.id;
+    this.editForm = { ...miner };
+  }
+
+  deleteMiner(id) {
+    if (confirm("Möchtest du diesen Miner wirklich löschen?")) {
+      this.config.miners = this.config.miners.filter(m => m.id !== id);
+      this.saveConfig();
+    }
+  }
+
+  cancelEdit() {
+    this.editingMinerId = null;
+  }
+
+  handleImageUpload(e) {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        this.editForm = { ...this.editForm, image: event.target.result };
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  toggleMiner(entityId) {
+    if (!this.hass || !entityId) return;
+    this.hass.callService("switch", "toggle", { entity_id: entityId });
+  }
+
+  callMinerService(miner, serviceName, serviceData = {}) {
+    if (!this.hass || !miner.switch) {
+      alert("Es muss ein Schalter hinterlegt sein, um den Miner zu steuern.");
+      return;
     }
 
-    // Helper Methode um Entitäten für Dropdowns zu bekommen
-    getEntitiesByDomain(domainPrefix) {
-        if (!this.hass) return [];
+    const deviceId = this.hass.states[miner.switch]?.attributes?.device_id;
 
-        // Prüft z.B. ob entityId mit 'switch.' oder 'input_boolean.' startet (bei Arrays)
-        const prefixes = Array.isArray(domainPrefix) ? domainPrefix : [domainPrefix];
-
-        return Object.keys(this.hass.states)
-            .filter(entityId => prefixes.some(prefix => entityId.startsWith(prefix + '.')))
-            .sort()
-            .map(entityId => {
-                const stateObj = this.hass.states[entityId];
-                return {
-                    id: entityId,
-                    name: stateObj.attributes.friendly_name ? `${stateObj.attributes.friendly_name} (${entityId})` : entityId
-                };
-            });
+    if (!deviceId) {
+      alert("Konnte die zugehörige Hass-Miner Device-ID nicht finden.");
+      return;
     }
 
-    render() {
-        return html`
+    const finalData = { device_id: deviceId, ...serviceData };
+
+    if (serviceName === 'reboot' && !confirm("Möchtest du den Miner wirklich neustarten?")) return;
+    if (serviceName === 'restart_backend' && !confirm("Möchtest du das Mining (Backend) auf dem Miner wirklich neustarten?")) return;
+
+    this.hass.callService("miner", serviceName, finalData)
+      .then(() => alert(`Befehl '${serviceName}' erfolgreich gesendet!`))
+      .catch(err => alert(`Fehler beim Senden des Befehls: ${err.message}`));
+  }
+
+  handleFormInput(e) {
+    const { name, value } = e.target;
+    this.editForm = { ...this.editForm, [name]: value };
+    this.requestUpdate();
+  }
+
+  setPowerLimit(entityId, value) {
+    if (!this.hass || !entityId) return;
+    this.hass.callService("number", "set_value", { entity_id: entityId, value: value })
+      .then(() => console.log(`Power Limit gesetzt: ${value}`))
+      .catch(err => alert(`Fehler beim Setzen des Power Limits: ${err.message}`));
+  }
+
+  saveForm() {
+    if (this.editingMinerId === 'new') {
+      this.config.miners.push(this.editForm);
+    } else {
+      const index = this.config.miners.findIndex(m => m.id === this.editingMinerId);
+      if (index > -1) {
+        this.config.miners[index] = this.editForm;
+      }
+    }
+
+    // Nach Priorität sortieren
+    this.config.miners.sort((a, b) => parseInt(a.priority || 99) - parseInt(b.priority || 99));
+
+    this.saveConfig();
+  }
+
+  // Helper Methode um Entitäten für Dropdowns zu bekommen
+  getEntitiesByDomain(domainPrefix) {
+    if (!this.hass) return [];
+
+    // Prüft z.B. ob entityId mit 'switch.' oder 'input_boolean.' startet (bei Arrays)
+    const prefixes = Array.isArray(domainPrefix) ? domainPrefix : [domainPrefix];
+
+    return Object.keys(this.hass.states)
+      .filter(entityId => prefixes.some(prefix => entityId.startsWith(prefix + '.')))
+      .sort()
+      .map(entityId => {
+        const stateObj = this.hass.states[entityId];
+        return {
+          id: entityId,
+          name: stateObj.attributes.friendly_name ? `${stateObj.attributes.friendly_name} (${entityId})` : entityId
+        };
+      });
+  }
+
+  render() {
+    return html`
       <div class="header">
         <h1>₿ OpenKairo Mining ⚡</h1>
         <p class="subtitle">Intelligente Miner-Steuerung</p>
@@ -208,18 +228,18 @@ class OpenKairoMiningPanel extends LitElement {
 
       <div class="content">
         ${this.activeTab === 'dashboard' ? this.renderDashboard()
-                : this.activeTab === 'settings' ? this.renderSettings()
-                    : this.renderInfo()}
+        : this.activeTab === 'settings' ? this.renderSettings()
+          : this.renderInfo()}
       </div>
 
       <div class="footer">
         <a href="https://openkairo.de" target="_blank">powered by OpenKAIRO</a>
       </div>
     `;
-    }
+  }
 
-    renderInfo() {
-        return html`
+  renderInfo() {
+    return html`
       <div class="card">
         <h2>ℹ️ Informationen & Anleitung</h2>
         <p>Willkommen beim <strong>OpenKairo Mining</strong> Panel. Mit dieser Integration kannst du deine Miner intelligent und kosteneffizient steuern.</p>
@@ -253,64 +273,127 @@ class OpenKairoMiningPanel extends LitElement {
         </div>
       </div>
     `;
-    }
+  }
 
-    renderDashboard() {
-        if (!this.config.miners || this.config.miners.length === 0) {
-            return html`
+  renderDashboard() {
+    if (!this.config.miners || this.config.miners.length === 0) {
+      return html`
         <div class="card empty-state">
           <h2>Keine Miner konfiguriert</h2>
           <p>Wechsle zu den Einstellungen, um deinen ersten Miner hinzuzufügen.</p>
         </div>
       `;
-        }
+    }
 
-        const modeMap = {
-            'manual': 'Manuell',
-            'pv': 'PV-Überschuss',
-            'price': 'Dyn. Strompreis'
-        };
+    const modeMap = {
+      'manual': 'Manuell',
+      'pv': 'PV-Überschuss',
+      'price': 'Dyn. Strompreis'
+    };
 
-        return html`
+    return html`
       <div class="miners-grid ${this.config.miners.length === 1 ? 'single-miner' : ''}">
         ${this.config.miners.map(miner => {
-            let switchState = 'Unbekannt';
-            if (this.hass && miner.switch && this.hass.states[miner.switch]) {
-                switchState = this.hass.states[miner.switch].state;
-            }
+      let switchState = 'Unbekannt';
+      if (this.hass && miner.switch && this.hass.states[miner.switch]) {
+        switchState = this.hass.states[miner.switch].state;
+      }
 
-            let pvValue = 'N/A';
-            if (miner.mode === 'pv' && this.hass && miner.pv_sensor && this.hass.states[miner.pv_sensor]) {
-                pvValue = this.hass.states[miner.pv_sensor].state + ' W';
-            }
+      let pvValue = 'N/A';
+      if (miner.mode === 'pv' && this.hass && miner.pv_sensor && this.hass.states[miner.pv_sensor]) {
+        pvValue = this.hass.states[miner.pv_sensor].state + ' W';
+      }
 
-            let priceValue = 'N/A';
-            if (miner.mode === 'price' && this.hass && miner.price_sensor && this.hass.states[miner.price_sensor]) {
-                priceValue = this.hass.states[miner.price_sensor].state + ' ¢';
-            }
+      let priceValue = 'N/A';
+      if (miner.mode === 'price' && this.hass && miner.price_sensor && this.hass.states[miner.price_sensor]) {
+        priceValue = this.hass.states[miner.price_sensor].state + ' ¢';
+      }
 
-            let hashrateValue = '';
-            if (miner.hashrate_sensor && this.hass && this.hass.states[miner.hashrate_sensor]) {
-                const stateObj = this.hass.states[miner.hashrate_sensor];
-                hashrateValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || 'TH/s');
-            }
+      let hashrateValue = '';
+      if (miner.hashrate_sensor && this.hass && this.hass.states[miner.hashrate_sensor]) {
+        const stateObj = this.hass.states[miner.hashrate_sensor];
+        hashrateValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || 'TH/s');
+      }
 
-            let tempValue = '';
-            if (miner.temp_sensor && this.hass && this.hass.states[miner.temp_sensor]) {
-                const stateObj = this.hass.states[miner.temp_sensor];
-                tempValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || '°C');
-            }
+      let tempValue = '';
+      if (miner.temp_sensor && this.hass && this.hass.states[miner.temp_sensor]) {
+        const stateObj = this.hass.states[miner.temp_sensor];
+        tempValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || '°C');
+      }
 
-            let powerObj = null;
-            if (miner.power_entity && this.hass && this.hass.states[miner.power_entity]) {
-                powerObj = this.hass.states[miner.power_entity];
-            }
+      // Profitabilitäts-Berechnung
+      let dailyRevenue = 0;
+      let dailyCosts = 0;
+      let profit = 0;
+      let hasProfitData = false;
+      let fiatSymbol = '€';
 
-            const friendlySwitchName = this.hass && this.hass.states[miner.switch] && this.hass.states[miner.switch].attributes.friendly_name
-                ? this.hass.states[miner.switch].attributes.friendly_name
-                : miner.switch;
+      if (miner.calc_method === 'btc_auto' && miner.hashrate_sensor && miner.coin_price_sensor && this.hass && this.hass.states[miner.hashrate_sensor] && this.hass.states[miner.coin_price_sensor] && this.btcDifficulty) {
+        const hrState = this.hass.states[miner.hashrate_sensor];
+        const hrValue = parseFloat(hrState.state) || 0;
+        const priceState = this.hass.states[miner.coin_price_sensor];
+        const priceVal = parseFloat(priceState.state) || 0;
 
-            return html`
+        let hrInTH = hrValue;
+        const unit = (hrState.attributes.unit_of_measurement || 'TH/s').toUpperCase();
+        if (unit.includes('GH')) hrInTH = hrValue / 1000;
+        if (unit.includes('PH')) hrInTH = hrValue * 1000;
+
+        if (priceState.attributes.unit_of_measurement) {
+          fiatSymbol = priceState.attributes.unit_of_measurement.replace('/BTC', '').replace('/ETH', '').replace('/KAS', '').trim();
+        }
+
+        // BTC Ertrag pro Tag = (Hashrate_in_TH * 1e12 / (Difficulty * 2^32)) * 86400 * 3.125
+        const btcPerDay = (hrInTH * 1e12 / (this.btcDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
+        dailyRevenue = btcPerDay * priceVal;
+        hasProfitData = true;
+
+      } else if ((!miner.calc_method || miner.calc_method === 'sensor') && miner.crypto_revenue_sensor && miner.coin_price_sensor && this.hass && this.hass.states[miner.crypto_revenue_sensor] && this.hass.states[miner.coin_price_sensor]) {
+        const cryptoState = this.hass.states[miner.crypto_revenue_sensor];
+        const priceState = this.hass.states[miner.coin_price_sensor];
+        const cryptoVal = parseFloat(cryptoState.state) || 0;
+        const priceVal = parseFloat(priceState.state) || 0;
+
+        // If the price sensor has a recognizable unit
+        if (priceState.attributes.unit_of_measurement) {
+          fiatSymbol = priceState.attributes.unit_of_measurement.replace('/BTC', '').replace('/ETH', '').replace('/KAS', '').trim();
+        }
+
+        dailyRevenue = cryptoVal * priceVal;
+        hasProfitData = true;
+      }
+
+      if (miner.power_consumption_sensor && miner.electricity_price_sensor && this.hass && this.hass.states[miner.power_consumption_sensor] && this.hass.states[miner.electricity_price_sensor]) {
+        const watts = parseFloat(this.hass.states[miner.power_consumption_sensor].state) || 0;
+        let price = parseFloat(this.hass.states[miner.electricity_price_sensor].state) || 0;
+
+        const priceUnit = this.hass.states[miner.electricity_price_sensor].attributes.unit_of_measurement || '';
+        if (priceUnit.toLowerCase().includes('cent') || priceUnit === 'ct' || priceUnit === '¢' || price > 5) {
+          price = price / 100; // assume >5 means cents if not EUR exactly
+        }
+        if (priceUnit.includes('€') || priceUnit.includes('EUR')) { fiatSymbol = '€'; }
+        if (priceUnit.includes('$') || priceUnit.includes('USD')) { fiatSymbol = '$'; }
+
+        dailyCosts = (watts / 1000) * 24 * price;
+        hasProfitData = true;
+      }
+
+      profit = dailyRevenue - dailyCosts;
+      const profitColor = profit > 0 ? '#2ecc71' : (profit < 0 ? '#e74c3c' : '#aaa');
+      const dailyRevenueStr = dailyRevenue > 0 ? dailyRevenue.toFixed(2) : '0.00';
+      const dailyCostsStr = dailyCosts > 0 ? dailyCosts.toFixed(2) : '0.00';
+      const profitStr = hasProfitData ? profit.toFixed(2) : '';
+
+      let powerObj = null;
+      if (miner.power_entity && this.hass && this.hass.states[miner.power_entity]) {
+        powerObj = this.hass.states[miner.power_entity];
+      }
+
+      const friendlySwitchName = this.hass && this.hass.states[miner.switch] && this.hass.states[miner.switch].attributes.friendly_name
+        ? this.hass.states[miner.switch].attributes.friendly_name
+        : miner.switch;
+
+      return html`
             <div class="miner-card">
               ${miner.image ? html`<div class="miner-image" style="background-image: url('${miner.image}')"></div>` : html`<div class="miner-image placeholder">₿</div>`}
               <div class="miner-header">
@@ -370,6 +453,24 @@ class OpenKairoMiningPanel extends LitElement {
                 ` : ''}
               </div>
 
+              ${hasProfitData ? html`
+              <div class="profit-box" style="margin-top: 15px; border-radius: 8px; border: 1px solid rgba(46, 204, 113, 0.2); background: rgba(46, 204, 113, 0.05); padding: 15px;">
+                  <h4 style="margin: 0 0 10px 0; font-size: 0.9em; color: #2ecc71; text-transform: uppercase;">💰 24h Profitabilität</h4>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9em; color: #bbb;">
+                      <span>Ertrag:</span>
+                      <span style="color: #fff;">${dailyRevenueStr} ${fiatSymbol}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.9em; color: #bbb; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 5px;">
+                      <span>Stromkosten:</span>
+                      <span style="color: #e74c3c;">-${dailyCostsStr} ${fiatSymbol}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1em;">
+                      <span>Profit:</span>
+                      <span style="color: ${profitColor};">${profit > 0 ? '+' : ''}${profitStr} ${fiatSymbol}</span>
+                  </div>
+              </div>
+              ` : ''}
+
               ${(hashrateValue || tempValue) ? html`
               <div class="miner-controls" style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
                 <p style="margin: 0 0 10px 0; font-size: 0.8em; color: #888; text-transform: uppercase;">⚡ Hass-Miner Steuerung <span style="font-size: 0.8em; color: #666; text-transform: none;">(Nicht für S9)</span></p>
@@ -386,17 +487,17 @@ class OpenKairoMiningPanel extends LitElement {
               ` : ''}
             </div>
           `;
-        })}
+    })}
       </div>
     `;
+  }
+
+  renderSettings() {
+    if (this.editingMinerId) {
+      return this.renderMinerForm();
     }
 
-    renderSettings() {
-        if (this.editingMinerId) {
-            return this.renderMinerForm();
-        }
-
-        return html`
+    return html`
       <div class="card">
         <h2>🛠 Miner verwalten</h2>
         <p>Hier legst du deine ASIC oder GPU Miner an und weist ihnen Steckdosen zu.</p>
@@ -420,14 +521,14 @@ class OpenKairoMiningPanel extends LitElement {
         </div>
       </div>
     `;
-    }
+  }
 
-    renderMinerForm() {
-        const switchOptions = this.getEntitiesByDomain(['switch', 'input_boolean']);
-        const sensorOptions = this.getEntitiesByDomain('sensor');
-        const numberOptions = this.getEntitiesByDomain('number');
+  renderMinerForm() {
+    const switchOptions = this.getEntitiesByDomain(['switch', 'input_boolean']);
+    const sensorOptions = this.getEntitiesByDomain('sensor');
+    const numberOptions = this.getEntitiesByDomain('number');
 
-        return html`
+    return html`
       <div class="card edit-card">
         <h2 class="edit-title">${this.editingMinerId === 'new' ? 'Neuen Miner anlegen' : 'Miner bearbeiten'}</h2>
         
@@ -545,16 +646,70 @@ class OpenKairoMiningPanel extends LitElement {
           </div>
         ` : ''}
 
+        <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(46, 204, 113, 0.4); background: rgba(46, 204, 113, 0.05);">
+            <h3 style="color: #2ecc71; font-size: 1.1em;">💰 Profitabilitäts-Rechner (Optional)</h3>
+            <p style="color: #888; font-size: 0.85em; margin-top: -10px; margin-bottom: 20px;">
+                Berechne live den Profit deines Miners auf dem Dashboard!
+            </p>
+            <div class="form-group">
+                <label>Berechnung des Ertrags</label>
+                <select name="calc_method" @change="${this.handleFormInput}" style="background: rgba(0,0,0,0.5); border-color: #2ecc71;">
+                    <option value="sensor" ?selected="${!this.editForm.calc_method || this.editForm.calc_method === 'sensor'}">Ertrag über Sensor lesen (z.B. BTC/Tag)</option>
+                    <option value="btc_auto" ?selected="${this.editForm.calc_method === 'btc_auto'}">Live aus Hashrate berechnen (Nur Bitcoin)</option>
+                </select>
+            </div>
+            
+            <div class="form-row">
+                ${(!this.editForm.calc_method || this.editForm.calc_method === 'sensor') ? html`
+                <div class="form-group flex-1">
+                    <label>Ertrag-Sensor (z.B. BTC/Tag)</label>
+                    <select name="crypto_revenue_sensor" @change="${this.handleFormInput}">
+                    <option value="" ?selected="${!this.editForm.crypto_revenue_sensor}">-- Ertrags-Sensor wählen --</option>
+                    ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.crypto_revenue_sensor === opt.id}">${opt.name}</option>`)}
+                    </select>
+                </div>
+                ` : html`
+                <div class="form-group flex-1" style="display: flex; align-items: center;">
+                    <p style="font-size: 0.85em; color: #888; margin: 0;">Der BTC-Ertrag wird automatisch anhand deiner Hashrate und der aktuellen Network-Difficulty berechnet.</p>
+                </div>
+                `}
+                
+                <div class="form-group flex-1">
+                    <label>Coin-Preis Sensor (z.B. Fiat/BTC)</label>
+                    <select name="coin_price_sensor" @change="${this.handleFormInput}">
+                    <option value="" ?selected="${!this.editForm.coin_price_sensor}">-- Coin-Preis Sensor wählen --</option>
+                    ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.coin_price_sensor === opt.id}">${opt.name}</option>`)}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label>Stromverbrauch-Sensor (Watt)</label>
+                    <select name="power_consumption_sensor" @change="${this.handleFormInput}">
+                    <option value="" ?selected="${!this.editForm.power_consumption_sensor}">-- Watt Sensor wählen --</option>
+                    ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.power_consumption_sensor === opt.id}">${opt.name}</option>`)}
+                    </select>
+                </div>
+                <div class="form-group flex-1">
+                    <label>Strompreis-Sensor (€/kWh)</label>
+                    <select name="electricity_price_sensor" @change="${this.handleFormInput}">
+                    <option value="" ?selected="${!this.editForm.electricity_price_sensor}">-- Preis Sensor wählen --</option>
+                    ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.electricity_price_sensor === opt.id}">${opt.name}</option>`)}
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <div class="form-actions">
             <button class="btn-cancel" @click="${this.cancelEdit}">Abbrechen</button>
             <button class="btn-save" @click="${this.saveForm}">Bitcoin-Miner speichern</button>
         </div>
       </div>
     `;
-    }
+  }
 
-    static get styles() {
-        return css`
+  static get styles() {
+    return css`
       :host {
         display: block;
         padding: 30px 20px;
@@ -838,7 +993,7 @@ class OpenKairoMiningPanel extends LitElement {
         text-shadow: 0 0 15px rgba(247, 147, 26, 0.6);
       }
     `;
-    }
+  }
 }
 
 customElements.define("openkairo-mining-panel", OpenKairoMiningPanel);
