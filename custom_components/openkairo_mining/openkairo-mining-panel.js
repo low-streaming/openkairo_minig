@@ -46,10 +46,11 @@ class OpenKairoMiningPanel extends LitElement {
 
   async fetchBtcDifficulty() {
     try {
-      const response = await fetch('https://mempool.space/api/v1/difficulty-adjustment');
-      const data = await response.json();
-      if (data && data.difficulty) {
-        this.btcDifficulty = data.difficulty;
+      const response = await fetch('https://blockchain.info/q/getdifficulty');
+      const text = await response.text();
+      const diff = parseFloat(text);
+      if (diff > 0) {
+        this.btcDifficulty = diff;
         this.requestUpdate();
       }
     } catch (e) {
