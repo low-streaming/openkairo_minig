@@ -32,7 +32,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         config={
             "_panel_custom": {
                 "name": "openkairo-mining-panel",
-                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=1.0.0"
+                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=2.0.0"
             }
         },
         require_admin=True
@@ -63,10 +63,13 @@ def _load_config(hass):
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             try:
-                return json.load(f)
+                data = json.load(f)
+                if "miners" not in data: # migrate old config
+                    return {"miners": []}
+                return data
             except Exception as e:
                 _LOGGER.error(f"Error loading OpenKairo Mining config: {e}")
-    return {}
+    return {"miners": []}
 
 def _save_config(hass, data):
     path = _get_config_path(hass)
@@ -99,7 +102,7 @@ class OpenKairoMiningApiView(HomeAssistantView):
 
     async def get(self, request):
         hass = request.app["hass"]
-        config = hass.data.get(DOMAIN, {}).get("config", {})
+        config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
         from aiohttp import web
         return web.json_response({"status": "ok", "config": config})
 
@@ -116,54 +119,61 @@ async def _mining_loop(hass):
     while True:
         try:
             config = hass.data.get(DOMAIN, {}).get("config", {})
+            miners = config.get("miners", [])
             
-            pv_sensor = config.get("pv_sensor")
-            miner_switch = config.get("miner_switch")
-            mode = config.get("mode", "manual")
+            # Nach Priorität sortieren (1 = höchste Priorität)
+            sorted_miners = sorted(miners, key=lambda x: int(x.get("priority", 99)))
             
-            if mode == "pv" and pv_sensor and miner_switch:
-                pv_state = hass.states.get(pv_sensor)
-                if pv_state and pv_state.state not in ["unknown", "unavailable"]:
-                    try:
-                        pv_value = float(pv_state.state)
-                        on_threshold = float(config.get("pv_on_threshold", 1000))
-                        off_threshold = float(config.get("pv_off_threshold", 500))
-                        
-                        switch_state = hass.states.get(miner_switch)
-                        is_on = switch_state.state == "on" if switch_state else False
-                        
-                        if pv_value >= on_threshold and not is_on:
-                            _LOGGER.info(f"PV excess ({pv_value}W) >= {on_threshold}W, turning ON {miner_switch}")
-                            await hass.services.async_call("switch", "turn_on", {"entity_id": miner_switch}, blocking=False)
-                            
-                        elif pv_value <= off_threshold and is_on:
-                            _LOGGER.info(f"PV excess ({pv_value}W) <= {off_threshold}W, turning OFF {miner_switch}")
-                            await hass.services.async_call("switch", "turn_off", {"entity_id": miner_switch}, blocking=False)
-                    except ValueError:
-                        pass
-                        
-            elif mode == "price":
-                price_sensor = config.get("price_sensor")
-                if price_sensor and miner_switch:
-                    price_state = hass.states.get(price_sensor)
-                    if price_state and price_state.state not in ["unknown", "unavailable"]:
-                        try:
-                            price_value = float(price_state.state)
-                            on_threshold = float(config.get("price_on_threshold", 20))
-                            off_threshold = float(config.get("price_off_threshold", 25))
-                            
-                            switch_state = hass.states.get(miner_switch)
-                            is_on = switch_state.state == "on" if switch_state else False
-                            
-                            if price_value <= on_threshold and not is_on:
-                                _LOGGER.info(f"Price ({price_value} c/kWh) <= {on_threshold}, turning ON {miner_switch}")
-                                await hass.services.async_call("switch", "turn_on", {"entity_id": miner_switch}, blocking=False)
+            for miner in sorted_miners:
+                mode = miner.get("mode", "manual")
+                miner_switch = miner.get("switch")
+                miner_name = miner.get("name", "Unknown Miner")
+                
+                if not miner_switch:
+                    continue
+                    
+                switch_state = hass.states.get(miner_switch)
+                is_on = switch_state.state == "on" if switch_state else False
+
+                if mode == "pv":
+                    pv_sensor = miner.get("pv_sensor")
+                    if pv_sensor:
+                        pv_state = hass.states.get(pv_sensor)
+                        if pv_state and pv_state.state not in ["unknown", "unavailable"]:
+                            try:
+                                pv_value = float(pv_state.state)
+                                on_threshold = float(miner.get("pv_on", 1000))
+                                off_threshold = float(miner.get("pv_off", 500))
                                 
-                            elif price_value >= off_threshold and is_on:
-                                _LOGGER.info(f"Price ({price_value} c/kWh) >= {off_threshold}, turning OFF {miner_switch}")
-                                await hass.services.async_call("switch", "turn_off", {"entity_id": miner_switch}, blocking=False)
-                        except ValueError:
-                            pass
+                                if pv_value >= on_threshold and not is_on:
+                                    _LOGGER.info(f"[{miner_name}] PV excess ({pv_value}W) >= {on_threshold}W, turning ON {miner_switch}")
+                                    await hass.services.async_call("switch", "turn_on", {"entity_id": miner_switch}, blocking=False)
+                                    
+                                elif pv_value <= off_threshold and is_on:
+                                    _LOGGER.info(f"[{miner_name}] PV excess ({pv_value}W) <= {off_threshold}W, turning OFF {miner_switch}")
+                                    await hass.services.async_call("switch", "turn_off", {"entity_id": miner_switch}, blocking=False)
+                            except ValueError:
+                                pass
+                
+                elif mode == "price":
+                    price_sensor = miner.get("price_sensor")
+                    if price_sensor:
+                        price_state = hass.states.get(price_sensor)
+                        if price_state and price_state.state not in ["unknown", "unavailable"]:
+                            try:
+                                price_value = float(price_state.state)
+                                on_threshold = float(miner.get("price_on", 20))
+                                off_threshold = float(miner.get("price_off", 25))
+                                
+                                if price_value <= on_threshold and not is_on:
+                                    _LOGGER.info(f"[{miner_name}] Price ({price_value} c/kWh) <= {on_threshold}, turning ON {miner_switch}")
+                                    await hass.services.async_call("switch", "turn_on", {"entity_id": miner_switch}, blocking=False)
+                                    
+                                elif price_value >= off_threshold and is_on:
+                                    _LOGGER.info(f"[{miner_name}] Price ({price_value} c/kWh) >= {off_threshold}, turning OFF {miner_switch}")
+                                    await hass.services.async_call("switch", "turn_off", {"entity_id": miner_switch}, blocking=False)
+                            except ValueError:
+                                pass
                 
         except Exception as e:
             _LOGGER.error(f"Mining loop error: {e}")
