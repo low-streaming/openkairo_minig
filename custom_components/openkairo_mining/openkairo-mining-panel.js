@@ -85,7 +85,8 @@ class OpenKairoMiningPanel extends LitElement {
             price_sensor: '',
             image: '',
             hashrate_sensor: '',
-            temp_sensor: ''
+            temp_sensor: '',
+            power_entity: ''
         };
     }
 
@@ -147,6 +148,14 @@ class OpenKairoMiningPanel extends LitElement {
     handleFormInput(e) {
         const { name, value } = e.target;
         this.editForm = { ...this.editForm, [name]: value };
+        this.requestUpdate();
+    }
+
+    setPowerLimit(entityId, value) {
+        if (!this.hass || !entityId) return;
+        this.hass.callService("number", "set_value", { entity_id: entityId, value: value })
+            .then(() => console.log(`Power Limit gesetzt: ${value}`))
+            .catch(err => alert(`Fehler beim Setzen des Power Limits: ${err.message}`));
     }
 
     saveForm() {
@@ -269,23 +278,21 @@ class OpenKairoMiningPanel extends LitElement {
                 priceValue = this.hass.states[miner.price_sensor].state + ' ¢';
             }
 
-            // Lese Sensoren ab, die im Backend _mining_loop generiert werden
             let hashrateValue = '';
-            const hrSensorId = `sensor.openkairo_${miner.id}_hashrate`;
-            if (this.hass && this.hass.states[hrSensorId]) {
-                const stateObj = this.hass.states[hrSensorId];
-                if (stateObj.state && stateObj.state !== "0") {
-                    hashrateValue = stateObj.state + ' TH/s';
-                }
+            if (miner.hashrate_sensor && this.hass && this.hass.states[miner.hashrate_sensor]) {
+                const stateObj = this.hass.states[miner.hashrate_sensor];
+                hashrateValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || 'TH/s');
             }
 
             let tempValue = '';
-            const tempSensorId = `sensor.openkairo_${miner.id}_temperature`;
-            if (this.hass && this.hass.states[tempSensorId]) {
-                const stateObj = this.hass.states[tempSensorId];
-                if (stateObj.state && stateObj.state !== "0") {
-                    tempValue = stateObj.state + ' °C';
-                }
+            if (miner.temp_sensor && this.hass && this.hass.states[miner.temp_sensor]) {
+                const stateObj = this.hass.states[miner.temp_sensor];
+                tempValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || '°C');
+            }
+
+            let powerObj = null;
+            if (miner.power_entity && this.hass && this.hass.states[miner.power_entity]) {
+                powerObj = this.hass.states[miner.power_entity];
             }
 
             const friendlySwitchName = this.hass && this.hass.states[miner.switch] && this.hass.states[miner.switch].attributes.friendly_name
@@ -313,6 +320,22 @@ class OpenKairoMiningPanel extends LitElement {
               <div class="api-stats">
                   ${hashrateValue ? html`<div class="stat"><span class="lbl">Hashrate:</span> <span class="val">${hashrateValue}</span></div>` : ''}
                   ${tempValue ? html`<div class="stat"><span class="lbl">Temp:</span> <span class="val">${tempValue}</span></div>` : ''}
+              </div>
+              ` : ''}
+              
+              ${powerObj ? html`
+              <div class="power-limit-box" style="margin-top: 15px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                      <span style="font-size: 0.85em; color: #888;">Power Limit (S9/ASIC)</span>
+                      <strong style="color: #F7931A;">${powerObj.state} ${powerObj.attributes.unit_of_measurement || 'W'}</strong>
+                  </div>
+                  <input type="range" 
+                         min="${powerObj.attributes.min || 0}" 
+                         max="${powerObj.attributes.max || 100}" 
+                         step="${powerObj.attributes.step || 1}" 
+                         .value="${powerObj.state}" 
+                         @change="${(e) => this.setPowerLimit(miner.power_entity, e.target.value)}"
+                         style="width: 100%; accent-color: #F7931A; cursor: pointer;">
               </div>
               ` : ''}
               
@@ -391,6 +414,7 @@ class OpenKairoMiningPanel extends LitElement {
     renderMinerForm() {
         const switchOptions = this.getEntitiesByDomain(['switch', 'input_boolean']);
         const sensorOptions = this.getEntitiesByDomain('sensor');
+        const numberOptions = this.getEntitiesByDomain('number');
 
         return html`
       <div class="card edit-card">
@@ -417,9 +441,9 @@ class OpenKairoMiningPanel extends LitElement {
 
         <div class="form-group">
           <label>Schalter / Steckdose</label>
-          <select name="switch" .value="${this.editForm.switch || ''}" @change="${this.handleFormInput}">
-            <option value="">-- Steckdose für diesen Miner wählen --</option>
-            ${switchOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
+          <select name="switch" @change="${this.handleFormInput}">
+            <option value="" ?selected="${!this.editForm.switch}">-- Steckdose für diesen Miner wählen --</option>
+            ${switchOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.switch === opt.id}">${opt.name}</option>`)}
           </select>
           <small>Die Steckdose oder der 'hass-miner' Switch, an dem der Miner pausiert wird.</small>
         </div>
@@ -432,27 +456,35 @@ class OpenKairoMiningPanel extends LitElement {
             <div class="form-row">
                 <div class="form-group flex-1">
                     <label>Miner Hashrate-Sensor</label>
-                    <select name="hashrate_sensor" .value="${this.editForm.hashrate_sensor || ''}" @change="${this.handleFormInput}">
-                    <option value="">-- Hashrate Sensor wählen --</option>
-                    ${sensorOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
+                    <select name="hashrate_sensor" @change="${this.handleFormInput}">
+                    <option value="" ?selected="${!this.editForm.hashrate_sensor}">-- Hashrate Sensor wählen --</option>
+                    ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.hashrate_sensor === opt.id}">${opt.name}</option>`)}
                     </select>
                 </div>
                 <div class="form-group flex-1">
                     <label>Miner Temperatur-Sensor</label>
-                    <select name="temp_sensor" .value="${this.editForm.temp_sensor || ''}" @change="${this.handleFormInput}">
-                    <option value="">-- Temp Sensor wählen --</option>
-                    ${sensorOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
+                    <select name="temp_sensor" @change="${this.handleFormInput}">
+                    <option value="" ?selected="${!this.editForm.temp_sensor}">-- Temp Sensor wählen --</option>
+                    ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.temp_sensor === opt.id}">${opt.name}</option>`)}
                     </select>
                 </div>
+            </div>
+            <div class="form-group mt-3" style="width: 50%;">
+                <label>Power Limit ('number' Entität)</label>
+                <select name="power_entity" @change="${this.handleFormInput}">
+                <option value="" ?selected="${!this.editForm.power_entity}">-- Power Limit wählen --</option>
+                ${numberOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.power_entity === opt.id}">${opt.name}</option>`)}
+                </select>
+                <small>Optional: ASIC Power Limit Slider für das Dashboard aktivieren.</small>
             </div>
         </div>
 
         <div class="form-group mt-3">
           <label>Betriebsmodus</label>
-          <select class="btc-select" name="mode" .value="${this.editForm.mode}" @change="${this.handleFormInput}">
-            <option value="manual">Manuell (Nur Überwachung)</option>
-            <option value="pv">PV-Überschuss (Einspeisung)</option>
-            <option value="price">Günstiger Strompreis</option>
+          <select class="btc-select" name="mode" @change="${this.handleFormInput}">
+            <option value="manual" ?selected="${this.editForm.mode === 'manual'}">Manuell (Nur Überwachung)</option>
+            <option value="pv" ?selected="${this.editForm.mode === 'pv'}">PV-Überschuss (Einspeisung)</option>
+            <option value="price" ?selected="${this.editForm.mode === 'price'}">Günstiger Strompreis</option>
           </select>
         </div>
 
@@ -461,9 +493,9 @@ class OpenKairoMiningPanel extends LitElement {
             <h3>☀️ PV-Überschuss Steuerung</h3>
             <div class="form-group">
                 <label>PV-Sensor (Netzeinspeisung/Ertrag in Watt)</label>
-                <select name="pv_sensor" .value="${this.editForm.pv_sensor || ''}" @change="${this.handleFormInput}">
-                  <option value="">-- Einspeise-/Watt-Sensor wählen --</option>
-                  ${sensorOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
+                <select name="pv_sensor" @change="${this.handleFormInput}">
+                  <option value="" ?selected="${!this.editForm.pv_sensor}">-- Einspeise-/Watt-Sensor wählen --</option>
+                  ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.pv_sensor === opt.id}">${opt.name}</option>`)}
                 </select>
             </div>
             <div class="form-row">
@@ -484,9 +516,9 @@ class OpenKairoMiningPanel extends LitElement {
             <h3>💶 Dynamischer Strompreis Steuerung</h3>
             <div class="form-group">
                 <label>Strompreis-Sensor (z.B. Tibber, in Cent/kWh)</label>
-                <select name="price_sensor" .value="${this.editForm.price_sensor || ''}" @change="${this.handleFormInput}">
-                  <option value="">-- Preis-Sensor wählen --</option>
-                  ${sensorOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
+                <select name="price_sensor" @change="${this.handleFormInput}">
+                  <option value="" ?selected="${!this.editForm.price_sensor}">-- Preis-Sensor wählen --</option>
+                  ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.price_sensor === opt.id}">${opt.name}</option>`)}
                 </select>
             </div>
             <div class="form-row">
