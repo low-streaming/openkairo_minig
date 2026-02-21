@@ -3,6 +3,7 @@ import json
 import os
 import asyncio
 from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.const import EVENT_HOMEASSISTANT_START
 
@@ -12,16 +13,18 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_FILE = "openkairo_mining_config.json"
 
 async def async_setup(hass: HomeAssistant, config: dict):
+    return True
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     _LOGGER.info("Setting up OpenKairo Mining Integration")
     
-    hass.data.setdefault(DOMAIN, {
-        "config": _load_config(hass),
-    })
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN]["config"] = _load_config(hass)
     
     hass.components.frontend.async_register_built_in_panel(
         component_name="custom",
         sidebar_title="OpenKairo Mining",
-        sidebar_icon="mdi:pickaxe",
+        sidebar_icon="mdi:lightning-bolt",
         frontend_url_path="openkairo_mining",
         config={
             "_panel_custom": {
@@ -35,8 +38,18 @@ async def async_setup(hass: HomeAssistant, config: dict):
     hass.http.register_view(OpenKairoMiningFrontendView())
     hass.http.register_view(OpenKairoMiningApiView())
     
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, lambda event: start_mining_loop(hass))
+    if not hass.data[DOMAIN].get("loop_started"):
+        hass.data[DOMAIN]["loop_started"] = True
+        if hass.is_running:
+            hass.loop.create_task(_mining_loop(hass))
+        else:
+            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, lambda event: hass.loop.create_task(_mining_loop(hass)))
     
+    return True
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+    """Unload a config entry."""
+    hass.components.frontend.async_remove_panel("openkairo_mining")
     return True
 
 def _get_config_path(hass):
@@ -56,7 +69,8 @@ def _save_config(hass, data):
     path = _get_config_path(hass)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
-    hass.data[DOMAIN]["config"] = data
+    if DOMAIN in hass.data:
+        hass.data[DOMAIN]["config"] = data
 
 class OpenKairoMiningFrontendView(HomeAssistantView):
     url = f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js"
@@ -82,7 +96,7 @@ class OpenKairoMiningApiView(HomeAssistantView):
 
     async def get(self, request):
         hass = request.app["hass"]
-        config = hass.data[DOMAIN].get("config", {})
+        config = hass.data.get(DOMAIN, {}).get("config", {})
         from aiohttp import web
         return web.json_response({"status": "ok", "config": config})
 
@@ -94,14 +108,11 @@ class OpenKairoMiningApiView(HomeAssistantView):
         return web.json_response({"status": "success"})
 
 
-def start_mining_loop(hass):
-    hass.loop.create_task(_mining_loop(hass))
-
 async def _mining_loop(hass):
     _LOGGER.info("Starting OpenKairo Mining background loop")
     while True:
         try:
-            config = hass.data[DOMAIN].get("config", {})
+            config = hass.data.get(DOMAIN, {}).get("config", {})
             
             pv_sensor = config.get("pv_sensor")
             miner_switch = config.get("miner_switch")

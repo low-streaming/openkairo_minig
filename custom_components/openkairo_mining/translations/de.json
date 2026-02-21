@@ -1,0 +1,14 @@
+{
+    "title": "OpenKairo Mining",
+    "config": {
+        "step": {
+            "user": {
+                "title": "OpenKairo Mining Setup",
+                "description": "Erstelle die zentrale Instanz für OpenKairo Mining. Die eigentliche Konfiguration der Miner und Sensoren nimmst du danach im Dashboard-Panel in der Seitenleiste vor."
+            }
+        },
+        "abort": {
+            "single_instance_allowed": "Nur eine Instanz der OpenKairo Mining Integration ist erlaubt."
+        }
+    }
+}

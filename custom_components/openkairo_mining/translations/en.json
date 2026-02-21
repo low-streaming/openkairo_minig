@@ -1,0 +1,14 @@
+{
+    "title": "OpenKairo Mining",
+    "config": {
+        "step": {
+            "user": {
+                "title": "OpenKairo Mining Setup",
+                "description": "Create the central instance for OpenKairo Mining. The actual configuration of miners and sensors is done through the dashboard panel in the sidebar."
+            }
+        },
+        "abort": {
+            "single_instance_allowed": "Only a single instance of OpenKairo Mining is allowed."
+        }
+    }
+}
