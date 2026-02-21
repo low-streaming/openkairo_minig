@@ -84,7 +84,8 @@ class OpenKairoMiningPanel extends LitElement {
             pv_sensor: '',
             price_sensor: '',
             image: '',
-            miner_ip: ''
+            hashrate_sensor: '',
+            temp_sensor: ''
         };
     }
 
@@ -120,14 +121,26 @@ class OpenKairoMiningPanel extends LitElement {
         this.hass.callService("switch", "toggle", { entity_id: entityId });
     }
 
-    callMinerCommand(minerId, command) {
-        if (!this.hass) return;
+    callMinerService(miner, serviceName, serviceData = {}) {
+        if (!this.hass || !miner.switch) {
+            alert("Es muss ein Schalter hinterlegt sein, um den Miner zu steuern.");
+            return;
+        }
 
-        if (command === 'restart' && !confirm("Möchtest du das Mining auf diesem Gerät neustarten?")) return;
-        if (command === 'reboot' && !confirm("Möchtest du den gesamten Miner neustarten?")) return;
+        const deviceId = this.hass.states[miner.switch]?.attributes?.device_id;
 
-        this.hass.callService("openkairo_mining", "send_miner_command", { miner_id: minerId, command: command })
-            .then(() => alert(`Befehl '${command}' erfolgreich gesendet!`))
+        if (!deviceId) {
+            alert("Konnte die zugehörige Hass-Miner Device-ID nicht finden.");
+            return;
+        }
+
+        const finalData = { device_id: deviceId, ...serviceData };
+
+        if (serviceName === 'reboot' && !confirm("Möchtest du den Miner wirklich neustarten?")) return;
+        if (serviceName === 'restart_backend' && !confirm("Möchtest du das Mining (Backend) auf dem Miner wirklich neustarten?")) return;
+
+        this.hass.callService("miner", serviceName, finalData)
+            .then(() => alert(`Befehl '${serviceName}' erfolgreich gesendet!`))
             .catch(err => alert(`Fehler beim Senden des Befehls: ${err.message}`));
     }
 
@@ -325,10 +338,15 @@ class OpenKairoMiningPanel extends LitElement {
 
               ${(hashrateValue || tempValue) ? html`
               <div class="miner-controls" style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
-                <p style="margin: 0 0 10px 0; font-size: 0.8em; color: #888; text-transform: uppercase;">⚡ Miner Direkt-Steuerung</p>
+                <p style="margin: 0 0 10px 0; font-size: 0.8em; color: #888; text-transform: uppercase;">⚡ Hass-Miner Steuerung</p>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <button class="btn-control action" @click="${() => this.callMinerCommand(miner.id, 'restart')}" title="Restart Mining">🔄 Restart</button>
-                    <!-- <button class="btn-control action warn" @click="${() => this.callMinerCommand(miner.id, 'reboot')}" title="Reboot Miner">⚡ Reboot</button> -->
+                    <button class="btn-control mode-low" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'low' })}" title="Low Power Modus">LOW</button>
+                    <button class="btn-control mode-normal" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'normal' })}" title="Normaler Modus">NORM</button>
+                    <button class="btn-control mode-high" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'high' })}" title="High Power Modus">HIGH</button>
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                     <button class="btn-control action" @click="${() => this.callMinerService(miner, 'restart_backend')}" title="Restart Mining">🔄 Restart</button>
+                     <button class="btn-control action warn" @click="${() => this.callMinerService(miner, 'reboot')}" title="Reboot Miner">⚡ Reboot</button>
                 </div>
               </div>
               ` : ''}
@@ -407,14 +425,24 @@ class OpenKairoMiningPanel extends LitElement {
         </div>
 
         <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);">
-            <h3 style="color: #aaa; font-size: 1.1em;">🔌 CGMiner API Integration (Optional)</h3>
+            <h3 style="color: #aaa; font-size: 1.1em;">🔌 Hass-Miner Integration (Optional)</h3>
             <p style="color: #888; font-size: 0.85em; margin-top: -10px; margin-bottom: 20px;">
-                Trage hier die lokale IP-Adresse deines Miners (z.B. Antminer, Avalon, Braiins OS) ein. Das Dashboard verbindet sich dann alle 30 Sekunden direkt und zeigt dir die Hashrate, die Temperatur an und fügt einen "Restart" Button hinzu.
+                Wenn du die <a href="https://github.com/Schnitzel/hass-miner" target="_blank" style="color: #F7931A;">Hass-Miner</a> Integration von Schnitzel installiert hast, kannst du hier die Dashboard-Statistiken verknüpfen.
             </p>
             <div class="form-row">
                 <div class="form-group flex-1">
-                    <label>Miner IP-Adresse (z.B. 192.168.178.50)</label>
-                    <input type="text" name="miner_ip" placeholder="192.168.1.100" .value="${this.editForm.miner_ip || ''}" @input="${this.handleFormInput}">
+                    <label>Miner Hashrate-Sensor</label>
+                    <select name="hashrate_sensor" .value="${this.editForm.hashrate_sensor || ''}" @change="${this.handleFormInput}">
+                    <option value="">-- Hashrate Sensor wählen --</option>
+                    ${sensorOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
+                    </select>
+                </div>
+                <div class="form-group flex-1">
+                    <label>Miner Temperatur-Sensor</label>
+                    <select name="temp_sensor" .value="${this.editForm.temp_sensor || ''}" @change="${this.handleFormInput}">
+                    <option value="">-- Temp Sensor wählen --</option>
+                    ${sensorOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
+                    </select>
                 </div>
             </div>
         </div>
