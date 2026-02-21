@@ -82,7 +82,8 @@ class OpenKairoMiningPanel extends LitElement {
             price_on: 20,
             price_off: 25,
             pv_sensor: '',
-            price_sensor: ''
+            price_sensor: '',
+            image: ''
         };
     }
 
@@ -100,6 +101,22 @@ class OpenKairoMiningPanel extends LitElement {
 
     cancelEdit() {
         this.editingMinerId = null;
+    }
+
+    handleImageUpload(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                this.editForm = { ...this.editForm, image: event.target.result };
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    toggleMiner(entityId) {
+        if (!this.hass || !entityId) return;
+        this.hass.callService("switch", "toggle", { entity_id: entityId });
     }
 
     handleFormInput(e) {
@@ -233,6 +250,7 @@ class OpenKairoMiningPanel extends LitElement {
 
             return html`
             <div class="miner-card">
+              ${miner.image ? html`<div class="miner-image" style="background-image: url('${miner.image}')"></div>` : html`<div class="miner-image placeholder">₿</div>`}
               <div class="miner-header">
                 <h3>${miner.name}</h3>
                 <span class="prio-badge">Prio: ${miner.priority || '-'}</span>
@@ -242,6 +260,9 @@ class OpenKairoMiningPanel extends LitElement {
                 <span class="status-badge ${switchState === 'on' ? 'on' : switchState === 'off' ? 'off' : ''}">
                   ${switchState === 'on' ? 'MINING 🚀' : switchState === 'off' ? 'STANDBY 💤' : switchState}
                 </span>
+                <button class="btn-power ${switchState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner.switch)}" title="Manuell ein/ausschalten">
+                  ⏻
+                </button>
               </div>
               
               <div class="miner-details">
@@ -318,6 +339,13 @@ class OpenKairoMiningPanel extends LitElement {
               <input type="number" name="priority" .value="${this.editForm.priority}" @input="${this.handleFormInput}">
               <small>1 = Höchste Prio (startet zuerst)</small>
             </div>
+        </div>
+
+        <div class="form-group">
+          <label>Miner Bild (Optional)</label>
+          <input type="file" accept="image/*" @change="${this.handleImageUpload}" style="padding: 10px;">
+          ${this.editForm.image ? html`<div style="margin-top: 10px; max-width: 200px; border-radius: 8px; overflow: hidden; border: 1px solid #444;"><img src="${this.editForm.image}" style="width: 100%; display: block;"></div>` : ''}
+          <small>Lade ein Foto deines Miners hoch (wird lokal im Browser/Dashboard gespeichert).</small>
         </div>
 
         <div class="form-group">
@@ -480,23 +508,42 @@ class OpenKairoMiningPanel extends LitElement {
         border: 1px solid #333;
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 5px 15px rgba(0,0,0,0.3);
         transition: transform 0.2s;
+        overflow: hidden;
       }
       .miner-card:hover { border-color: #F7931A; transform: translateY(-3px); }
       .miner-card::before {
         content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
         background: linear-gradient(90deg, #F7931A, #ffd800); border-radius: 12px 12px 0 0;
+        z-index: 2;
       }
       
-      .miner-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 12px; margin-bottom: 18px; }
+      .miner-image {
+        position: absolute;
+        top: 0; right: 0; bottom: 0; left: 0;
+        background-size: cover; background-position: center;
+        opacity: 0.15; z-index: 0;
+        pointer-events: none;
+      }
+      .miner-image.placeholder {
+        display: flex; justify-content: right; align-items: end; padding: 20px;
+        font-size: 8em; color: rgba(247, 147, 26, 0.05); font-weight: bold; line-height: 1;
+      }
+      
+      .miner-header, .miner-status, .miner-details {
+        position: relative; z-index: 1;
+      }
+      
+      .miner-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 18px; }
       .miner-header h3 { margin: 0; font-size: 1.5em; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.1); }
       .prio-badge { background: rgba(247, 147, 26, 0.15); padding: 4px 10px; border-radius: 6px; font-size: 0.85em; color: #F7931A; font-weight: bold; border: 1px solid rgba(247, 147, 26, 0.4);}
       .prio-badge.small { font-size: 0.75em; padding: 2px 6px; }
       
-      .miner-status { display: flex; justify-content: center; margin-bottom: 20px; }
+      .miner-status { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; align-items: stretch; }
       .status-badge { 
         padding: 10px 20px; border-radius: 8px; font-weight: 800; 
         background: #111; color: #555; text-align: center; width: 100%; font-size: 1.2em;
         letter-spacing: 1px; border: 1px solid #222;
+        display: flex; align-items: center; justify-content: center;
       }
       .status-badge.on { 
         background: rgba(39, 174, 96, 0.1); color: #2ecc71; 
@@ -506,6 +553,15 @@ class OpenKairoMiningPanel extends LitElement {
         background: rgba(231, 76, 60, 0.1); color: #e74c3c; 
         border-color: rgba(231, 76, 60, 0.3); 
       }
+      
+      .btn-power {
+        background: #252528; border: 1px solid #444; border-radius: 8px; color: #888;
+        font-size: 1.5em; padding: 0 20px; cursor: pointer; transition: 0.3s;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .btn-power:hover { background: #333; color: #F7931A; border-color: #F7931A; }
+      .btn-power.on { color: #2ecc71; border-color: #2ecc71; background: rgba(46, 204, 113, 0.1); }
+      .btn-power.on:hover { background: rgba(46, 204, 113, 0.2); }
       
       .miner-details p { margin: 8px 0; font-size: 0.95em; color: #bbb; }
       .accent-text { color: #F7931A; font-weight: bold; }
