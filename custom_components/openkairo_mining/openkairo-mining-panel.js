@@ -83,7 +83,9 @@ class OpenKairoMiningPanel extends LitElement {
             price_off: 25,
             pv_sensor: '',
             price_sensor: '',
-            image: ''
+            image: '',
+            hashrate_sensor: '',
+            temp_sensor: ''
         };
     }
 
@@ -244,6 +246,18 @@ class OpenKairoMiningPanel extends LitElement {
                 priceValue = this.hass.states[miner.price_sensor].state + ' ¢';
             }
 
+            let hashrateValue = '';
+            if (miner.hashrate_sensor && this.hass && this.hass.states[miner.hashrate_sensor]) {
+                const stateObj = this.hass.states[miner.hashrate_sensor];
+                hashrateValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || 'TH/s');
+            }
+
+            let tempValue = '';
+            if (miner.temp_sensor && this.hass && this.hass.states[miner.temp_sensor]) {
+                const stateObj = this.hass.states[miner.temp_sensor];
+                tempValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || '°C');
+            }
+
             const friendlySwitchName = this.hass && this.hass.states[miner.switch] && this.hass.states[miner.switch].attributes.friendly_name
                 ? this.hass.states[miner.switch].attributes.friendly_name
                 : miner.switch;
@@ -264,6 +278,13 @@ class OpenKairoMiningPanel extends LitElement {
                   ⏻
                 </button>
               </div>
+              
+              ${(hashrateValue || tempValue) ? html`
+              <div class="api-stats">
+                  ${hashrateValue ? html`<div class="stat"><span class="lbl">Hashrate:</span> <span class="val">${hashrateValue}</span></div>` : ''}
+                  ${tempValue ? html`<div class="stat"><span class="lbl">Temp:</span> <span class="val">${tempValue}</span></div>` : ''}
+              </div>
+              ` : ''}
               
               <div class="miner-details">
                 <p><b>Modus:</b> <span class="accent-text">${modeMap[miner.mode] || 'Unbekannt'}</span></p>
@@ -354,7 +375,30 @@ class OpenKairoMiningPanel extends LitElement {
             <option value="">-- Steckdose für diesen Miner wählen --</option>
             ${switchOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
           </select>
-          <small>Die Steckdose (Entity), an der der Miner angeschlossen ist.</small>
+          <small>Die Steckdose oder der 'hass-miner' Switch, an dem der Miner pausiert wird.</small>
+        </div>
+
+        <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);">
+            <h3 style="color: #aaa; font-size: 1.1em;">🔌 Hass-Miner Integration (Optional)</h3>
+            <p style="color: #888; font-size: 0.85em; margin-top: -10px; margin-bottom: 20px;">
+                Wenn du die <a href="https://github.com/Schnitzel/hass-miner" target="_blank" style="color: #F7931A;">Hass-Miner</a> Integration von Schnitzel installiert hast, kannst du hier die Dashboard-Statistiken verknüpfen.
+            </p>
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label>Miner Hashrate-Sensor</label>
+                    <select name="hashrate_sensor" .value="${this.editForm.hashrate_sensor || ''}" @change="${this.handleFormInput}">
+                    <option value="">-- Hashrate Sensor wählen --</option>
+                    ${sensorOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
+                    </select>
+                </div>
+                <div class="form-group flex-1">
+                    <label>Miner Temperatur-Sensor</label>
+                    <select name="temp_sensor" .value="${this.editForm.temp_sensor || ''}" @change="${this.handleFormInput}">
+                    <option value="">-- Temp Sensor wählen --</option>
+                    ${sensorOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
+                    </select>
+                </div>
+            </div>
         </div>
 
         <div class="form-group mt-3">
@@ -579,6 +623,14 @@ class OpenKairoMiningPanel extends LitElement {
       .miner-details p { margin: 8px 0; font-size: 0.95em; color: #bbb; }
       .accent-text { color: #F7931A; font-weight: bold; }
       
+      .api-stats {
+        display: flex; gap: 10px; background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid rgba(247, 147, 26, 0.2);
+        justify-content: space-around;
+      }
+      .api-stats .stat { display: flex; flex-direction: column; align-items: center; }
+      .api-stats .lbl { font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+      .api-stats .val { font-size: 1.25em; font-weight: bold; color: #F7931A; font-family: monospace; margin-top: 3px; }
+
       .tech-box {
         background: rgba(0,0,0,0.3);
         border: 1px solid #2a2a2a;
