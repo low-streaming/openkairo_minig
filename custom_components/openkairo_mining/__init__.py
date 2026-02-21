@@ -2,6 +2,7 @@ import logging
 import json
 import os
 import asyncio
+from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.http import HomeAssistantView
@@ -47,6 +48,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             hass.loop.create_task(_mining_loop(hass))
         else:
             hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, lambda event: hass.loop.create_task(_mining_loop(hass)))
+            
+    async def handle_miner_command(call):
+        miner_id = call.data.get("miner_id")
+        command = call.data.get("command")
+        
+        config = hass.data.get(DOMAIN, {}).get("config", {})
+        for m in config.get("miners", []):
+            if m.get("id") == miner_id:
+                if m.get("miner_ip"):
+                    await async_cgminer_api(m.get("miner_ip"), 4028, command)
+                return
+    
+    hass.services.async_register(DOMAIN, "send_miner_command", handle_miner_command)
     
     return True
 
@@ -114,6 +128,32 @@ class OpenKairoMiningApiView(HomeAssistantView):
         return web.json_response({"status": "success"})
 
 
+async def async_cgminer_api(host: str, port: int, command: str) -> Any:
+    try:
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=3.0)
+        request = json.dumps({"command": command})
+        writer.write(request.encode('utf-8'))
+        await writer.drain()
+        
+        data = await asyncio.wait_for(reader.read(4096), timeout=3.0)
+        writer.close()
+        await writer.wait_closed()
+        
+        cleaned_data = data.decode('utf-8').replace('\x00', '')
+        
+        # Manchmal hängt noch etwas nach dem JSON dran, wir suchen das letzte }
+        end_idx = cleaned_data.rfind('}')
+        if end_idx != -1:
+            cleaned_data = cleaned_data[:end_idx+1]
+            try:
+                return json.loads(cleaned_data)
+            except Exception:
+                pass
+    except Exception as e:
+        _LOGGER.debug(f"CGMiner API Error ({host}): {e}")
+    return None
+
+
 async def _mining_loop(hass):
     _LOGGER.info("Starting OpenKairo Mining background loop")
     while True:
@@ -134,6 +174,33 @@ async def _mining_loop(hass):
                     
                 switch_state = hass.states.get(miner_switch)
                 is_on = switch_state.state == "on" if switch_state else False
+                
+                # Fetch Miner Stats if IP is provided
+                miner_ip = miner.get("miner_ip")
+                if miner_ip and is_on:
+                    summary = await async_cgminer_api(miner_ip, 4028, "summary")
+                    if summary and "SUMMARY" in summary and len(summary["SUMMARY"]) > 0:
+                        hashrate_ghs = summary["SUMMARY"][0].get("GHS 5s", summary["SUMMARY"][0].get("GHS av", 0))
+                        hashrate_ths = hashrate_ghs / 1000.0
+                        hass.states.async_set(f"sensor.openkairo_{miner.get('id')}_hashrate", round(hashrate_ths, 2), {"unit_of_measurement": "TH/s", "friendly_name": f"{miner_name} Hashrate", "icon": "mdi:speedometer"})
+                    else:
+                        hass.states.async_set(f"sensor.openkairo_{miner.get('id')}_hashrate", 0, {"unit_of_measurement": "TH/s", "friendly_name": f"{miner_name} Hashrate", "icon": "mdi:speedometer"})
+                        
+                    stats = await async_cgminer_api(miner_ip, 4028, "stats")
+                    if stats and "STATS" in stats and len(stats["STATS"]) > 0:
+                        temp = None
+                        for stat in stats["STATS"]:
+                            if stat.get("temp2"): temp = stat["temp2"]
+                            elif stat.get("Temp"): temp = stat["Temp"]
+                            elif stat.get("Temperature"): temp = stat["Temperature"]
+                            if temp is not None: break
+                        if temp is not None:
+                            hass.states.async_set(f"sensor.openkairo_{miner.get('id')}_temperature", temp, {"unit_of_measurement": "°C", "friendly_name": f"{miner_name} Temperatur", "icon": "mdi:thermometer"})
+
+                elif not is_on:
+                     hass.states.async_set(f"sensor.openkairo_{miner.get('id')}_hashrate", 0, {"unit_of_measurement": "TH/s", "friendly_name": f"{miner_name} Hashrate", "icon": "mdi:speedometer"})
+                     hass.states.async_set(f"sensor.openkairo_{miner.get('id')}_temperature", 0, {"unit_of_measurement": "°C", "friendly_name": f"{miner_name} Temperatur", "icon": "mdi:thermometer"})
+
 
                 if mode == "pv":
                     pv_sensor = miner.get("pv_sensor")

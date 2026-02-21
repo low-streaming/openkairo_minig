@@ -84,8 +84,7 @@ class OpenKairoMiningPanel extends LitElement {
             pv_sensor: '',
             price_sensor: '',
             image: '',
-            hashrate_sensor: '',
-            temp_sensor: ''
+            miner_ip: ''
         };
     }
 
@@ -119,6 +118,29 @@ class OpenKairoMiningPanel extends LitElement {
     toggleMiner(entityId) {
         if (!this.hass || !entityId) return;
         this.hass.callService("switch", "toggle", { entity_id: entityId });
+    }
+
+    callMinerService(miner, serviceName, serviceData = {}) {
+        if (!this.hass || !miner.switch) {
+            alert("Es muss ein Schalter hinterlegt sein, um den Miner zu steuern.");
+            return;
+        }
+
+        const deviceId = this.hass.states[miner.switch]?.attributes?.device_id;
+
+        if (!deviceId) {
+            alert("Konnte die zugehörige Hass-Miner Device-ID nicht finden.");
+            return;
+        }
+
+        const finalData = { device_id: deviceId, ...serviceData };
+
+        if (serviceName === 'reboot' && !confirm("Möchtest du den Miner wirklich neustarten?")) return;
+        if (serviceName === 'restart_backend' && !confirm("Möchtest du das Mining (Backend) auf dem Miner wirklich neustarten?")) return;
+
+        this.hass.callService("miner", serviceName, finalData)
+            .then(() => alert(`Befehl '${serviceName}' erfolgreich gesendet!`))
+            .catch(err => alert(`Fehler beim Senden des Befehls: ${err.message}`));
     }
 
     handleFormInput(e) {
@@ -246,16 +268,23 @@ class OpenKairoMiningPanel extends LitElement {
                 priceValue = this.hass.states[miner.price_sensor].state + ' ¢';
             }
 
+            // Lese Sensoren ab, die im Backend _mining_loop generiert werden
             let hashrateValue = '';
-            if (miner.hashrate_sensor && this.hass && this.hass.states[miner.hashrate_sensor]) {
-                const stateObj = this.hass.states[miner.hashrate_sensor];
-                hashrateValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || 'TH/s');
+            const hrSensorId = `sensor.openkairo_${miner.id}_hashrate`;
+            if (this.hass && this.hass.states[hrSensorId]) {
+                const stateObj = this.hass.states[hrSensorId];
+                if (stateObj.state && stateObj.state !== "0") {
+                    hashrateValue = stateObj.state + ' TH/s';
+                }
             }
 
             let tempValue = '';
-            if (miner.temp_sensor && this.hass && this.hass.states[miner.temp_sensor]) {
-                const stateObj = this.hass.states[miner.temp_sensor];
-                tempValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || '°C');
+            const tempSensorId = `sensor.openkairo_${miner.id}_temperature`;
+            if (this.hass && this.hass.states[tempSensorId]) {
+                const stateObj = this.hass.states[tempSensorId];
+                if (stateObj.state && stateObj.state !== "0") {
+                    tempValue = stateObj.state + ' °C';
+                }
             }
 
             const friendlySwitchName = this.hass && this.hass.states[miner.switch] && this.hass.states[miner.switch].attributes.friendly_name
@@ -286,6 +315,7 @@ class OpenKairoMiningPanel extends LitElement {
               </div>
               ` : ''}
               
+              
               <div class="miner-details">
                 <p><b>Modus:</b> <span class="accent-text">${modeMap[miner.mode] || 'Unbekannt'}</span></p>
                 <p><b>Dose:</b> ${friendlySwitchName || 'Nicht gesetzt'}</p>
@@ -304,6 +334,16 @@ class OpenKairoMiningPanel extends LitElement {
                   </div>
                 ` : ''}
               </div>
+
+              ${(hashrateValue || tempValue) ? html`
+              <div class="miner-controls" style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
+                <p style="margin: 0 0 10px 0; font-size: 0.8em; color: #888; text-transform: uppercase;">⚡ Miner Direkt-Steuerung</p>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn-control action" @click="${() => this.callMinerCommand(miner.id, 'restart')}" title="Restart Mining">🔄 Restart</button>
+                    <!-- <button class="btn-control action warn" @click="${() => this.callMinerCommand(miner.id, 'reboot')}" title="Reboot Miner">⚡ Reboot</button> -->
+                </div>
+              </div>
+              ` : ''}
             </div>
           `;
         })}
@@ -379,24 +419,14 @@ class OpenKairoMiningPanel extends LitElement {
         </div>
 
         <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);">
-            <h3 style="color: #aaa; font-size: 1.1em;">🔌 Hass-Miner Integration (Optional)</h3>
+            <h3 style="color: #aaa; font-size: 1.1em;">🔌 CGMiner API Integration (Optional)</h3>
             <p style="color: #888; font-size: 0.85em; margin-top: -10px; margin-bottom: 20px;">
-                Wenn du die <a href="https://github.com/Schnitzel/hass-miner" target="_blank" style="color: #F7931A;">Hass-Miner</a> Integration von Schnitzel installiert hast, kannst du hier die Dashboard-Statistiken verknüpfen.
+                Trage hier die lokale IP-Adresse deines Miners (z.B. Antminer, Avalon, Braiins OS) ein. Das Dashboard verbindet sich dann alle 30 Sekunden direkt und zeigt dir die Hashrate, die Temperatur an und fügt einen "Restart" Button hinzu.
             </p>
             <div class="form-row">
                 <div class="form-group flex-1">
-                    <label>Miner Hashrate-Sensor</label>
-                    <select name="hashrate_sensor" .value="${this.editForm.hashrate_sensor || ''}" @change="${this.handleFormInput}">
-                    <option value="">-- Hashrate Sensor wählen --</option>
-                    ${sensorOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
-                    </select>
-                </div>
-                <div class="form-group flex-1">
-                    <label>Miner Temperatur-Sensor</label>
-                    <select name="temp_sensor" .value="${this.editForm.temp_sensor || ''}" @change="${this.handleFormInput}">
-                    <option value="">-- Temp Sensor wählen --</option>
-                    ${sensorOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
-                    </select>
+                    <label>Miner IP-Adresse (z.B. 192.168.178.50)</label>
+                    <input type="text" name="miner_ip" placeholder="192.168.1.100" .value="${this.editForm.miner_ip || ''}" @input="${this.handleFormInput}">
                 </div>
             </div>
         </div>
@@ -630,6 +660,18 @@ class OpenKairoMiningPanel extends LitElement {
       .api-stats .stat { display: flex; flex-direction: column; align-items: center; }
       .api-stats .lbl { font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 1px; }
       .api-stats .val { font-size: 1.25em; font-weight: bold; color: #F7931A; font-family: monospace; margin-top: 3px; }
+
+      .btn-control {
+        background: #252528; border: 1px solid #444; border-radius: 6px; color: #ccc;
+        font-size: 0.8em; padding: 6px 12px; cursor: pointer; transition: 0.2s;
+        font-weight: bold; letter-spacing: 0.5px; flex: 1; text-align: center;
+      }
+      .btn-control:hover { filter: brightness(1.2); transform: scale(1.02); }
+      .btn-control.mode-low { border-color: #3498db; color: #3498db; }
+      .btn-control.mode-normal { border-color: #2ecc71; color: #2ecc71; }
+      .btn-control.mode-high { border-color: #e74c3c; color: #e74c3c; }
+      .btn-control.action { background: rgba(255,255,255,0.05); }
+      .btn-control.action.warn { border-color: #e67e22; color: #e67e22; }
 
       .tech-box {
         background: rgba(0,0,0,0.3);
