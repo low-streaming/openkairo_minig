@@ -120,26 +120,14 @@ class OpenKairoMiningPanel extends LitElement {
         this.hass.callService("switch", "toggle", { entity_id: entityId });
     }
 
-    callMinerService(miner, serviceName, serviceData = {}) {
-        if (!this.hass || !miner.switch) {
-            alert("Es muss ein Schalter hinterlegt sein, um den Miner zu steuern.");
-            return;
-        }
+    callMinerCommand(minerId, command) {
+        if (!this.hass) return;
 
-        const deviceId = this.hass.states[miner.switch]?.attributes?.device_id;
+        if (command === 'restart' && !confirm("Möchtest du das Mining auf diesem Gerät neustarten?")) return;
+        if (command === 'reboot' && !confirm("Möchtest du den gesamten Miner neustarten?")) return;
 
-        if (!deviceId) {
-            alert("Konnte die zugehörige Hass-Miner Device-ID nicht finden.");
-            return;
-        }
-
-        const finalData = { device_id: deviceId, ...serviceData };
-
-        if (serviceName === 'reboot' && !confirm("Möchtest du den Miner wirklich neustarten?")) return;
-        if (serviceName === 'restart_backend' && !confirm("Möchtest du das Mining (Backend) auf dem Miner wirklich neustarten?")) return;
-
-        this.hass.callService("miner", serviceName, finalData)
-            .then(() => alert(`Befehl '${serviceName}' erfolgreich gesendet!`))
+        this.hass.callService("openkairo_mining", "send_miner_command", { miner_id: minerId, command: command })
+            .then(() => alert(`Befehl '${command}' erfolgreich gesendet!`))
             .catch(err => alert(`Fehler beim Senden des Befehls: ${err.message}`));
     }
 
