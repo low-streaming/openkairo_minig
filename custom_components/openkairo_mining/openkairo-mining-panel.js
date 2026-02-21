@@ -112,7 +112,11 @@ class OpenKairoMiningPanel extends LitElement {
       pv_off: 500,
       price_on: 20,
       price_off: 25,
+      delay_minutes: 5,
       pv_sensor: '',
+      allow_battery: false,
+      battery_sensor: '',
+      battery_min_soc: 100,
       price_sensor: '',
       image: '',
       hashrate_sensor: '',
@@ -185,8 +189,8 @@ class OpenKairoMiningPanel extends LitElement {
   }
 
   handleFormInput(e) {
-    const { name, value } = e.target;
-    this.editForm = { ...this.editForm, [name]: value };
+    const { name, value, type, checked } = e.target;
+    this.editForm = { ...this.editForm, [name]: type === 'checkbox' ? checked : value };
     this.requestUpdate();
   }
 
@@ -323,6 +327,11 @@ class OpenKairoMiningPanel extends LitElement {
         pvValue = this.hass.states[miner.pv_sensor].state + ' W';
       }
 
+      let batteryValue = '';
+      if (miner.mode === 'pv' && miner.allow_battery && this.hass && miner.battery_sensor && this.hass.states[miner.battery_sensor]) {
+        batteryValue = this.hass.states[miner.battery_sensor].state + ' %';
+      }
+
       let priceValue = 'N/A';
       if (miner.mode === 'price' && this.hass && miner.price_sensor && this.hass.states[miner.price_sensor]) {
         priceValue = this.hass.states[miner.price_sensor].state + ' ¢';
@@ -383,8 +392,11 @@ class OpenKairoMiningPanel extends LitElement {
       let electricityPrice = 0;
       let hasPowerData = false;
 
-      if (miner.electricity_price_source === 'manual') {
-        electricityPrice = parseFloat(miner.electricity_price_manual) || 0;
+      if (miner.mode === 'pv') {
+        electricityPrice = 0;
+        hasPowerData = true;
+      } else if (miner.electricity_price_source === 'manual') {
+        electricityPrice = parseFloat(String(miner.electricity_price_manual).replace(',', '.')) || 0;
         hasPowerData = true;
       } else if ((!miner.electricity_price_source || miner.electricity_price_source === 'sensor') && miner.electricity_price_sensor && this.hass && this.hass.states[miner.electricity_price_sensor]) {
         const eleState = this.hass.states[miner.electricity_price_sensor];
@@ -408,7 +420,7 @@ class OpenKairoMiningPanel extends LitElement {
       profit = dailyRevenue - dailyCosts;
       const profitColor = profit > 0 ? '#2ecc71' : (profit < 0 ? '#e74c3c' : '#aaa');
       const dailyRevenueStr = dailyRevenue > 0 ? dailyRevenue.toFixed(2) : '0.00';
-      const dailyCostsStr = dailyCosts > 0 ? dailyCosts.toFixed(2) : '0.00';
+      const dailyCostsStr = miner.mode === 'pv' ? `0.00 (PV)` : (dailyCosts > 0 ? `-${dailyCosts.toFixed(2)}` : '0.00');
       const profitStr = hasProfitData ? profit.toFixed(2) : '';
 
       let powerObj = null;
@@ -468,7 +480,13 @@ class OpenKairoMiningPanel extends LitElement {
                 ${miner.mode === 'pv' ? html`
                   <div class="tech-box">
                     <p><b>Aktueller PV-Wert:</b> <span class="highlight-val">${pvValue}</span></p>
-                    <p class="small-text mt-1">Regeln: An &ge; ${miner.pv_on}W | Aus &le; ${miner.pv_off}W</p>
+                    <p class="small-text mt-1" style="margin-bottom: 8px;">Regeln: An &ge; ${miner.pv_on}W | Aus &le; ${miner.pv_off}W</p>
+                    ${miner.allow_battery ? html`
+                      <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px;">
+                          <p><b>Batterie (SOC):</b> <span class="highlight-val">${batteryValue || 'N/A'}</span></p>
+                          <p class="small-text mt-1">🔋 Unterstützung erlaubt bis min. ${miner.battery_min_soc}%</p>
+                      </div>
+                    ` : ''}
                   </div>
                 ` : ''}
 
@@ -489,7 +507,7 @@ class OpenKairoMiningPanel extends LitElement {
                   </div>
                   <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.9em; color: #bbb; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 5px;">
                       <span>Stromkosten:</span>
-                      <span style="color: #e74c3c;">-${dailyCostsStr} ${fiatSymbol}</span>
+                      <span style="color: ${miner.mode === 'pv' ? '#2ecc71' : '#e74c3c'};">${dailyCostsStr} ${miner.mode === 'pv' ? '' : fiatSymbol}</span>
                   </div>
                   <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1em;">
                       <span>Profit:</span>
@@ -639,13 +657,45 @@ class OpenKairoMiningPanel extends LitElement {
             </div>
             <div class="form-row">
                 <div class="form-group flex-1">
-                    <label>Einschalten ab (Watt)</label>
+                    <label>Einschalten ab PV-Überschuss (Watt)</label>
                     <input type="number" name="pv_on" .value="${this.editForm.pv_on}" @input="${this.handleFormInput}">
                 </div>
                 <div class="form-group flex-1">
-                    <label>Ausschalten bei (Watt)</label>
+                    <label>PV-Überschuss ignorieren ab (Watt)</label>
                     <input type="number" name="pv_off" .value="${this.editForm.pv_off}" @input="${this.handleFormInput}">
                 </div>
+            </div>
+
+            <div style="margin-top: 20px; padding: 15px; border: 1px dashed rgba(46, 204, 113, 0.3); border-radius: 8px; background: rgba(46, 204, 113, 0.05);">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #2ecc71; font-weight: bold;">
+                    <input type="checkbox" name="allow_battery" .checked="${this.editForm.allow_battery}" @change="${this.handleFormInput}" style="width: 20px; height: 20px; accent-color: #2ecc71;">
+                    🔋 Optionale Batterie-Unterstützung erlauben
+                </label>
+                
+                ${this.editForm.allow_battery ? html`
+                <div class="form-row" style="margin-top: 15px;">
+                    <div class="form-group flex-2">
+                        <label>Batterie SOC-Sensor (Ladezustand in %)</label>
+                        <select name="battery_sensor" @change="${this.handleFormInput}">
+                        <option value="" ?selected="${!this.editForm.battery_sensor}">-- Batterie % Sensor wählen --</option>
+                        ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.battery_sensor === opt.id}">${opt.name}</option>`)}
+                        </select>
+                    </div>
+                    <div class="form-group flex-1">
+                        <label>Minimale Batterieladung (%)</label>
+                        <input type="number" min="0" max="100" name="battery_min_soc" .value="${this.editForm.battery_min_soc || 100}" @input="${this.handleFormInput}">
+                        <small>Miner läuft, solange Batterie ≥ diesem Wert.</small>
+                    </div>
+                </div>
+                ` : html`
+                <p style="margin: 8px 0 0 30px; font-size: 0.85em; color: #888;">Schaltet den Miner auch bei zu wenig PV-Überschuss ein, solange die Batterie noch genügend (z.B. ≥ 95%) geladen ist.</p>
+                `}
+            </div>
+
+            <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <label>Verzögerung (Hysterese in Minuten)</label>
+                <input type="number" min="0" step="1" name="delay_minutes" .value="${this.editForm.delay_minutes !== undefined ? this.editForm.delay_minutes : 5}" @input="${this.handleFormInput}">
+                <small>Verhindert ständiges An/Aus, z.B. bei kurzen Wolken. Miner schaltet erst nach X Minuten.</small>
             </div>
           </div>
         ` : ''}
@@ -669,6 +719,12 @@ class OpenKairoMiningPanel extends LitElement {
                     <label>Ausschalten über (Cent)</label>
                     <input type="number" step="0.1" name="price_off" .value="${this.editForm.price_off}" @input="${this.handleFormInput}">
                 </div>
+            </div>
+
+            <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <label>Verzögerung (Hysterese in Minuten)</label>
+                <input type="number" min="0" step="1" name="delay_minutes" .value="${this.editForm.delay_minutes !== undefined ? this.editForm.delay_minutes : 5}" @input="${this.handleFormInput}">
+                <small>Miner schaltet erst nach X Minuten ununterbrochener Einhaltung der Schwelle.</small>
             </div>
           </div>
         ` : ''}
@@ -741,7 +797,7 @@ class OpenKairoMiningPanel extends LitElement {
                 ${this.editForm.electricity_price_source === 'manual' ? html`
                 <div class="form-group flex-1">
                     <label>Fester Strompreis (€ / kWh)</label>
-                    <input type="number" step="0.01" name="electricity_price_manual" .value="${this.editForm.electricity_price_manual || 0.30}" @input="${this.handleFormInput}">
+                    <input type="number" step="0.001" name="electricity_price_manual" .value="${this.editForm.electricity_price_manual}" @input="${this.handleFormInput}">
                 </div>
                 ` : html`
                 <div class="form-group flex-1">

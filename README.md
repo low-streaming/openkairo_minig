@@ -7,7 +7,7 @@ Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intellig
 
 ## Features
 - **Eigenes Dashboard-Panel** in der Seitenleiste zur einfachen Konfiguration und Überwachung.
-- **PV-Überschuss-Steuerung:** Miner (bzw. deren smarte Steckdose) automatisch bei genügend Netzeinspeisung einschalten.
+- **PV-Überschuss-Steuerung (inkl. Batterie-Support):** Miner (bzw. deren smarte Steckdose) automatisch bei genügend Netzeinspeisung einschalten. Optional kann die Batterie (SOC) berücksichtigt werden, um Wartezeiten zu überbrücken.
 - **Strompreis-Steuerung:** Miner automatisch bei günstigen Strompreisen (z.B. Tibber, aWATTar) einschalten.
 - **Erweiterte Hass-Miner Integration:** 
   - Verknüpfe Sensoren (Hashrate, Temperatur), die direkt und optisch ansprechend auf der Dashboard-Karte deines Miners angezeigt werden.
