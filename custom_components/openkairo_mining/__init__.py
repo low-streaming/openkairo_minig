@@ -12,6 +12,8 @@ _LOGGER = logging.getLogger(__name__)
 
 CONFIG_FILE = "openkairo_mining_config.json"
 
+from homeassistant.components.frontend import async_register_built_in_panel, async_remove_panel
+
 async def async_setup(hass: HomeAssistant, config: dict):
     return True
 
@@ -21,7 +23,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN]["config"] = _load_config(hass)
     
-    hass.components.frontend.async_register_built_in_panel(
+    async_register_built_in_panel(
+        hass,
         component_name="custom",
         sidebar_title="OpenKairo Mining",
         sidebar_icon="mdi:lightning-bolt",
@@ -49,7 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
-    hass.components.frontend.async_remove_panel("openkairo_mining")
+    async_remove_panel(hass, "openkairo_mining")
     return True
 
 def _get_config_path(hass):
