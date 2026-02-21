@@ -39,7 +39,7 @@ Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intellig
 Wir haben noch einiges vor! Hier sind einige der Features, die wir für zukünftige Updates planen:
 - [ ] **Stufenloses Power-Limit (PV-Abhängig):** Automatische Anpassung der Miner-Leistung passend zum exakten Überschuss, nicht nur An/Aus.
 - [ ] **Erweiterte Alarmierungen:** Native Benachrichtigungen bei zu hoher Temperatur oder wenn die Hashrate droppt.
-- [ ] **Grafiken & Historien:** Schönere und integrierte Graphen direkt im OpenKairo Mining Panel (Vergleich Stromverbrauch vs. Hashrate).
+- [x] **Grafiken & Historien:** Eigener Statistiken-Tab für perfekten Überblick und Schnell-Zugriff auf die 24h-Graphen.
 - [ ] **Unterstützung für weitere Systeme:** Bessere Integration für HiveOS, ASIC Hub etc.
 
 ---

@@ -245,14 +245,16 @@ class OpenKairoMiningPanel extends LitElement {
 
       <div class="tabs">
         <div class="tab ${this.activeTab === 'dashboard' ? 'active' : ''}" @click="${() => { this.activeTab = 'dashboard'; this.editingMinerId = null; }}">Dashboard</div>
+        <div class="tab ${this.activeTab === 'statistics' ? 'active' : ''}" @click="${() => { this.activeTab = 'statistics'; this.editingMinerId = null; }}">Statistiken & Graphen</div>
         <div class="tab ${this.activeTab === 'settings' ? 'active' : ''}" @click="${() => { this.activeTab = 'settings'; this.editingMinerId = null; }}">Einstellungen & Miner verwalten</div>
         <div class="tab ${this.activeTab === 'info' ? 'active' : ''}" @click="${() => { this.activeTab = 'info'; this.editingMinerId = null; }}">Info & Hilfe</div>
       </div>
 
       <div class="content">
-        ${this.activeTab === 'dashboard' ? this.renderDashboard()
-        : this.activeTab === 'settings' ? this.renderSettings()
-          : this.renderInfo()}
+        ${this.activeTab === 'dashboard' ? this.renderDashboard() : ''}
+        ${this.activeTab === 'statistics' ? this.renderStatistics() : ''}
+        ${this.activeTab === 'settings' ? this.renderSettings() : ''}
+        ${this.activeTab === 'info' ? this.renderInfo() : ''}
       </div>
 
       <div class="footer">
@@ -814,6 +816,80 @@ class OpenKairoMiningPanel extends LitElement {
         <div class="form-actions">
             <button class="btn-cancel" @click="${this.cancelEdit}">Abbrechen</button>
             <button class="btn-save" @click="${this.saveForm}">Bitcoin-Miner speichern</button>
+        </div>
+      </div>
+    `;
+  }
+
+  showMoreInfo(entityId) {
+    if (!entityId) return;
+    const event = new Event('hass-more-info', { bubbles: true, composed: true });
+    event.detail = { entityId: entityId };
+    this.dispatchEvent(event);
+  }
+
+  renderStatistics() {
+    return html`
+      <div class="card">
+        <h2>📊 Statistiken & Graphen</h2>
+        <p>Übersicht über den Stromverbrauch und die Hashrate deiner Miner im zeitlichen Verlauf.</p>
+        
+        <div class="dashboard-grid" style="margin-top: 20px;">
+          ${this.config.miners && this.config.miners.length > 0 ? this.config.miners.map(miner => html`
+            <div class="miner-card">
+              <div class="miner-header" style="border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 15px; margin-bottom: 15px;">
+                <h3>${miner.name}</h3>
+              </div>
+              
+              ${miner.hashrate_sensor || miner.power_consumption_sensor ? html`
+                  <div class="chart-box" style="text-align: center;">
+                      <p style="color: #888; font-size: 0.9em; margin-bottom: 15px;">Klicke auf die Buttons, um detaillierte Home Assistant Verlaufsgraphen (24h Historie) dieses Miners zu öffnen.</p>
+                      
+                      <div style="display: flex; flex-direction: column; gap: 10px;">
+                          ${miner.power_consumption_sensor ? html`
+                            <button class="btn-primary" style="background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid #2ecc71;" @click="${() => this.showMoreInfo(miner.power_consumption_sensor)}">
+                                ⚡ Graph: Stromverbrauch (Watt) anzeigen
+                            </button>
+                          ` : ''}
+                          ${miner.hashrate_sensor ? html`
+                            <button class="btn-primary" style="background: rgba(247, 147, 26, 0.2); color: #F7931A; border: 1px solid #F7931A;" @click="${() => this.showMoreInfo(miner.hashrate_sensor)}">
+                                ⛏️ Graph: Hashrate anzeigen
+                            </button>
+                          ` : ''}
+                          ${miner.temp_sensor ? html`
+                            <button class="btn-primary" style="background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid #e74c3c;" @click="${() => this.showMoreInfo(miner.temp_sensor)}">
+                                🌡️ Graph: Temperatur anzeigen
+                            </button>
+                          ` : ''}
+                      </div>
+
+                      <div style="margin-top: 20px; text-align: left; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 8px;">
+                        <h4 style="margin: 0 0 10px 0; color: #F7931A; font-size: 0.9em; text-transform: uppercase;">Auszug aktueller Werte</h4>
+                        <table style="width: 100%; font-size: 0.9em; color: #ccc;">
+                            <tr>
+                                <td style="padding: 4px 0;">Watt:</td>
+                                <td style="text-align: right; font-weight: bold;">
+                                  ${miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]
+          ? this.hass.states[miner.power_consumption_sensor].state + ' ' + (this.hass.states[miner.power_consumption_sensor].attributes.unit_of_measurement || 'W')
+          : '-'}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0;">Hashrate:</td>
+                                <td style="text-align: right; font-weight: bold;">
+                                  ${miner.hashrate_sensor && this.hass && this.hass.states[miner.hashrate_sensor]
+          ? this.hass.states[miner.hashrate_sensor].state + ' ' + (this.hass.states[miner.hashrate_sensor].attributes.unit_of_measurement || 'TH/s')
+          : '-'}
+                                </td>
+                            </tr>
+                        </table>
+                      </div>
+                  </div>
+              ` : html`
+                  <p style="color: #888; text-align: center; margin-top: 20px;">Keine Hashrate- oder Watt-Sensoren für diesen Miner konfiguriert. Füge diese in den Einstellungen hinzu, um Statistiken zu sehen.</p>
+              `}
+            </div>
+          `) : html`<p class="empty-text">Noch keine Miner vorhanden.</p>`}
         </div>
       </div>
     `;
