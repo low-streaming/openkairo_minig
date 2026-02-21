@@ -233,6 +233,17 @@ class OpenKairoMiningPanel extends LitElement {
           </ul>
         </div>
 
+        <div class="tech-box" style="margin-top: 15px;">
+          <h3 style="margin-top:0; color:#F7931A;">🔌 Erweiterte Miner-Steuerung (Hass-Miner):</h3>
+          <p style="color:#bbb; line-height:1.6; margin-top: 5px;">Nutzt du die <strong>hass-miner</strong> Integration, bietet OpenKairo dir erweiterte Live-Funktionen direkt auf dem Dashboard:</p>
+          <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
+            <li><strong style="color:#ddd;">Live-Daten:</strong> Wähle Hashrate- und Temperatur-Sensoren aus, um diese direkt auf der Miner-Karte anzuzeigen.</li>
+            <li><strong style="color:#ddd;">ASIC Power Limit:</strong> Hinterlege einen 'number' Sensor (z.B. für deinen Antminer S9), um das maximale Watt-Limit live über einen Slider auf dem Dashboard anzupassen!</li>
+            <li><strong style="color:#ddd;">Modus-Steuerung:</strong> Steuere kompatible ASIC-Miner (z.B. IceRiver KS0) direkt per Knopfdruck in den Low, Normal oder High Modus.</li>
+            <li><strong style="color:#ddd;">Restart & Reboot:</strong> Starte den Mining-Prozess oder das gesamte Gerät remote neu.</li>
+          </ul>
+        </div>
+
         <div class="tech-box" style="margin-top: 25px; text-align: center; border-color: rgba(247, 147, 26, 0.4); background: rgba(247, 147, 26, 0.05);">
           <h3 style="margin-top:0; color:#fff;">☕ Unterstütze das Projekt</h3>
           <p style="color:#bbb; margin-bottom: 25px;">Wenn dir diese Integration dabei hilft, die Kosten deiner Miner zu senken, würde ich mich über eine Kaffee-Spende für die Entwicklung sehr freuen!</p>
