@@ -95,7 +95,7 @@ class OpenKairoMiningFrontendView(HomeAssistantView):
 class OpenKairoMiningApiView(HomeAssistantView):
     url = f"/api/{DOMAIN}/data"
     name = f"api:{DOMAIN}:data"
-    requires_auth = True
+    requires_auth = False
 
     async def get(self, request):
         hass = request.app["hass"]
