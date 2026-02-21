@@ -22,6 +22,8 @@ class OpenKairoMiningPanel extends LitElement {
     this.editingMinerId = null;
     this.editForm = {};
     this.btcDifficulty = null;
+    this.historyData = {};
+    this.fetchingHistory = {};
   }
 
   firstUpdated() {
@@ -55,6 +57,28 @@ class OpenKairoMiningPanel extends LitElement {
       }
     } catch (e) {
       console.error("Failed to fetch BTC difficulty", e);
+    }
+  }
+
+  async fetchHistoryData(entityId) {
+    if (!this.hass || !entityId) return;
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const startStr = yesterday.toISOString();
+
+    try {
+      const response = await this.hass.callApi('GET', `history/period/${startStr}?filter_entity_id=${entityId}&minimal_response`);
+      if (response && response.length > 0) {
+        this.historyData = { ...this.historyData, [entityId]: response[0] };
+        this.requestUpdate();
+      } else {
+        this.historyData = { ...this.historyData, [entityId]: [] };
+        this.requestUpdate();
+      }
+    } catch (e) {
+      console.error("Failed to fetch history for " + entityId, e);
+      this.historyData = { ...this.historyData, [entityId]: [] };
+      this.requestUpdate();
     }
   }
 
@@ -843,53 +867,113 @@ class OpenKairoMiningPanel extends LitElement {
               
               ${miner.hashrate_sensor || miner.power_consumption_sensor ? html`
                   <div class="chart-box" style="text-align: center;">
-                      <p style="color: #888; font-size: 0.9em; margin-bottom: 15px;">Klicke auf die Buttons, um detaillierte Home Assistant Verlaufsgraphen (24h Historie) dieses Miners zu öffnen.</p>
-                      
                       <div style="display: flex; flex-direction: column; gap: 10px;">
-                          ${miner.power_consumption_sensor ? html`
-                            <button class="btn-primary" style="background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid #2ecc71;" @click="${() => this.showMoreInfo(miner.power_consumption_sensor)}">
-                                ⚡ Graph: Stromverbrauch (Watt) anzeigen
-                            </button>
-                          ` : ''}
-                          ${miner.hashrate_sensor ? html`
-                            <button class="btn-primary" style="background: rgba(247, 147, 26, 0.2); color: #F7931A; border: 1px solid #F7931A;" @click="${() => this.showMoreInfo(miner.hashrate_sensor)}">
-                                ⛏️ Graph: Hashrate anzeigen
-                            </button>
-                          ` : ''}
-                          ${miner.temp_sensor ? html`
-                            <button class="btn-primary" style="background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid #e74c3c;" @click="${() => this.showMoreInfo(miner.temp_sensor)}">
-                                🌡️ Graph: Temperatur anzeigen
-                            </button>
-                          ` : ''}
+                          ${miner.power_consumption_sensor ? this.renderChart(miner.power_consumption_sensor, '#2ecc71', '⚡ Stromverbrauch', this.hass?.states[miner.power_consumption_sensor]?.attributes?.unit_of_measurement || 'W') : ''}
+                          ${miner.hashrate_sensor ? this.renderChart(miner.hashrate_sensor, '#F7931A', '⛏️ Hashrate', this.hass?.states[miner.hashrate_sensor]?.attributes?.unit_of_measurement || 'TH/s') : ''}
+                          ${miner.temp_sensor ? this.renderChart(miner.temp_sensor, '#e74c3c', '🌡️ Temperatur', this.hass?.states[miner.temp_sensor]?.attributes?.unit_of_measurement || '°C') : ''}
                       </div>
 
                       <div style="margin-top: 20px; text-align: left; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 8px;">
-                        <h4 style="margin: 0 0 10px 0; color: #F7931A; font-size: 0.9em; text-transform: uppercase;">Auszug aktueller Werte</h4>
-                        <table style="width: 100%; font-size: 0.9em; color: #ccc;">
-                            <tr>
-                                <td style="padding: 4px 0;">Watt:</td>
-                                <td style="text-align: right; font-weight: bold;">
-                                  ${miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]
-          ? this.hass.states[miner.power_consumption_sensor].state + ' ' + (this.hass.states[miner.power_consumption_sensor].attributes.unit_of_measurement || 'W')
-          : '-'}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 4px 0;">Hashrate:</td>
-                                <td style="text-align: right; font-weight: bold;">
-                                  ${miner.hashrate_sensor && this.hass && this.hass.states[miner.hashrate_sensor]
-          ? this.hass.states[miner.hashrate_sensor].state + ' ' + (this.hass.states[miner.hashrate_sensor].attributes.unit_of_measurement || 'TH/s')
-          : '-'}
-                                </td>
-                            </tr>
-                        </table>
+                        <h4 style="margin: 0; color: #888; font-size: 0.85em;">Klicke auf einen Graphen, um die detaillierte Ansicht von Home Assistant zu öffnen.</h4>
                       </div>
                   </div>
               ` : html`
-                  <p style="color: #888; text-align: center; margin-top: 20px;">Keine Hashrate- oder Watt-Sensoren für diesen Miner konfiguriert. Füge diese in den Einstellungen hinzu, um Statistiken zu sehen.</p>
+                  <p style="color: #888; text-align: center; margin-top: 20px;">Keine Sensoren für diesen Miner konfiguriert. Füge diese in den Einstellungen hinzu, um Statistiken zu sehen.</p>
               `}
             </div>
           `) : html`<p class="empty-text">Noch keine Miner vorhanden.</p>`}
+        </div>
+      </div>
+    `;
+  }
+
+  renderChart(entityId, colorHex, label, unit) {
+    if (!this.historyData[entityId] && !this.fetchingHistory[entityId]) {
+      this.fetchingHistory[entityId] = true;
+      this.fetchHistoryData(entityId);
+      return html`<div style="height: 150px; display: flex; align-items: center; justify-content: center; color: #888; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 15px;">Lade ${label}...</div>`;
+    }
+
+    const data = this.historyData[entityId];
+    if (!data || data.length === 0) {
+      const currentState = this.hass && this.hass.states[entityId] ? this.hass.states[entityId].state : '-';
+      return html`
+        <div style="margin-bottom: 20px; text-align: left; cursor: pointer;" @click="${() => this.showMoreInfo(entityId)}">
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px;">
+              <h4 style="color: ${colorHex}; margin: 0; font-size: 1.0em; text-transform: uppercase;">${label}</h4>
+              <span style="color: #fff; font-size: 1.1em; font-weight: bold;">${currentState} ${unit}</span>
+          </div>
+          <div style="height: 120px; display: flex; align-items: center; justify-content: center; color: #888; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">Keine Verlaufsdaten für ${label} gefunden.</div>
+        </div>
+      `;
+    }
+
+    const validData = data.filter(d => !isNaN(parseFloat(d.state)));
+    if (validData.length === 0) {
+      const currentState = this.hass && this.hass.states[entityId] ? this.hass.states[entityId].state : '-';
+      return html`
+        <div style="margin-bottom: 20px; text-align: left; cursor: pointer;" @click="${() => this.showMoreInfo(entityId)}">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px;">
+                <h4 style="color: ${colorHex}; margin: 0; font-size: 1.0em; text-transform: uppercase;">${label}</h4>
+                <span style="color: #fff; font-size: 1.1em; font-weight: bold;">${currentState}</span>
+            </div>
+            <div style="height: 120px; display: flex; align-items: center; justify-content: center; color: #888; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">Keine numerischen Daten für ${label} gefunden.</div>
+        </div>
+      `;
+    }
+
+    const values = validData.map(d => parseFloat(d.state));
+    const times = validData.map(d => new Date(d.last_changed).getTime());
+
+    const minVal = Math.min(...values);
+    let maxVal = Math.max(...values);
+    if (minVal === maxVal) maxVal = minVal + 1; // Unendlichkeit vermeiden
+    const minTime = Math.min(...times);
+    let maxTime = Math.max(...times);
+    if (minTime === maxTime) maxTime = minTime + 1000;
+
+    const rangeY = maxVal - minVal;
+    const rangeX = maxTime - minTime;
+
+    const width = 600;
+    const height = 120;
+    const padding = 20;
+
+    const points = validData.map(d => {
+      const x = ((new Date(d.last_changed).getTime() - minTime) / rangeX) * width;
+      const y = height - (((parseFloat(d.state) - minVal) / rangeY) * height);
+      return `${x},${y}`;
+    });
+
+    const pathData = `M ${points[0]} L ${points.join(' L ')}`;
+    const fillPathData = `M ${points[0].split(',')[0]},${height} L ${points.join(' L ')} L ${points[points.length - 1].split(',')[0]},${height} Z`;
+    const safeId = entityId.replace(/\./g, '_');
+
+    return html`
+      <div style="margin-bottom: 20px; text-align: left; cursor: pointer;" @click="${() => this.showMoreInfo(entityId)}">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px;">
+            <h4 style="color: ${colorHex}; margin: 0; font-size: 1.0em; text-transform: uppercase;">${label}</h4>
+            <span style="color: #fff; font-size: 1.1em; font-weight: bold;">
+                ${validData[validData.length - 1].state} ${unit}
+            </span>
+        </div>
+        <div style="position: relative; height: ${height + padding * 2}px; border-radius: 8px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); overflow: hidden;">
+          <svg viewBox="0 -${padding} ${width} ${height + padding * 2}" preserveAspectRatio="none" style="width: 100%; height: 100%; display: block;">
+             <defs>
+               <linearGradient id="grad_${safeId}" x1="0%" y1="0%" x2="0%" y2="100%">
+                 <stop offset="0%" style="stop-color:${colorHex};stop-opacity:0.4" />
+                 <stop offset="100%" style="stop-color:${colorHex};stop-opacity:0.0" />
+               </linearGradient>
+             </defs>
+             <path d="${fillPathData}" fill="url(#grad_${safeId})" />
+             <path d="${pathData}" fill="none" stroke="${colorHex}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
+          </svg>
+          <div style="position: absolute; top: 10px; left: 10px; color: rgba(255,255,255,0.8); font-size: 0.8em; font-weight: bold;">
+             MAX: ${maxVal.toFixed(2)}
+          </div>
+          <div style="position: absolute; bottom: 10px; left: 10px; color: rgba(255,255,255,0.4); font-size: 0.8em;">
+             MIN: ${minVal.toFixed(2)}
+          </div>
         </div>
       </div>
     `;
