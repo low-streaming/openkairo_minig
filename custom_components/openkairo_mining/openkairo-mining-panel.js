@@ -27,6 +27,21 @@ class OpenKairoMiningPanel extends LitElement {
   firstUpdated() {
     this.loadConfig();
     this.fetchBtcDifficulty();
+    this.fetchBtcPrice();
+  }
+
+  async fetchBtcPrice() {
+    try {
+      const response = await fetch('https://mempool.space/api/v1/prices');
+      const data = await response.json();
+      if (data && data.EUR) {
+        this.btcPriceEur = data.EUR;
+        this.btcPriceUsd = data.USD;
+        this.requestUpdate();
+      }
+    } catch (e) {
+      console.error("Failed to fetch BTC price", e);
+    }
   }
 
   async fetchBtcDifficulty() {
@@ -103,6 +118,9 @@ class OpenKairoMiningPanel extends LitElement {
       temp_sensor: '',
       power_entity: '',
       calc_method: 'sensor',
+      coin_price_source: 'sensor',
+      electricity_price_source: 'sensor',
+      electricity_price_manual: 0.30,
       crypto_revenue_sensor: '',
       coin_price_sensor: '',
       power_consumption_sensor: '',
@@ -327,55 +345,63 @@ class OpenKairoMiningPanel extends LitElement {
       let profit = 0;
       let hasProfitData = false;
       let fiatSymbol = '€';
+      let currentCoinPrice = 0;
 
-      if (miner.calc_method === 'btc_auto' && miner.hashrate_sensor && miner.coin_price_sensor && this.hass && this.hass.states[miner.hashrate_sensor] && this.hass.states[miner.coin_price_sensor] && this.btcDifficulty) {
+      if (miner.coin_price_source === 'api' && this.btcPriceEur) {
+        currentCoinPrice = this.btcPriceEur;
+        fiatSymbol = '€';
+      } else if ((!miner.coin_price_source || miner.coin_price_source === 'sensor') && miner.coin_price_sensor && this.hass && this.hass.states[miner.coin_price_sensor]) {
+        const priceState = this.hass.states[miner.coin_price_sensor];
+        currentCoinPrice = parseFloat(priceState.state) || 0;
+        if (priceState.attributes.unit_of_measurement) {
+          fiatSymbol = priceState.attributes.unit_of_measurement.replace('/BTC', '').replace('/ETH', '').replace('/KAS', '').trim();
+        }
+      }
+
+      if (miner.calc_method === 'btc_auto' && miner.hashrate_sensor && currentCoinPrice > 0 && this.hass && this.hass.states[miner.hashrate_sensor] && this.btcDifficulty) {
         const hrState = this.hass.states[miner.hashrate_sensor];
         const hrValue = parseFloat(hrState.state) || 0;
-        const priceState = this.hass.states[miner.coin_price_sensor];
-        const priceVal = parseFloat(priceState.state) || 0;
 
         let hrInTH = hrValue;
         const unit = (hrState.attributes.unit_of_measurement || 'TH/s').toUpperCase();
         if (unit.includes('GH')) hrInTH = hrValue / 1000;
         if (unit.includes('PH')) hrInTH = hrValue * 1000;
 
-        if (priceState.attributes.unit_of_measurement) {
-          fiatSymbol = priceState.attributes.unit_of_measurement.replace('/BTC', '').replace('/ETH', '').replace('/KAS', '').trim();
-        }
-
-        // BTC Ertrag pro Tag = (Hashrate_in_TH * 1e12 / (Difficulty * 2^32)) * 86400 * 3.125
+        // BTC Ertrag pro Tag
         const btcPerDay = (hrInTH * 1e12 / (this.btcDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
-        dailyRevenue = btcPerDay * priceVal;
+        dailyRevenue = btcPerDay * currentCoinPrice;
         hasProfitData = true;
 
-      } else if ((!miner.calc_method || miner.calc_method === 'sensor') && miner.crypto_revenue_sensor && miner.coin_price_sensor && this.hass && this.hass.states[miner.crypto_revenue_sensor] && this.hass.states[miner.coin_price_sensor]) {
+      } else if ((!miner.calc_method || miner.calc_method === 'sensor') && miner.crypto_revenue_sensor && currentCoinPrice > 0 && this.hass && this.hass.states[miner.crypto_revenue_sensor]) {
         const cryptoState = this.hass.states[miner.crypto_revenue_sensor];
-        const priceState = this.hass.states[miner.coin_price_sensor];
         const cryptoVal = parseFloat(cryptoState.state) || 0;
-        const priceVal = parseFloat(priceState.state) || 0;
-
-        // If the price sensor has a recognizable unit
-        if (priceState.attributes.unit_of_measurement) {
-          fiatSymbol = priceState.attributes.unit_of_measurement.replace('/BTC', '').replace('/ETH', '').replace('/KAS', '').trim();
-        }
-
-        dailyRevenue = cryptoVal * priceVal;
+        dailyRevenue = cryptoVal * currentCoinPrice;
         hasProfitData = true;
       }
 
-      if (miner.power_consumption_sensor && miner.electricity_price_sensor && this.hass && this.hass.states[miner.power_consumption_sensor] && this.hass.states[miner.electricity_price_sensor]) {
-        const watts = parseFloat(this.hass.states[miner.power_consumption_sensor].state) || 0;
-        let price = parseFloat(this.hass.states[miner.electricity_price_sensor].state) || 0;
+      let electricityPrice = 0;
+      let hasPowerData = false;
 
-        const priceUnit = this.hass.states[miner.electricity_price_sensor].attributes.unit_of_measurement || '';
-        if (priceUnit.toLowerCase().includes('cent') || priceUnit === 'ct' || priceUnit === '¢' || price > 5) {
-          price = price / 100; // assume >5 means cents if not EUR exactly
+      if (miner.electricity_price_source === 'manual') {
+        electricityPrice = parseFloat(miner.electricity_price_manual) || 0;
+        hasPowerData = true;
+      } else if ((!miner.electricity_price_source || miner.electricity_price_source === 'sensor') && miner.electricity_price_sensor && this.hass && this.hass.states[miner.electricity_price_sensor]) {
+        const eleState = this.hass.states[miner.electricity_price_sensor];
+        electricityPrice = parseFloat(eleState.state) || 0;
+        const priceUnit = eleState.attributes.unit_of_measurement || '';
+        if (priceUnit.toLowerCase().includes('cent') || priceUnit === 'ct' || priceUnit === '¢' || electricityPrice > 5) {
+          electricityPrice = electricityPrice / 100; // assume >5 means cents if not EUR exactly
         }
         if (priceUnit.includes('€') || priceUnit.includes('EUR')) { fiatSymbol = '€'; }
         if (priceUnit.includes('$') || priceUnit.includes('USD')) { fiatSymbol = '$'; }
+        hasPowerData = true;
+      }
 
-        dailyCosts = (watts / 1000) * 24 * price;
-        hasProfitData = true;
+      if (hasProfitData && hasPowerData && miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]) {
+        const watts = parseFloat(this.hass.states[miner.power_consumption_sensor].state) || 0;
+        dailyCosts = (watts / 1000) * 24 * electricityPrice;
+      } else {
+        hasProfitData = false;
       }
 
       profit = dailyRevenue - dailyCosts;
@@ -673,15 +699,25 @@ class OpenKairoMiningPanel extends LitElement {
                     <p style="font-size: 0.85em; color: #888; margin: 0;">Der BTC-Ertrag wird automatisch anhand deiner Hashrate und der aktuellen Network-Difficulty berechnet.</p>
                 </div>
                 `}
-                
+            <div class="form-row">
                 <div class="form-group flex-1">
-                    <label>Coin-Preis Sensor (z.B. Fiat/BTC)</label>
+                    <label>Coin-Preis Quelle</label>
+                    <select name="coin_price_source" @change="${this.handleFormInput}">
+                        <option value="sensor" ?selected="${!this.editForm.coin_price_source || this.editForm.coin_price_source === 'sensor'}">Über HASS-Sensor (inkl. anderer Coins)</option>
+                        <option value="api" ?selected="${this.editForm.coin_price_source === 'api'}">Live Bitcoin-Preis (Mempool.space)</option>
+                    </select>
+                </div>
+                ${(!this.editForm.coin_price_source || this.editForm.coin_price_source === 'sensor') ? html`
+                <div class="form-group flex-1">
+                    <label>Coin-Preis Sensor</label>
                     <select name="coin_price_sensor" @change="${this.handleFormInput}">
                     <option value="" ?selected="${!this.editForm.coin_price_sensor}">-- Coin-Preis Sensor wählen --</option>
                     ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.coin_price_sensor === opt.id}">${opt.name}</option>`)}
                     </select>
                 </div>
+                ` : html`<div class="form-group flex-1" style="display: flex; align-items: center;"><p style="font-size: 0.85em; color: #888; margin: 0;">Der Live-Bitcoin-Preis wird automatisch von der API abgerufen.</p></div>`}
             </div>
+
             <div class="form-row">
                 <div class="form-group flex-1">
                     <label>Stromverbrauch-Sensor (Watt)</label>
@@ -690,13 +726,31 @@ class OpenKairoMiningPanel extends LitElement {
                     ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.power_consumption_sensor === opt.id}">${opt.name}</option>`)}
                     </select>
                 </div>
+                <div class="form-group flex-1"></div>
+            </div>
+
+            <div class="form-row">
                 <div class="form-group flex-1">
-                    <label>Strompreis-Sensor (€/kWh)</label>
+                    <label>Strompreis Quelle</label>
+                    <select name="electricity_price_source" @change="${this.handleFormInput}">
+                        <option value="sensor" ?selected="${!this.editForm.electricity_price_source || this.editForm.electricity_price_source === 'sensor'}">Live von HASS-Sensor (Dynamisch)</option>
+                        <option value="manual" ?selected="${this.editForm.electricity_price_source === 'manual'}">Fester Strompreis (Manuell)</option>
+                    </select>
+                </div>
+                ${this.editForm.electricity_price_source === 'manual' ? html`
+                <div class="form-group flex-1">
+                    <label>Fester Strompreis (€ / kWh)</label>
+                    <input type="number" step="0.01" name="electricity_price_manual" .value="${this.editForm.electricity_price_manual || 0.30}" @input="${this.handleFormInput}">
+                </div>
+                ` : html`
+                <div class="form-group flex-1">
+                    <label>Strompreis-Sensor (€/kWh od. Cent)</label>
                     <select name="electricity_price_sensor" @change="${this.handleFormInput}">
                     <option value="" ?selected="${!this.editForm.electricity_price_sensor}">-- Preis Sensor wählen --</option>
                     ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.electricity_price_sensor === opt.id}">${opt.name}</option>`)}
                     </select>
                 </div>
+                `}
             </div>
         </div>
 
