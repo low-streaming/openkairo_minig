@@ -136,7 +136,7 @@ async def _mining_loop(hass):
                 switch_state = hass.states.get(miner_switch)
                 is_on = switch_state.state == "on" if switch_state else False
 
-                if mode in ["pv", "price"]:
+                if mode == "pv":
                     delay_minutes = float(miner.get("delay_minutes", 0))
                     delay_seconds = delay_minutes * 60
                     
@@ -186,23 +186,7 @@ async def _mining_loop(hass):
                                 except ValueError:
                                     pass
                     
-                    elif mode == "price":
-                        price_sensor = miner.get("price_sensor")
-                        if price_sensor:
-                            price_state = hass.states.get(price_sensor)
-                            if price_state and price_state.state not in ["unknown", "unavailable"]:
-                                try:
-                                    price_value = float(price_state.state)
-                                    on_threshold = float(miner.get("price_on", 20))
-                                    off_threshold = float(miner.get("price_off", 25))
-                                    
-                                    if price_value <= on_threshold:
-                                        turn_on_condition = True
-                                        
-                                    if price_value >= off_threshold:
-                                        turn_off_condition = True
-                                except ValueError:
-                                    pass
+
 
                     # Apply Hysterese
                     if turn_on_condition:

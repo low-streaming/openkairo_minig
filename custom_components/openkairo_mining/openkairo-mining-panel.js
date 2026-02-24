@@ -298,7 +298,6 @@ class OpenKairoMiningPanel extends LitElement {
           <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
             <li><strong style="color:#ddd;">Prioritäten:</strong> Jeder Miner hat eine Priorität. Der Miner mit Priorität "1" wird als Erstes eingeschaltet, wenn genügend Überschuss vorhanden ist. Danach folgt "2" usw.</li>
             <li><strong style="color:#ddd;">PV-Überschuss:</strong> Nutze deinen eigenen Solarstrom! Der Miner schaltet sich automatisch ein, wenn du mehr Strom ins Netz einspeist, als deine gewählte Schwelle vorgibt.</li>
-            <li><strong style="color:#ddd;">Günstiger Strom:</strong> Nutze Börsenpreise (z.B. Tibber)! Trage einen Preis-Sensor ein und der Miner läuft vollautomatisch nur unter einem bestimmten Cent-Betrag.</li>
           </ul>
         </div>
 
@@ -336,8 +335,7 @@ class OpenKairoMiningPanel extends LitElement {
 
     const modeMap = {
       'manual': 'Manuell',
-      'pv': 'PV-Überschuss',
-      'price': 'Dyn. Strompreis'
+      'pv': 'PV-Überschuss'
     };
 
     return html`
@@ -358,10 +356,7 @@ class OpenKairoMiningPanel extends LitElement {
         batteryValue = this.hass.states[miner.battery_sensor].state + ' %';
       }
 
-      let priceValue = 'N/A';
-      if (miner.mode === 'price' && this.hass && miner.price_sensor && this.hass.states[miner.price_sensor]) {
-        priceValue = this.hass.states[miner.price_sensor].state + ' ¢';
-      }
+
 
       let hashrateValue = '';
       if (miner.hashrate_sensor && this.hass && this.hass.states[miner.hashrate_sensor]) {
@@ -516,31 +511,10 @@ class OpenKairoMiningPanel extends LitElement {
                   </div>
                 ` : ''}
 
-                ${miner.mode === 'price' ? html`
-                  <div class="tech-box">
-                    <p><b>Aktueller Preis:</b> <span class="highlight-val">${priceValue}</span></p>
-                    <p class="small-text mt-1">Regeln: An &le; ${miner.price_on}¢ | Aus &ge; ${miner.price_off}¢</p>
-                  </div>
-                ` : ''}
+
               </div>
 
-              ${hasProfitData ? html`
-              <div class="profit-box" style="margin-top: 15px; border-radius: 8px; border: 1px solid rgba(46, 204, 113, 0.2); background: rgba(46, 204, 113, 0.05); padding: 15px;">
-                  <h4 style="margin: 0 0 10px 0; font-size: 0.9em; color: #2ecc71; text-transform: uppercase;">💰 24h Profitabilität</h4>
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9em; color: #bbb;">
-                      <span>Ertrag:</span>
-                      <span style="color: #fff;">${dailyRevenueStr} ${fiatSymbol}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.9em; color: #bbb; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 5px;">
-                      <span>Stromkosten:</span>
-                      <span style="color: ${miner.mode === 'pv' ? '#2ecc71' : '#e74c3c'};">${dailyCostsStr} ${miner.mode === 'pv' ? '' : fiatSymbol}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1em;">
-                      <span>Profit:</span>
-                      <span style="color: ${profitColor};">${profit > 0 ? '+' : ''}${profitStr} ${fiatSymbol}</span>
-                  </div>
-              </div>
-              ` : ''}
+
 
               ${(hashrateValue || tempValue) ? html`
               <div class="miner-controls" style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
@@ -667,7 +641,6 @@ class OpenKairoMiningPanel extends LitElement {
           <select class="btc-select" name="mode" @change="${this.handleFormInput}">
             <option value="manual" ?selected="${this.editForm.mode === 'manual'}">Manuell (Nur Überwachung)</option>
             <option value="pv" ?selected="${this.editForm.mode === 'pv'}">PV-Überschuss (Einspeisung)</option>
-            <option value="price" ?selected="${this.editForm.mode === 'price'}">Günstiger Strompreis</option>
           </select>
         </div>
 
@@ -726,116 +699,9 @@ class OpenKairoMiningPanel extends LitElement {
           </div>
         ` : ''}
 
-        ${this.editForm.mode === 'price' ? html`
-          <div class="mode-section btc-section">
-            <h3>💶 Dynamischer Strompreis Steuerung</h3>
-            <div class="form-group">
-                <label>Strompreis-Sensor (z.B. Tibber, in Cent/kWh)</label>
-                <select name="price_sensor" @change="${this.handleFormInput}">
-                  <option value="" ?selected="${!this.editForm.price_sensor}">-- Preis-Sensor wählen --</option>
-                  ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.price_sensor === opt.id}">${opt.name}</option>`)}
-                </select>
-            </div>
-            <div class="form-row">
-                <div class="form-group flex-1">
-                    <label>Einschalten unter (Cent)</label>
-                    <input type="number" step="0.1" name="price_on" .value="${this.editForm.price_on}" @input="${this.handleFormInput}">
-                </div>
-                <div class="form-group flex-1">
-                    <label>Ausschalten über (Cent)</label>
-                    <input type="number" step="0.1" name="price_off" .value="${this.editForm.price_off}" @input="${this.handleFormInput}">
-                </div>
-            </div>
 
-            <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
-                <label>Verzögerung (Hysterese in Minuten)</label>
-                <input type="number" min="0" step="1" name="delay_minutes" .value="${this.editForm.delay_minutes !== undefined ? this.editForm.delay_minutes : 5}" @input="${this.handleFormInput}">
-                <small>Miner schaltet erst nach X Minuten ununterbrochener Einhaltung der Schwelle.</small>
-            </div>
-          </div>
-        ` : ''}
 
-        <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(46, 204, 113, 0.4); background: rgba(46, 204, 113, 0.05);">
-            <h3 style="color: #2ecc71; font-size: 1.1em;">💰 Profitabilitäts-Rechner (Optional)</h3>
-            <p style="color: #888; font-size: 0.85em; margin-top: -10px; margin-bottom: 20px;">
-                Berechne live den Profit deines Miners auf dem Dashboard!
-            </p>
-            <div class="form-group">
-                <label>Berechnung des Ertrags</label>
-                <select name="calc_method" @change="${this.handleFormInput}" style="background: rgba(0,0,0,0.5); border-color: #2ecc71;">
-                    <option value="sensor" ?selected="${!this.editForm.calc_method || this.editForm.calc_method === 'sensor'}">Ertrag über Sensor lesen (z.B. BTC/Tag)</option>
-                    <option value="btc_auto" ?selected="${this.editForm.calc_method === 'btc_auto'}">Live aus Hashrate berechnen (Nur Bitcoin)</option>
-                </select>
-            </div>
-            
-            <div class="form-row">
-                ${(!this.editForm.calc_method || this.editForm.calc_method === 'sensor') ? html`
-                <div class="form-group flex-1">
-                    <label>Ertrag-Sensor (z.B. BTC/Tag)</label>
-                    <select name="crypto_revenue_sensor" @change="${this.handleFormInput}">
-                    <option value="" ?selected="${!this.editForm.crypto_revenue_sensor}">-- Ertrags-Sensor wählen --</option>
-                    ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.crypto_revenue_sensor === opt.id}">${opt.name}</option>`)}
-                    </select>
-                </div>
-                ` : html`
-                <div class="form-group flex-1" style="display: flex; align-items: center;">
-                    <p style="font-size: 0.85em; color: #888; margin: 0;">Der BTC-Ertrag wird automatisch anhand deiner Hashrate und der aktuellen Network-Difficulty berechnet.</p>
-                </div>
-                `}
-            <div class="form-row">
-                <div class="form-group flex-1">
-                    <label>Coin-Preis Quelle</label>
-                    <select name="coin_price_source" @change="${this.handleFormInput}">
-                        <option value="sensor" ?selected="${!this.editForm.coin_price_source || this.editForm.coin_price_source === 'sensor'}">Über HASS-Sensor (inkl. anderer Coins)</option>
-                        <option value="api" ?selected="${this.editForm.coin_price_source === 'api'}">Live Bitcoin-Preis (Mempool.space)</option>
-                    </select>
-                </div>
-                ${(!this.editForm.coin_price_source || this.editForm.coin_price_source === 'sensor') ? html`
-                <div class="form-group flex-1">
-                    <label>Coin-Preis Sensor</label>
-                    <select name="coin_price_sensor" @change="${this.handleFormInput}">
-                    <option value="" ?selected="${!this.editForm.coin_price_sensor}">-- Coin-Preis Sensor wählen --</option>
-                    ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.coin_price_sensor === opt.id}">${opt.name}</option>`)}
-                    </select>
-                </div>
-                ` : html`<div class="form-group flex-1" style="display: flex; align-items: center;"><p style="font-size: 0.85em; color: #888; margin: 0;">Der Live-Bitcoin-Preis wird automatisch von der API abgerufen.</p></div>`}
-            </div>
 
-            <div class="form-row">
-                <div class="form-group flex-1">
-                    <label>Stromverbrauch-Sensor (Watt)</label>
-                    <select name="power_consumption_sensor" @change="${this.handleFormInput}">
-                    <option value="" ?selected="${!this.editForm.power_consumption_sensor}">-- Watt Sensor wählen --</option>
-                    ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.power_consumption_sensor === opt.id}">${opt.name}</option>`)}
-                    </select>
-                </div>
-                <div class="form-group flex-1"></div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group flex-1">
-                    <label>Strompreis Quelle</label>
-                    <select name="electricity_price_source" @change="${this.handleFormInput}">
-                        <option value="sensor" ?selected="${!this.editForm.electricity_price_source || this.editForm.electricity_price_source === 'sensor'}">Live von HASS-Sensor (Dynamisch)</option>
-                        <option value="manual" ?selected="${this.editForm.electricity_price_source === 'manual'}">Fester Strompreis (Manuell)</option>
-                    </select>
-                </div>
-                ${this.editForm.electricity_price_source === 'manual' ? html`
-                <div class="form-group flex-1">
-                    <label>Fester Strompreis (€ / kWh)</label>
-                    <input type="number" step="0.001" name="electricity_price_manual" .value="${this.editForm.electricity_price_manual}" @input="${this.handleFormInput}">
-                </div>
-                ` : html`
-                <div class="form-group flex-1">
-                    <label>Strompreis-Sensor (€/kWh od. Cent)</label>
-                    <select name="electricity_price_sensor" @change="${this.handleFormInput}">
-                    <option value="" ?selected="${!this.editForm.electricity_price_sensor}">-- Preis Sensor wählen --</option>
-                    ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.electricity_price_sensor === opt.id}">${opt.name}</option>`)}
-                    </select>
-                </div>
-                `}
-            </div>
-        </div>
 
         <div class="form-actions">
             <button class="btn-cancel" @click="${this.cancelEdit}">Abbrechen</button>
