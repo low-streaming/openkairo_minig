@@ -269,14 +269,16 @@ class OpenKairoMiningPanel extends LitElement {
 
       <div class="tabs">
         <div class="tab ${this.activeTab === 'dashboard' ? 'active' : ''}" @click="${() => { this.activeTab = 'dashboard'; this.editingMinerId = null; }}">Dashboard</div>
-        <div class="tab ${this.activeTab === 'statistics' ? 'active' : ''}" @click="${() => { this.activeTab = 'statistics'; this.editingMinerId = null; }}">Statistiken & Graphen</div>
-        <div class="tab ${this.activeTab === 'settings' ? 'active' : ''}" @click="${() => { this.activeTab = 'settings'; this.editingMinerId = null; }}">Einstellungen & Miner verwalten</div>
-        <div class="tab ${this.activeTab === 'info' ? 'active' : ''}" @click="${() => { this.activeTab = 'info'; this.editingMinerId = null; }}">Info & Hilfe</div>
+        <div class="tab ${this.activeTab === 'statistics' ? 'active' : ''}" @click="${() => { this.activeTab = 'statistics'; this.editingMinerId = null; }}">Graphen</div>
+        ${this.config.show_energy_tab ? html`<div class="tab ${this.activeTab === 'energy' ? 'active' : ''}" @click="${() => { this.activeTab = 'energy'; this.editingMinerId = null; }}">⚡ Ersparnis</div>` : ''}
+        <div class="tab ${this.activeTab === 'settings' ? 'active' : ''}" @click="${() => { this.activeTab = 'settings'; this.editingMinerId = null; }}">Einstellungen</div>
+        <div class="tab ${this.activeTab === 'info' ? 'active' : ''}" @click="${() => { this.activeTab = 'info'; this.editingMinerId = null; }}">Hilfe</div>
       </div>
 
       <div class="content">
         ${this.activeTab === 'dashboard' ? this.renderDashboard() : ''}
         ${this.activeTab === 'statistics' ? this.renderStatistics() : ''}
+        ${this.activeTab === 'energy' ? this.renderEnergyStats() : ''}
         ${this.activeTab === 'settings' ? this.renderSettings() : ''}
         ${this.activeTab === 'info' ? this.renderInfo() : ''}
       </div>
@@ -291,30 +293,32 @@ class OpenKairoMiningPanel extends LitElement {
     return html`
       <div class="card">
         <h2>ℹ️ Informationen & Anleitung</h2>
-        <p>Willkommen beim <strong>OpenKairo Mining</strong> Panel. Mit dieser Integration kannst du deine Miner intelligent und kosteneffizient steuern.</p>
+        <p>Willkommen beim <strong>OpenKairo Mining</strong> Panel. Diese Integration ermöglicht es dir, deine Krypto-Miner effizient mit deinem eigenen Solarstrom zu betreiben.</p>
         
         <div class="tech-box">
-          <h3 style="margin-top:0; color:#F7931A;">⚙️ So funktioniert's:</h3>
+          <h3 style="margin-top:0; color:#F7931A;">☀️ Intelligente PV-Steuerung:</h3>
+          <p style="color:#bbb; line-height:1.6; margin-top: 5px;">Das System überwacht permanent deine Netzeinspeisung und schaltet Miner basierend auf deinen Regeln ein:</p>
           <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
-            <li><strong style="color:#ddd;">Prioritäten:</strong> Jeder Miner hat eine Priorität. Der Miner mit Priorität "1" wird als Erstes eingeschaltet, wenn genügend Überschuss vorhanden ist. Danach folgt "2" usw.</li>
-            <li><strong style="color:#ddd;">PV-Überschuss:</strong> Nutze deinen eigenen Solarstrom! Der Miner schaltet sich automatisch ein, wenn du mehr Strom ins Netz einspeist, als deine gewählte Schwelle vorgibt.</li>
+            <li><strong style="color:#ddd;">Priorisierung:</strong> Miner mit niedrigerer Priorität (z.B. 1) starten zuerst. So kannst du festlegen, welche Hardware bei wenig Sonne den Vorrang hat.</li>
+            <li><strong style="color:#ddd;">Überschuss-Logik:</strong> Gib an, ab wie viel Watt Einspeisung ein Miner starten soll und ab welchem Wert (z.B. Netzbezug) er wieder stoppt.</li>
+            <li><strong style="color:#ddd;">Batterie-Support:</strong> Erlaube dem Miner optional, auch bei sinkendem PV-Ertrag weiterzulaufen, solange dein Heimspeicher noch ausreichend gefüllt ist.</li>
+            <li><strong style="color:#ddd;">Hysterese (Verzögerung):</strong> Um ständiges Schalten bei vorbeiziehenden Wolken zu vermeiden, kannst du eine Zeitverzögerung in Minuten einstellen.</li>
           </ul>
         </div>
 
         <div class="tech-box" style="margin-top: 15px;">
-          <h3 style="margin-top:0; color:#F7931A;">🔌 Erweiterte Miner-Steuerung (Hass-Miner):</h3>
-          <p style="color:#bbb; line-height:1.6; margin-top: 5px;">Nutzt du die <strong>hass-miner</strong> Integration, bietet OpenKairo dir erweiterte Live-Funktionen direkt auf dem Dashboard:</p>
+          <h3 style="margin-top:0; color:#F7931A;">🔌 Hass-Miner Integration:</h3>
+          <p style="color:#bbb; line-height:1.6; margin-top: 5px;">In Kombination mit der <strong>Hass-Miner</strong> Integration von Schnitzel schaltest du das volle Potenzial frei:</p>
           <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
-            <li><strong style="color:#ddd;">Live-Daten:</strong> Wähle Hashrate- und Temperatur-Sensoren aus, um diese direkt auf der Miner-Karte anzuzeigen.</li>
-            <li><strong style="color:#ddd;">ASIC Power Limit:</strong> Hinterlege einen 'number' Sensor (z.B. für deinen Antminer S9), um das maximale Watt-Limit live über einen Slider auf dem Dashboard anzupassen!</li>
-            <li><strong style="color:#ddd;">Modus-Steuerung:</strong> Steuere kompatible ASIC-Miner (z.B. IceRiver KS0) direkt per Knopfdruck in den Low, Normal oder High Modus.</li>
-            <li><strong style="color:#ddd;">Restart & Reboot:</strong> Starte den Mining-Prozess oder das gesamte Gerät remote neu.</li>
+            <li><strong style="color:#ddd;">Echtzeit-Monitoring:</strong> Visualisierung von Hashrate und Temperatur direkt im Dashboard.</li>
+            <li><strong style="color:#ddd;">Remote Control:</strong> Sende Befehle wie Neustart, Reboot oder Modus-Wechsel (Low/Normal/High Power) direkt vom Sofa aus.</li>
+            <li><strong style="color:#ddd;">Power Limit Slider:</strong> Reguliere den Stromverbrauch kompatibler Miner (z.B. S9 mit Braiins OS+) stufenlos direkt auf der Miner-Karte.</li>
           </ul>
         </div>
 
         <div class="tech-box" style="margin-top: 25px; text-align: center; border-color: rgba(247, 147, 26, 0.4); background: rgba(247, 147, 26, 0.05);">
           <h3 style="margin-top:0; color:#fff;">☕ Unterstütze das Projekt</h3>
-          <p style="color:#bbb; margin-bottom: 25px;">Wenn dir diese Integration dabei hilft, die Kosten deiner Miner zu senken, würde ich mich über eine Kaffee-Spende für die Entwicklung sehr freuen!</p>
+          <p style="color:#bbb; margin-bottom: 25px;">OpenKairo ist ein Community-Projekt. Wenn dir die Integration hilft, Energiekosten zu sparen, freuen wir uns über eine kleine Unterstützung für die Weiterentwicklung!</p>
           <a href="https://paypal.me/OpenKAIRO" target="_blank" class="btn-primary" style="display:inline-block; text-decoration:none; width:auto; padding: 15px 40px; border-radius:30px; line-height:1;">
             ☕ Kaffee / Energy spendieren (PayPal)
           </a>
@@ -544,6 +548,26 @@ class OpenKairoMiningPanel extends LitElement {
 
     return html`
       <div class="card">
+        <h2>🛠 Einstellungen & Globales</h2>
+        
+        <div class="tech-box" style="margin-bottom: 30px; border-color: rgba(247, 147, 26, 0.4);">
+          <h3 style="color: #F7931A; margin-top: 0;">🌍 Globale Optionen</h3>
+          <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+              <label>Strompreis Referenz (€/kWh)</label>
+              <input type="number" step="0.01" .value="${this.config.ref_price || 0.30}" @input="${(e) => { this.config.ref_price = parseFloat(e.target.value); this.saveConfig(); }}">
+              <small>Wird für die Berechnung der Ersparnis genutzt.</small>
+            </div>
+            <div style="flex: 1; min-width: 200px;">
+               <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                  <input type="checkbox" ?checked="${this.config.show_energy_tab}" @change="${(e) => { this.config.show_energy_tab = e.target.checked; this.saveConfig(); }}" style="width: 20px; height: 20px; accent-color: #F7931A;">
+                  Energy-Stats Tab anzeigen
+               </label>
+               <small>Aktiviert den Tab zur Visualisierung der Ersparnis.</small>
+            </div>
+          </div>
+        </div>
+
         <h2>🛠 Miner verwalten</h2>
         <p>Hier legst du deine ASIC oder GPU Miner an und weist ihnen Steckdosen zu.</p>
         
@@ -711,11 +735,66 @@ class OpenKairoMiningPanel extends LitElement {
     `;
   }
 
-  showMoreInfo(entityId) {
-    if (!entityId) return;
-    const event = new Event('hass-more-info', { bubbles: true, composed: true });
-    event.detail = { entityId: entityId };
-    this.dispatchEvent(event);
+  renderEnergyStats() {
+    return html`
+      <div class="card">
+        <h2>⚡ Energie-Ersparnis (PV-Eigennutzung)</h2>
+        <p>Hier siehst du, wie viel Stromkosten du durch die intelligente PV-Steuerung deiner Miner bereits eingespart hast.</p>
+        
+        <div class="dashboard-grid" style="margin-top: 25px;">
+           ${this.config.miners && this.config.miners.length > 0 ? this.config.miners.map(miner => {
+      const isPV = miner.mode === 'pv';
+      const refPrice = this.config.ref_price || 0.30;
+      let powerKW = 0;
+
+      if (this.hass && miner.power_consumption_sensor && this.hass.states[miner.power_consumption_sensor]) {
+        powerKW = (parseFloat(this.hass.states[miner.power_consumption_sensor].state) || 0) / 1000;
+      }
+
+      const hourlySaving = isPV ? (powerKW * refPrice) : 0;
+      const dailySavingPotential = hourlySaving * 24; // Theoretisch wenn 24h Sonne
+
+      return html`
+               <div class="miner-card">
+                 <div class="miner-header">
+                   <h3>${miner.name}</h3>
+                   <span class="prio-badge ${isPV ? 'on' : ''}">${isPV ? 'PV-Modus aktiv' : 'Manuell'}</span>
+                 </div>
+                 
+                 <div class="tech-box" style="background: rgba(46, 204, 113, 0.05); border-color: rgba(46, 204, 113, 0.2);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="color: #888;">Live-Ersparnis:</span>
+                        <strong style="color: #2ecc71; font-size: 1.2em;">${hourlySaving.toFixed(3)} € / Std.</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                        <span style="color: #888;">Potential (24h):</span>
+                        <span style="color: #fff;">${dailySavingPotential.toFixed(2)} €</span>
+                    </div>
+                 </div>
+
+                 <div style="margin-top: 15px; font-size: 0.85em; color: #666;">
+                    * Basierend auf dem Referenzpreis von ${refPrice.toFixed(2)} €/kWh und aktuellem Verbrauch.
+                 </div>
+                 
+                 ${miner.power_consumption_sensor ? '' : html`
+                   <div style="margin-top: 10px; color: #e67e22; font-size: 0.8em; border: 1px dashed #e67e22; padding: 8px; border-radius: 4px;">
+                     ⚠️ Kein Verbrauchssensor hinterlegt. Bitte in den Einstellungen ergänzen.
+                   </div>
+                 `}
+               </div>
+             `;
+    }) : html`<p>Keine Miner konfiguriert.</p>`}
+        </div>
+
+        <div class="tech-box" style="margin-top: 30px; border-color: rgba(247, 147, 26, 0.2);">
+           <h3 style="color: #F7931A; margin-top: 0;">💡 Info zur Ersparnis</h3>
+           <p style="color: #bbb; font-size: 0.9em; line-height: 1.5;">
+              Die Live-Ersparnis wird berechnet, indem der aktuelle Stromverbrauch deines Miners mit deinem eingestellten Referenz-Strompreis multipliziert wird – vorausgesetzt der Miner läuft im PV-Modus. 
+              Dies entspricht den Kosten, die du hättest, wenn du den Strom stattdessen aus dem Netz beziehen müsstest.
+           </p>
+        </div>
+      </div>
+    `;
   }
 
   renderStatistics() {
@@ -1100,15 +1179,46 @@ class OpenKairoMiningPanel extends LitElement {
       .btn-cancel:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: #888; }
       
       @media (max-width: 768px) {
+        :host { padding: 15px 10px; }
+        .header h1 { font-size: 2.4em; }
+        .header { margin-bottom: 25px; }
+        .subtitle { font-size: 1em; }
+        
+        .tabs { gap: 8px; margin-bottom: 25px; }
+        .tab { 
+          padding: 12px 10px; 
+          font-size: 0.9em; 
+          min-width: calc(50% - 10px); /* 2 columns on mobile */
+          max-width: 100%;
+        }
+        
+        .card { padding: 20px 15px; border-radius: 12px; }
+        .card h2 { font-size: 1.5em; margin-bottom: 20px; }
+        
+        .miners-grid { gap: 15px; }
+        .miner-card { padding: 20px; }
+        .miner-header h3 { font-size: 1.3em; }
+        .status-badge { font-size: 1.1em; padding: 12px; }
+        .btn-power { padding: 15px 20px; font-size: 1.6em; }
+        
+        .api-stats { flex-wrap: wrap; gap: 15px; }
+        .api-stats .stat { min-width: 40%; }
+        
         .form-row { flex-direction: column; gap: 0; }
-        .header h1 { font-size: 2.2em; }
-        .miners-grid { grid-template-columns: 1fr; }
-        .miners-grid.single-miner .miner-card { padding: 25px; }
-        .btn-cancel, .btn-save { flex: 1; }
+        .form-group { margin-bottom: 18px; }
+        .form-group input, .form-group select { padding: 12px; }
+        
+        .btn-save, .btn-cancel { padding: 14px; font-size: 1em; }
+        .form-actions { gap: 10px; }
+        
+        .footer { padding: 20px 10px; margin-top: 30px; }
+        .footer a { font-size: 0.75em; letter-spacing: 1.5px; }
+      }
+
+      /* Ultra compact for very small screens */
+      @media (max-width: 400px) {
         .tab { min-width: 100%; }
-        .miner-status { flex-direction: column; }
-        .btn-power { padding: 15px; }
-        .content { padding: 0 10px; }
+        .header h1 { font-size: 2em; }
       }
 
       .footer {
