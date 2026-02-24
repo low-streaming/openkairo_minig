@@ -102,7 +102,7 @@ class OpenKairoMiningPanel extends LitElement {
     }
   }
 
-  async saveConfig() {
+  async saveConfig(silent = false) {
     try {
       await fetch('/api/openkairo_mining/data', {
         method: 'POST',
@@ -112,11 +112,13 @@ class OpenKairoMiningPanel extends LitElement {
         },
         body: JSON.stringify(this.config)
       });
-      alert('Einstellungen erfolgreich gespeichert!');
-      this.editingMinerId = null; // Zurück zur Liste
+      if (!silent) {
+        alert('Einstellungen erfolgreich gespeichert!');
+        this.editingMinerId = null; // Zurück zur Liste
+      }
     } catch (error) {
       console.error("Error saving config", error);
-      alert('Fehler beim Speichern der Einstellungen.');
+      if (!silent) alert('Fehler beim Speichern der Einstellungen.');
     }
   }
 
@@ -319,7 +321,7 @@ class OpenKairoMiningPanel extends LitElement {
         <div class="tech-box" style="margin-top: 25px; text-align: center; border-color: rgba(247, 147, 26, 0.4); background: rgba(247, 147, 26, 0.05);">
           <h3 style="margin-top:0; color:#fff;">☕ Unterstütze das Projekt</h3>
           <p style="color:#bbb; margin-bottom: 25px;">OpenKairo ist ein Community-Projekt. Wenn dir die Integration hilft, Energiekosten zu sparen, freuen wir uns über eine kleine Unterstützung für die Weiterentwicklung!</p>
-          <a href="https://paypal.me/OpenKAIRO" target="_blank" class="btn-primary" style="display:inline-block; text-decoration:none; width:auto; padding: 15px 40px; border-radius:30px; line-height:1;">
+          <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=info@low-streaming.de&currency_code=EUR&source=url" target="_blank" class="btn-primary" style="display:inline-block; text-decoration:none; width:auto; padding: 15px 40px; border-radius:30px; line-height:1;">
             ☕ Kaffee / Energy spendieren (PayPal)
           </a>
         </div>
@@ -555,12 +557,12 @@ class OpenKairoMiningPanel extends LitElement {
           <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
             <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
               <label>Strompreis Referenz (€/kWh)</label>
-              <input type="number" step="0.01" .value="${this.config.ref_price || 0.30}" @input="${(e) => { this.config.ref_price = parseFloat(e.target.value); this.saveConfig(); }}">
+              <input type="number" step="0.01" .value="${this.config.ref_price || 0.30}" @change="${(e) => { this.config.ref_price = parseFloat(e.target.value); this.saveConfig(true); }}">
               <small>Wird für die Berechnung der Ersparnis genutzt.</small>
             </div>
             <div style="flex: 1; min-width: 200px;">
                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                  <input type="checkbox" ?checked="${this.config.show_energy_tab}" @change="${(e) => { this.config.show_energy_tab = e.target.checked; this.saveConfig(); }}" style="width: 20px; height: 20px; accent-color: #F7931A;">
+                  <input type="checkbox" ?checked="${this.config.show_energy_tab}" @change="${(e) => { this.config.show_energy_tab = e.target.checked; this.saveConfig(true); }}" style="width: 20px; height: 20px; accent-color: #F7931A;">
                   Energy-Stats Tab anzeigen
                </label>
                <small>Aktiviert den Tab zur Visualisierung der Ersparnis.</small>
