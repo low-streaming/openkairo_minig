@@ -155,7 +155,9 @@ class OpenKairoMiningPanel extends LitElement {
       crypto_revenue_sensor: '',
       coin_price_sensor: '',
       power_consumption_sensor: '',
-      electricity_price_sensor: ''
+      electricity_price_sensor: '',
+      forecast_sensor: '',
+      forecast_min: 0
     };
   }
 
@@ -514,6 +516,12 @@ class OpenKairoMiningPanel extends LitElement {
                           <p class="small-text mt-1">🔋 Unterstützung erlaubt bis min. ${miner.battery_min_soc}%</p>
                       </div>
                     ` : ''}
+                    ${miner.forecast_sensor && this.hass && this.hass.states[miner.forecast_sensor] ? html`
+                      <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px;">
+                          <p><b>Prognose heute:</b> <span class="highlight-val">${this.hass.states[miner.forecast_sensor].state} ${this.hass.states[miner.forecast_sensor].attributes.unit_of_measurement || 'kWh'}</span></p>
+                          <p class="small-text mt-1">🌤️ Limit: Miner startet nur ab ${miner.forecast_min || 0} kWh</p>
+                      </div>
+                    ` : ''}
                   </div>
                 ` : ''}
 
@@ -715,6 +723,25 @@ class OpenKairoMiningPanel extends LitElement {
                 ` : html`
                 <p style="margin: 8px 0 0 30px; font-size: 0.85em; color: #888;">Schaltet den Miner auch bei zu wenig PV-Überschuss ein, solange die Batterie noch genügend (z.B. ≥ 95%) geladen ist.</p>
                 `}
+            </div>
+
+            <div style="margin-top: 20px; padding: 15px; border: 1px dashed rgba(52, 152, 219, 0.3); border-radius: 8px; background: rgba(52, 152, 219, 0.05);">
+                <h4 style="margin: 0 0 10px 0; color: #3498db; display: flex; align-items: center; gap: 8px;">🌤️ Solar-Vorhersage (Optional)</h4>
+                <div class="form-row">
+                    <div class="form-group flex-2">
+                        <label>Prognose-Sensor (z.B. Solcast Today)</label>
+                        <select name="forecast_sensor" @change="${this.handleFormInput}">
+                        <option value="" ?selected="${!this.editForm.forecast_sensor}">-- Wetter/Prognose Sensor wählen --</option>
+                        ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.forecast_sensor === opt.id}">${opt.name}</option>`)}
+                        </select>
+                    </div>
+                    <div class="form-group flex-1">
+                        <label>Min. Prognose (kWh)</label>
+                        <input type="number" step="0.1" name="forecast_min" .value="${this.editForm.forecast_min || 0}" @input="${this.handleFormInput}">
+                        <small>Nur starten, wenn Ertrag heute ≥ X.</small>
+                    </div>
+                </div>
+                <small style="color: #888;">Schaltet den Miner erst ein, wenn die Tagesprognose diesen Wert erreicht. Ideal um Akkus bei schlechtem Wetter zu schonen.</small>
             </div>
 
             <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">

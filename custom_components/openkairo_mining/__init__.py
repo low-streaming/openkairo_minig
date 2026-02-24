@@ -179,6 +179,18 @@ async def _mining_loop(hass):
                                     elif allow_battery and battery_soc >= battery_min_soc:
                                         turn_on_condition = True
                                     
+                                    # Wetter-Vorhersage Check (Optional)
+                                    forecast_sensor = miner.get("forecast_sensor")
+                                    forecast_min = float(miner.get("forecast_min", 0))
+                                    if forecast_sensor and turn_on_condition:
+                                        f_state = hass.states.get(forecast_sensor)
+                                        if f_state and f_state.state not in ["unknown", "unavailable"]:
+                                            try:
+                                                if float(f_state.state) < forecast_min:
+                                                    turn_on_condition = False # Prognose zu schlecht
+                                            except ValueError:
+                                                pass
+
                                     if pv_value <= off_threshold:
                                         if not allow_battery or (allow_battery and battery_soc < battery_min_soc):
                                             turn_off_condition = True

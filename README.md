@@ -36,15 +36,15 @@ Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intellig
 4. Öffne das Panel und konfiguriere deine Miner im Tab **Einstellungen**.
 
 ## Roadmap 🚀
-Wir entwickeln OpenKairo Mining ständig weiter. Hier ist ein Ausblick auf geplante Funktionen:
+Wir haben noch viel vor, um OpenKairo zur ultimativen Schaltzentrale für Miner zu machen. Hier sind unsere nächsten Ziele:
 
-- [ ] **Dynamisches Power-Scaling:** Automatische Anpassung des Power-Limits passend zum aktuellen PV-Überschuss (statt nur An/Aus).
-- [ ] **Hashrate-Watchdog:** Automatische Benachrichtigung oder Neustart, falls ein Miner unter eine bestimmte Hashrate fällt.
-- [x] **Energy-Stats:** Detaillierte Auswertung der durch PV-Steuerung eingesparten Stromkosten.
-- [ ] **Multi-Pool Support:** Schneller Wechsel zwischen verschiedenen Mining-Pools direkt über das Dashboard.
-- [x] **Mobile App Optimization:** Perfektes, responsives Layout für die Home Assistant Mobile App.
-- [ ] **Auto-Update:** Anzeige von Firmware-Updates für unterstützte Miner.
-- [x] **Statistiken & Graphen:** Integrierte zeitliche Verläufe für Stromverbrauch und Leistung.
+- [ ] **Dynamisches Power-Scaling:** Automatische, stufenlose Anpassung des Power-Limits passend zum exakten PV-Überschuss (statt nur hartes An/Aus).
+- [ ] **Hashrate-Watchdog:** Intelligente Überwachung mit Push-Benachrichtigungen (via Mobile App), falls ein Miner offline geht oder die Leistung einbricht.
+- [ ] **Solar-Vorhersage (Solcast-Anbindung):** Berücksichtigung von Wetterprognosen, um Mining-Zyklen vorausschauend und akkuschonend zu planen.
+- [ ] **Intelligente Akku-Pufferung:** Erweiterte Entladestrategien, um den Hausakku optimal für Mining-Spitzen zu nutzen, ohne die Grundversorgung zu gefährden.
+- [ ] **Hardware-Health Monitoring:** Detaillierte Darstellung von Lüfterdrehzahlen und Chip-Temperaturen sowie Warnungen bei Abweichungen.
+- [ ] **Pool-Management:** Schneller Wechsel zwischen verschiedenen Mining-Pools oder Worker-Konfigurationen direkt über das UI.
+- [ ] **Support für weitere Systeme:** Native Einbindung von HiveOS-Statistiken und ASIC-Hub Funktionalitäten.
 
 ---
 **Powered by OpenKairo** | [openkairo.de](https://openkairo.de)
