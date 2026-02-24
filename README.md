@@ -3,7 +3,13 @@
 Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intelligent nach PV-Überschuss zu steuern. *Powered by OpenKairo*
 
 ## Voraussetzungen
-> **⚠️ Wichtig:** Um die Miner in Home Assistant steuern und überwachen zu können (z.B. Hashrate, Temperatur, Power Limit, Restart), wird zusätzlich die **Hass-Miner Integration** benötigt. Diese stellt die eigentlichen Entitäten der Miner bereit, welche dann im OpenKairo Mining Panel verknüpft und gesteuert werden.
+> **⚠️ Wichtig:** Um die Miner in Home Assistant steuern und überwachen zu können (z.B. Hashrate, Temperatur, Power Limit, Restart), wird die **Hass-Miner Integration** benötigt.
+> 
+> Diese muss ebenfalls als **Benutzerdefiniertes Repository** in HACS hinzugefügt werden:
+> 1. URL: `https://github.com/Schnitzel/hass-miner`
+> 2. Kategorie: **Integration**
+>
+> Erst danach stehen die Entitäten bereit, die im OpenKairo Mining Panel verknüpft werden.
 
 ## Features
 - **Designstarkes Dashboard:** Eine moderne Weboberfläche zur zentralen Steuerung und Überwachung aller Miner.
