@@ -15,6 +15,7 @@ Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intellig
 - **Designstarkes Dashboard:** Eine moderne Weboberfläche zur zentralen Steuerung und Überwachung aller Miner.
 - **Intelligente PV-Steuerung:** Automatisches Schalten basierend auf Solareinspeisung. Inklusive Priorisierung mehrerer Miner und optionalem Batterie-Backup (SOC).
 - **Batterie SOC-Steuerung:** Eigener Betriebsmodus, um Miner rein nach dem Ladezustand (SOC) des Hausakkus zu steuern (z.B. Start bei 90%, Stopp bei 30%).
+- **Standby-Watchdog:** Schaltet eine Steckdose (z.B. Shelly Plug) knallhart ab, wenn der Miner sich aufhängt oder zu lange sehr wenig Strom verbraucht.
 - **Hysteresen-Schutz:** Einstellbare Ein- und Ausschaltverzögerungen, um die Hardware bei wechselhafter Bewölkung zu schonen.
 - **Tiefe Hass-Miner Integration:**
   - Live-Monitoring von Hashrate, Temperaturen, Minerverbrauch (Watt) und Batterie SOC (%).

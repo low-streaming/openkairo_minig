@@ -159,7 +159,11 @@ class OpenKairoMiningPanel extends LitElement {
       forecast_sensor: '',
       forecast_min: 0,
       soc_on: 90,
-      soc_off: 30
+      soc_off: 30,
+      standby_watchdog_enabled: false,
+      standby_switch: '',
+      standby_power: 100,
+      standby_delay: 10
     };
   }
 
@@ -549,6 +553,12 @@ class OpenKairoMiningPanel extends LitElement {
                   </div>
                 ` : ''}
 
+                ${miner.standby_watchdog_enabled ? html`
+                  <div class="tech-box" style="margin-top: 15px; border-color: rgba(231, 76, 60, 0.4); background: rgba(231, 76, 60, 0.05);">
+                    <p><b>🛡️ Watchdog:</b> <span class="highlight-val" style="color: #e74c3c;">Aktiviert</span></p>
+                    <p class="small-text mt-1" style="margin-bottom: 8px;">Auto-Off Plug wenn Verbrauch &lt; ${miner.standby_power || 100}W (für &ge; ${miner.standby_delay || 10} Min.)</p>
+                  </div>
+                ` : ''}
 
               </div>
 
@@ -814,6 +824,35 @@ class OpenKairoMiningPanel extends LitElement {
           </div>
         ` : ''}
 
+        <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(231, 76, 60, 0.3); background: rgba(231, 76, 60, 0.05);">
+            <h3 style="color: #e74c3c; margin-top: 0; margin-bottom: 20px;">🛡️ Standby-Watchdog (Hartes Abschalten)</h3>
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #e74c3c; font-weight: bold;">
+                <input type="checkbox" name="standby_watchdog_enabled" .checked="${this.editForm.standby_watchdog_enabled}" @change="${this.handleFormInput}" style="width: 20px; height: 20px; accent-color: #e74c3c;">
+                Watchdog aktivieren
+            </label>
+            <p style="color: #888; font-size: 0.85em; margin-top: 10px;">Schaltet eine Steckdose (z.B. Shelly Plug) komplett ab, wenn der Stromverbrauch für längere Zeit<br>unter einen Grenzwert fällt. Nützlich wenn Miner sich aufhängen oder im Standby zu viel verbrauchen.</p>
+            
+            ${this.editForm.standby_watchdog_enabled ? html`
+            <div class="form-group mt-3">
+                <label>Steckdose / Plug (Hard-Off Schalter)</label>
+                <select name="standby_switch" @change="${this.handleFormInput}">
+                  <option value="" ?selected="${!this.editForm.standby_switch}">-- Steckdose wählen --</option>
+                  ${switchOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.standby_switch === opt.id}">${opt.name}</option>`)}
+                </select>
+                <small>HINWEIS: Um den Miner später wieder zu starten, muss der Plug meist manuell in HA wieder eingeschaltet werden.</small>
+            </div>
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label>Abschalten wenn Strom &lt; (Watt)</label>
+                    <input type="number" name="standby_power" min="0" .value="${this.editForm.standby_power || 100}" @input="${this.handleFormInput}">
+                </div>
+                <div class="form-group flex-1">
+                    <label>Verzögerung (Minuten)</label>
+                    <input type="number" name="standby_delay" min="0" step="1" .value="${this.editForm.standby_delay || 10}" @input="${this.handleFormInput}">
+                </div>
+            </div>
+            ` : ''}
+        </div>
 
         <div class="form-actions">
             <button class="btn-cancel" @click="${this.cancelEdit}">Abbrechen</button>

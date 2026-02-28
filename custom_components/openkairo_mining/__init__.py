@@ -33,7 +33,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         config={
             "_panel_custom": {
                 "name": "openkairo-mining-panel",
-                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=2.1.1"
+                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=2.1.2"
             }
         },
         require_admin=True
@@ -136,20 +136,47 @@ async def _mining_loop(hass):
                 switch_state = hass.states.get(miner_switch)
                 is_on = switch_state.state == "on" if switch_state else False
 
+                if "miner_states" not in hass.data[DOMAIN]:
+                    hass.data[DOMAIN]["miner_states"] = {}
+                miner_states = hass.data[DOMAIN]["miner_states"]
+                
+                miner_id = str(miner.get("id", miner_name))
+                if miner_id not in miner_states:
+                    miner_states[miner_id] = {"on_since": None, "off_since": None, "standby_since": None}
+                
+                state = miner_states[miner_id]
+                current_time = time.time()
+
+                # Standby-Watchdog (for all modes)
+                if miner.get("standby_watchdog_enabled"):
+                    power_sensor = miner.get("power_consumption_sensor")
+                    standby_switch = miner.get("standby_switch")
+                    if power_sensor and standby_switch:
+                        power_state = hass.states.get(power_sensor)
+                        standby_switch_state = hass.states.get(standby_switch)
+                        
+                        if power_state and power_state.state not in ["unknown", "unavailable"] and standby_switch_state and standby_switch_state.state == "on":
+                            try:
+                                power_value = float(power_state.state)
+                                standby_power = float(miner.get("standby_power", 100))
+                                standby_delay_mins = float(miner.get("standby_delay", 10))
+                                standby_delay_secs = standby_delay_mins * 60
+                                
+                                if power_value < standby_power:
+                                    if state.get("standby_since") is None:
+                                        state["standby_since"] = current_time
+                                    elif current_time - state["standby_since"] >= standby_delay_secs:
+                                        _LOGGER.warning(f"[{miner_name}] Watchdog triggered! Power {power_value}W < {standby_power}W for >={standby_delay_mins} min. Turning OFF {standby_switch}.")
+                                        await hass.services.async_call("switch", "turn_off", {"entity_id": standby_switch}, blocking=False)
+                                        state["standby_since"] = None
+                                else:
+                                    state["standby_since"] = None
+                            except ValueError:
+                                pass
+
                 if mode in ["pv", "soc"]:
                     delay_minutes = float(miner.get("delay_minutes", 0))
                     delay_seconds = delay_minutes * 60
-                    
-                    if "miner_states" not in hass.data[DOMAIN]:
-                        hass.data[DOMAIN]["miner_states"] = {}
-                    miner_states = hass.data[DOMAIN]["miner_states"]
-                    
-                    miner_id = str(miner.get("id", miner_name))
-                    if miner_id not in miner_states:
-                        miner_states[miner_id] = {"on_since": None, "off_since": None}
-                    
-                    state = miner_states[miner_id]
-                    current_time = time.time()
                     
                     turn_on_condition = False
                     turn_off_condition = False
