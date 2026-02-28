@@ -545,7 +545,7 @@ class OpenKairoMiningPanel extends LitElement {
                 ${miner.mode === 'soc' ? html`
                   <div class="tech-box">
                     <p><b>Aktueller SOC:</b> <span class="highlight-val">${batterySOCValue || 'N/A'}</span></p>
-                    <p class="small-text mt-1" style="margin-bottom: 8px;">Regeln: An &ge; ${miner.soc_on}% | Aus &le; ${miner.soc_off}%</p>
+                    <p class="small-text mt-1" style="margin-bottom: 8px;">Regeln: An &ge; ${miner.soc_on || 90}% | Aus &le; ${miner.soc_off || 30}%</p>
                   </div>
                 ` : ''}
 
