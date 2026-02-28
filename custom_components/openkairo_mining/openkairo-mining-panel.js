@@ -677,20 +677,29 @@ class OpenKairoMiningPanel extends LitElement {
                     </select>
                 </div>
                 <div class="form-group flex-1">
+                    <label>Miner Stromverbrauch-Sensor (Watt)</label>
+                    <select name="power_consumption_sensor" @change="${this.handleFormInput}">
+                    <option value="" ?selected="${!this.editForm.power_consumption_sensor}">-- Stromverbrauch Sensor wählen --</option>
+                    ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.power_consumption_sensor === opt.id}">${opt.name}</option>`)}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group flex-1">
                     <label>Miner Temperatur-Sensor</label>
                     <select name="temp_sensor" @change="${this.handleFormInput}">
                     <option value="" ?selected="${!this.editForm.temp_sensor}">-- Temp Sensor wählen --</option>
                     ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.temp_sensor === opt.id}">${opt.name}</option>`)}
                     </select>
                 </div>
-            </div>
-            <div class="form-group mt-3" style="width: 50%;">
-                <label>Power Limit ('number' Entität)</label>
-                <select name="power_entity" @change="${this.handleFormInput}">
-                <option value="" ?selected="${!this.editForm.power_entity}">-- Power Limit wählen --</option>
-                ${numberOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.power_entity === opt.id}">${opt.name}</option>`)}
-                </select>
-                <small>Optional: ASIC Power Limit Slider für das Dashboard aktivieren.</small>
+                <div class="form-group flex-1">
+                    <label>Power Limit ('number' Entität)</label>
+                    <select name="power_entity" @change="${this.handleFormInput}">
+                    <option value="" ?selected="${!this.editForm.power_entity}">-- Power Limit wählen --</option>
+                    ${numberOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.power_entity === opt.id}">${opt.name}</option>`)}
+                    </select>
+                    <small>Optional: ASIC Slider für Dashboard.</small>
+                </div>
             </div>
         </div>
 
