@@ -136,7 +136,7 @@ async def _mining_loop(hass):
                 switch_state = hass.states.get(miner_switch)
                 is_on = switch_state.state == "on" if switch_state else False
 
-                if mode == "pv":
+                if mode in ["pv", "soc"]:
                     delay_minutes = float(miner.get("delay_minutes", 0))
                     delay_seconds = delay_minutes * 60
                     
@@ -195,6 +195,22 @@ async def _mining_loop(hass):
                                         if not allow_battery or (allow_battery and battery_soc < battery_min_soc):
                                             turn_off_condition = True
                                             
+                                except ValueError:
+                                    pass
+                    elif mode == "soc":
+                        battery_sensor = miner.get("battery_sensor")
+                        if battery_sensor:
+                            bat_state = hass.states.get(battery_sensor)
+                            if bat_state and bat_state.state not in ["unknown", "unavailable"]:
+                                try:
+                                    battery_soc = float(bat_state.state)
+                                    soc_on = float(miner.get("soc_on", 90))
+                                    soc_off = float(miner.get("soc_off", 30))
+                                    
+                                    if battery_soc >= soc_on:
+                                        turn_on_condition = True
+                                    elif battery_soc <= soc_off:
+                                        turn_off_condition = True
                                 except ValueError:
                                     pass
                     

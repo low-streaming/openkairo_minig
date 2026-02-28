@@ -14,9 +14,10 @@ Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intellig
 ## Features
 - **Designstarkes Dashboard:** Eine moderne Weboberfläche zur zentralen Steuerung und Überwachung aller Miner.
 - **Intelligente PV-Steuerung:** Automatisches Schalten basierend auf Solareinspeisung. Inklusive Priorisierung mehrerer Miner und optionalem Batterie-Backup (SOC).
+- **Batterie SOC-Steuerung:** Eigener Betriebsmodus, um Miner rein nach dem Ladezustand (SOC) des Hausakkus zu steuern (z.B. Start bei 90%, Stopp bei 30%).
 - **Hysteresen-Schutz:** Einstellbare Ein- und Ausschaltverzögerungen, um die Hardware bei wechselhafter Bewölkung zu schonen.
 - **Tiefe Hass-Miner Integration:**
-  - Live-Monitoring von Hashrate und Temperaturen.
+  - Live-Monitoring von Hashrate, Temperaturen, Minerverbrauch (Watt) und Batterie SOC (%).
   - **Power Limit Slider:** Reguliere den Stromverbrauch kompatibler Miner stufenlos direkt im Dashboard.
   - **ASIC-Kontrolle:** Sende Befehle wie Neustart, Reboot oder Modus-Wechsel (Low/Normal/High Power) per Knopfdruck.
 - **Personalisierung:** Hinterlege eigene Bilder für jeden Miner für eine individuelle Optik.

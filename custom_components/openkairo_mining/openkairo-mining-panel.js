@@ -157,7 +157,9 @@ class OpenKairoMiningPanel extends LitElement {
       power_consumption_sensor: '',
       electricity_price_sensor: '',
       forecast_sensor: '',
-      forecast_min: 0
+      forecast_min: 0,
+      soc_on: 90,
+      soc_off: 30
     };
   }
 
@@ -343,7 +345,8 @@ class OpenKairoMiningPanel extends LitElement {
 
     const modeMap = {
       'manual': 'Manuell',
-      'pv': 'PV-Überschuss'
+      'pv': 'PV-Überschuss',
+      'soc': 'Batterie SOC'
     };
 
     return html`
@@ -376,6 +379,18 @@ class OpenKairoMiningPanel extends LitElement {
       if (miner.temp_sensor && this.hass && this.hass.states[miner.temp_sensor]) {
         const stateObj = this.hass.states[miner.temp_sensor];
         tempValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || '°C');
+      }
+
+      let powerConsumptionValue = '';
+      if (miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]) {
+        const stateObj = this.hass.states[miner.power_consumption_sensor];
+        powerConsumptionValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || 'W');
+      }
+
+      let batterySOCValue = '';
+      if (miner.battery_sensor && this.hass && this.hass.states[miner.battery_sensor]) {
+        const stateObj = this.hass.states[miner.battery_sensor];
+        batterySOCValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || '%');
       }
 
       // Profitabilitäts-Berechnung
@@ -478,10 +493,12 @@ class OpenKairoMiningPanel extends LitElement {
                 </button>
               </div>
               
-              ${(hashrateValue || tempValue) ? html`
+              ${(hashrateValue || tempValue || powerConsumptionValue || batterySOCValue) ? html`
               <div class="api-stats">
                   ${hashrateValue ? html`<div class="stat"><span class="lbl">Hashrate:</span> <span class="val">${hashrateValue}</span></div>` : ''}
                   ${tempValue ? html`<div class="stat"><span class="lbl">Temp:</span> <span class="val">${tempValue}</span></div>` : ''}
+                  ${powerConsumptionValue ? html`<div class="stat"><span class="lbl">Verbrauch:</span> <span class="val">${powerConsumptionValue}</span></div>` : ''}
+                  ${batterySOCValue ? html`<div class="stat"><span class="lbl">SOC:</span> <span class="val">${batterySOCValue}</span></div>` : ''}
               </div>
               ` : ''}
               
@@ -522,6 +539,13 @@ class OpenKairoMiningPanel extends LitElement {
                           <p class="small-text mt-1">🌤️ Limit: Miner startet nur ab ${miner.forecast_min || 0} kWh</p>
                       </div>
                     ` : ''}
+                  </div>
+                ` : ''}
+                
+                ${miner.mode === 'soc' ? html`
+                  <div class="tech-box">
+                    <p><b>Aktueller SOC:</b> <span class="highlight-val">${batterySOCValue || 'N/A'}</span></p>
+                    <p class="small-text mt-1" style="margin-bottom: 8px;">Regeln: An &ge; ${miner.soc_on}% | Aus &le; ${miner.soc_off}%</p>
                   </div>
                 ` : ''}
 
@@ -675,6 +699,7 @@ class OpenKairoMiningPanel extends LitElement {
           <select class="btc-select" name="mode" @change="${this.handleFormInput}">
             <option value="manual" ?selected="${this.editForm.mode === 'manual'}">Manuell (Nur Überwachung)</option>
             <option value="pv" ?selected="${this.editForm.mode === 'pv'}">PV-Überschuss (Einspeisung)</option>
+            <option value="soc" ?selected="${this.editForm.mode === 'soc'}">Batterie SOC</option>
           </select>
         </div>
 
@@ -752,8 +777,33 @@ class OpenKairoMiningPanel extends LitElement {
           </div>
         ` : ''}
 
-
-
+        ${this.editForm.mode === 'soc' ? html`
+          <div class="mode-section btc-section">
+            <h3 style="color: #F7931A; margin-top: 0; margin-bottom: 20px;">🔋 Batterie SOC Steuerung</h3>
+            <div class="form-group">
+                <label>Batterie SOC-Sensor (Ladezustand in %)</label>
+                <select name="battery_sensor" @change="${this.handleFormInput}">
+                  <option value="" ?selected="${!this.editForm.battery_sensor}">-- Batterie % Sensor wählen --</option>
+                  ${sensorOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.battery_sensor === opt.id}">${opt.name}</option>`)}
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label>Einschalten ab SOC (%)</label>
+                    <input type="number" name="soc_on" min="0" max="100" .value="${this.editForm.soc_on || 90}" @input="${this.handleFormInput}">
+                </div>
+                <div class="form-group flex-1">
+                    <label>Ausschalten ab SOC (%)</label>
+                    <input type="number" name="soc_off" min="0" max="100" .value="${this.editForm.soc_off || 30}" @input="${this.handleFormInput}">
+                </div>
+            </div>
+            <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <label>Verzögerung (Hysterese in Minuten)</label>
+                <input type="number" min="0" step="1" name="delay_minutes" .value="${this.editForm.delay_minutes !== undefined ? this.editForm.delay_minutes : 5}" @input="${this.handleFormInput}">
+                <small>Verhindert ständiges An/Aus. Miner schaltet erst nach X Minuten.</small>
+            </div>
+          </div>
+        ` : ''}
 
 
         <div class="form-actions">
