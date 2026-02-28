@@ -317,10 +317,19 @@ class OpenKairoMiningPanel extends LitElement {
         </div>
 
         <div class="tech-box" style="margin-top: 15px;">
+          <h3 style="margin-top:0; color:#2ecc71;">🔋 Batterie SOC-Modus & Watchdog:</h3>
+          <p style="color:#bbb; line-height:1.6; margin-top: 5px;">Zusätzlich zum reinen PV-Überschuss gibt es weitere Steuerungsmöglichkeiten:</p>
+          <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
+            <li><strong style="color:#ddd;">Batterie SOC-Steuerung:</strong> Ein eigener Modus, bei dem der Miner rein nach dem Füllstand deines Hausakkus gesteuert wird (z.B. An ab 90%, Aus unter 30%).</li>
+            <li><strong style="color:#ddd;">Standby-Watchdog:</strong> Eine Sicherheitsfunktion, die einen Smart-Plug (z.B. Shelly) komplett ausschaltet, wenn der Miner sich aufhängt oder zu lange sehr wenig Strom verbraucht. Dies schützt vor unnötigem Standby-Verbrauch.</li>
+          </ul>
+        </div>
+
+        <div class="tech-box" style="margin-top: 15px;">
           <h3 style="margin-top:0; color:#F7931A;">🔌 Hass-Miner Integration:</h3>
           <p style="color:#bbb; line-height:1.6; margin-top: 5px;">In Kombination mit der <strong>Hass-Miner</strong> Integration von Schnitzel schaltest du das volle Potenzial frei:</p>
           <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
-            <li><strong style="color:#ddd;">Echtzeit-Monitoring:</strong> Visualisierung von Hashrate und Temperatur direkt im Dashboard.</li>
+            <li><strong style="color:#ddd;">Echtzeit-Monitoring:</strong> Visualisierung von Hashrate, Temperatur, Stromverbrauch und Batterie-SOC direkt im Dashboard.</li>
             <li><strong style="color:#ddd;">Remote Control:</strong> Sende Befehle wie Neustart, Reboot oder Modus-Wechsel (Low/Normal/High Power) direkt vom Sofa aus.</li>
             <li><strong style="color:#ddd;">Power Limit Slider:</strong> Reguliere den Stromverbrauch kompatibler Miner (z.B. S9 mit Braiins OS+) stufenlos direkt auf der Miner-Karte.</li>
           </ul>
