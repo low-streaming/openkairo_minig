@@ -33,7 +33,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         config={
             "_panel_custom": {
                 "name": "openkairo-mining-panel",
-                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=2.1.3"
+                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=2.1.5"
             }
         },
         require_admin=True
@@ -248,6 +248,16 @@ async def _mining_loop(hass):
                         if state["on_since"] is None:
                             state["on_since"] = current_time
                         elif current_time - state["on_since"] >= delay_seconds:
+                            
+                            # Standby-Switch (Hard Plug) automatically turn ON if it was hard-off
+                            if miner.get("standby_watchdog_enabled"):
+                                standby_switch = miner.get("standby_switch")
+                                if standby_switch:
+                                    standby_switch_state = hass.states.get(standby_switch)
+                                    if standby_switch_state and standby_switch_state.state == "off":
+                                        _LOGGER.info(f"[{miner_name}] Watchdog recovery! Turning ON {standby_switch}")
+                                        await hass.services.async_call("switch", "turn_on", {"entity_id": standby_switch}, blocking=False)
+                            
                             if not is_on:
                                 _LOGGER.info(f"[{miner_name}] Turn ON condition met for >= {delay_minutes} min, turning ON {miner_switch}")
                                 await hass.services.async_call("switch", "turn_on", {"entity_id": miner_switch}, blocking=False)

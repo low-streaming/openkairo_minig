@@ -321,7 +321,7 @@ class OpenKairoMiningPanel extends LitElement {
           <p style="color:#bbb; line-height:1.6; margin-top: 5px;">Zusätzlich zum reinen PV-Überschuss gibt es weitere Steuerungsmöglichkeiten:</p>
           <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
             <li><strong style="color:#ddd;">Batterie SOC-Steuerung:</strong> Ein eigener Modus, bei dem der Miner rein nach dem Füllstand deines Hausakkus gesteuert wird (z.B. An ab 90%, Aus unter 30%).</li>
-            <li><strong style="color:#ddd;">Standby-Watchdog:</strong> Eine Sicherheitsfunktion, die einen Smart-Plug (z.B. Shelly) komplett ausschaltet, wenn der Miner sich aufhängt oder zu lange sehr wenig Strom verbraucht. Dies schützt vor unnötigem Standby-Verbrauch.</li>
+            <li><strong style="color:#ddd;">Standby-Watchdog:</strong> Eine Sicherheitsfunktion, die einen Smart-Plug (z.B. Shelly) komplett ausschaltet, wenn der Miner sich aufhängt oder zu lange sehr wenig Strom verbraucht. Sobald wieder genug Überschuss oder SOC vorhanden ist, wird die Steckdose vollautomatisch wieder aktiviert.</li>
           </ul>
         </div>
 
@@ -848,7 +848,7 @@ class OpenKairoMiningPanel extends LitElement {
                   <option value="" ?selected="${!this.editForm.standby_switch}">-- Steckdose wählen --</option>
                   ${switchOptions.map(opt => html`<option value="${opt.id}" ?selected="${this.editForm.standby_switch === opt.id}">${opt.name}</option>`)}
                 </select>
-                <small>HINWEIS: Um den Miner später wieder zu starten, muss der Plug meist manuell in HA wieder eingeschaltet werden.</small>
+                <small>HINWEIS: Der Plug wird automatisch wieder hochgefahren, sobald die PV- oder SOC-Einschaltregeln erfüllt sind.</small>
             </div>
             <div class="form-row">
                 <div class="form-group flex-1">
