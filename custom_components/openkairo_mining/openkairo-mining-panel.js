@@ -4,6 +4,280 @@ import {
   css,
 } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 
+// New custom element for beautiful entity search dropdowns
+class OpenKairoEntityPicker extends LitElement {
+  static get properties() {
+    return {
+      name: { type: String },
+      value: { type: String },
+      entities: { type: Array },
+      placeholder: { type: String },
+      open: { type: Boolean },
+      search: { type: String }
+    };
+  }
+
+  constructor() {
+    super();
+    this.value = '';
+    this.entities = [];
+    this.placeholder = '-- Element suchen oder wählen --';
+    this.open = false;
+    this.search = '';
+    this._documentClickListener = this._handleDocumentClick.bind(this);
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    document.addEventListener('click', this._documentClickListener);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener('click', this._documentClickListener);
+  }
+
+  _handleDocumentClick(e) {
+    if (!e.composedPath().includes(this)) {
+      this.open = false;
+      this._syncSearchToValue();
+    }
+  }
+
+  _syncSearchToValue() {
+    if (this.value) {
+      const selected = this.entities.find(e => e.id === this.value);
+      this.search = selected ? selected.name : this.value;
+    } else {
+      this.search = '';
+    }
+  }
+
+  _handleInput(e) {
+    this.search = e.target.value;
+    this.open = true;
+  }
+
+  _handleFocus() {
+    this.open = true;
+    this._syncSearchToValue();
+    setTimeout(() => {
+      const input = this.shadowRoot.querySelector('input');
+      if (input) input.select();
+    }, 10);
+  }
+
+  _selectItem(id, name) {
+    this.value = id;
+    this.search = name;
+    this.open = false;
+    this.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    this.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  }
+
+  _clearSelection(e) {
+    e.stopPropagation();
+    this.value = '';
+    this.search = '';
+    this.open = false;
+    this.shadowRoot.querySelector('input').focus();
+    this.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    this.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  }
+
+  updated(changedProperties) {
+    if (changedProperties.has('value') && changedProperties.get('value') !== this.value) {
+      this._syncSearchToValue();
+    }
+    if (changedProperties.has('entities') && this.value && !this.search) {
+      this._syncSearchToValue();
+    }
+  }
+
+  render() {
+    const terms = this.search.toLowerCase().split(' ').filter(t => t);
+    const filtered = this.entities.filter(ent => {
+      if (terms.length === 0) return true;
+      const searchable = (ent.name + ' ' + ent.id).toLowerCase();
+      return terms.every(term => searchable.includes(term));
+    });
+
+    const displayValue = this.search;
+
+    return html`
+      <div class="picker-container">
+        <input 
+          type="text" 
+          .value="${displayValue}"
+          placeholder="${this.placeholder}"
+          @input="${this._handleInput}"
+          @focus="${this._handleFocus}"
+          @click="${() => this.open = true}"
+        >
+        
+        <div class="chevron ${this.open ? 'open' : ''}" @click="${(e) => { e.stopPropagation(); this.open = !this.open; }}"></div>
+        
+        ${this.value ? html`<div class="clear-btn" @click="${this._clearSelection}">✕</div>` : ''}
+        
+        ${this.open ? html`
+          <div class="dropdown">
+            ${filtered.length > 0 ? filtered.map(ent => html`
+              <div class="item ${this.value === ent.id ? 'selected' : ''}" @mousedown="${(e) => { e.preventDefault(); this._selectItem(ent.id, ent.name); }}">
+                <div class="item-name">${ent.name.replace(` (${ent.id})`, '')}</div>
+                <div class="item-id">${ent.id}</div>
+              </div>
+            `) : html`<div class="item empty">Keine Entitäten gefunden</div>`}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  static get styles() {
+    return css`
+      :host {
+        display: block;
+        position: relative;
+        width: 100%;
+        color-scheme: dark;
+      }
+      .picker-container {
+        position: relative;
+        width: 100%;
+      }
+      input {
+        width: 100%;
+        padding: 14px 16px;
+        padding-right: 60px;
+        border-radius: 8px;
+        border: 1px solid #3a3a40;
+        box-sizing: border-box;
+        font-size: 1em;
+        background: rgba(10, 10, 12, 0.8);
+        color: #fff;
+        transition: all 0.3s;
+        font-family: inherit;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        cursor: text;
+      }
+      input:focus {
+        outline: none;
+        border-color: #F7931A;
+        box-shadow: 0 0 0 2px rgba(247, 147, 26, 0.2);
+      }
+      .chevron {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 0; 
+        height: 0; 
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 5px solid #888;
+        cursor: pointer;
+        transition: transform 0.2s;
+        pointer-events: none;
+      }
+      .chevron.open {
+        transform: translateY(-50%) rotate(180deg);
+      }
+      .clear-btn {
+        position: absolute;
+        right: 35px;
+        top: 50%;
+        transform: translateY(-50%);
+        cursor: pointer;
+        color: #888;
+        font-size: 14px;
+        background: rgba(255,255,255,0.05);
+        width: 22px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+      }
+      .clear-btn:hover {
+        color: #fff;
+        background: rgba(255,255,255,0.15);
+      }
+      .dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        margin-top: 5px;
+        background: #1a1a1f;
+        border: 1px solid #F7931A;
+        border-radius: 8px;
+        max-height: 280px;
+        overflow-y: auto;
+        z-index: 9999;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+      }
+      .dropdown::-webkit-scrollbar {
+        width: 8px;
+      }
+      .dropdown::-webkit-scrollbar-track {
+        background: rgba(0,0,0,0.1);
+        border-radius: 0 8px 8px 0;
+      }
+      .dropdown::-webkit-scrollbar-thumb {
+        background: #444;
+        border-radius: 4px;
+      }
+      .dropdown::-webkit-scrollbar-thumb:hover {
+        background: #666;
+      }
+      .item {
+        padding: 10px 14px;
+        cursor: pointer;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .item:last-child {
+        border-bottom: none;
+      }
+      .item:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .item.selected {
+        background: rgba(247, 147, 26, 0.1);
+        border-left: 3px solid #F7931A;
+      }
+      .item-name {
+        color: #fff;
+        font-size: 0.95em;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .item-id {
+        color: #888;
+        font-size: 0.8em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .item.empty {
+        color: #888;
+        font-style: italic;
+        cursor: default;
+        text-align: center;
+        padding: 20px;
+      }
+      .item.empty:hover {
+        background: none;
+      }
+    `;
+  }
+}
+customElements.define("openkairo-entity-picker", OpenKairoEntityPicker);
+
 class OpenKairoMiningPanel extends LitElement {
   static get properties() {
     return {
@@ -651,16 +925,6 @@ class OpenKairoMiningPanel extends LitElement {
     const numberOptions = this.getEntitiesByDomain('number');
 
     return html`
-      <datalist id="switch-entities">
-        ${switchOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
-      </datalist>
-      <datalist id="sensor-entities">
-        ${sensorOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
-      </datalist>
-      <datalist id="number-entities">
-        ${numberOptions.map(opt => html`<option value="${opt.id}">${opt.name}</option>`)}
-      </datalist>
-
       <div class="card edit-card">
         <h2 class="edit-title">${this.editingMinerId === 'new' ? 'Neuen Miner anlegen' : 'Miner bearbeiten'}</h2>
         
@@ -685,7 +949,7 @@ class OpenKairoMiningPanel extends LitElement {
 
         <div class="form-group">
           <label>Schalter / Steckdose</label>
-          <input list="switch-entities" name="switch" placeholder="-- Steckdose suchen oder wählen --" .value="${this.editForm.switch || ''}" @input="${this.handleFormInput}">
+          <openkairo-entity-picker name="switch" placeholder="-- Steckdose suchen oder wählen --" .value="${this.editForm.switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
           <small>Die Steckdose oder der 'hass-miner' Switch, an dem der Miner pausiert wird.</small>
         </div>
 
@@ -697,21 +961,21 @@ class OpenKairoMiningPanel extends LitElement {
             <div class="form-row">
                 <div class="form-group flex-1">
                     <label>Miner Hashrate-Sensor</label>
-                    <input list="sensor-entities" name="hashrate_sensor" placeholder="-- Hashrate Sensor suchen --" .value="${this.editForm.hashrate_sensor || ''}" @input="${this.handleFormInput}">
+                    <openkairo-entity-picker name="hashrate_sensor" placeholder="-- Hashrate Sensor suchen --" .value="${this.editForm.hashrate_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
                 </div>
                 <div class="form-group flex-1">
                     <label>Miner Stromverbrauch-Sensor (Watt)</label>
-                    <input list="sensor-entities" name="power_consumption_sensor" placeholder="-- Stromverbrauch Sensor suchen --" .value="${this.editForm.power_consumption_sensor || ''}" @input="${this.handleFormInput}">
+                    <openkairo-entity-picker name="power_consumption_sensor" placeholder="-- Stromverbrauch Sensor suchen --" .value="${this.editForm.power_consumption_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
                 </div>
             </div>
             <div class="form-row">
                 <div class="form-group flex-1">
                     <label>Miner Temperatur-Sensor</label>
-                    <input list="sensor-entities" name="temp_sensor" placeholder="-- Temp Sensor suchen --" .value="${this.editForm.temp_sensor || ''}" @input="${this.handleFormInput}">
+                    <openkairo-entity-picker name="temp_sensor" placeholder="-- Temp Sensor suchen --" .value="${this.editForm.temp_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
                 </div>
                 <div class="form-group flex-1">
                     <label>Power Limit ('number' Entität)</label>
-                    <input list="number-entities" name="power_entity" placeholder="-- Power Limit suchen --" .value="${this.editForm.power_entity || ''}" @input="${this.handleFormInput}">
+                    <openkairo-entity-picker name="power_entity" placeholder="-- Power Limit suchen --" .value="${this.editForm.power_entity || ''}" .entities="${numberOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
                     <small>Optional: ASIC Slider für Dashboard.</small>
                 </div>
             </div>
@@ -731,7 +995,7 @@ class OpenKairoMiningPanel extends LitElement {
             <h3>☀️ PV-Überschuss Steuerung</h3>
             <div class="form-group">
                 <label>PV-Sensor (Netzeinspeisung/Ertrag in Watt)</label>
-                <input list="sensor-entities" name="pv_sensor" placeholder="-- Einspeise-/Watt-Sensor suchen --" .value="${this.editForm.pv_sensor || ''}" @input="${this.handleFormInput}">
+                <openkairo-entity-picker name="pv_sensor" placeholder="-- Einspeise-/Watt-Sensor suchen --" .value="${this.editForm.pv_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
             </div>
             <div class="form-row">
                 <div class="form-group flex-1">
@@ -754,7 +1018,7 @@ class OpenKairoMiningPanel extends LitElement {
                 <div class="form-row" style="margin-top: 15px;">
                     <div class="form-group flex-2">
                         <label>Batterie SOC-Sensor (Ladezustand in %)</label>
-                        <input list="sensor-entities" name="battery_sensor" placeholder="-- Batterie % Sensor suchen --" .value="${this.editForm.battery_sensor || ''}" @input="${this.handleFormInput}">
+                        <openkairo-entity-picker name="battery_sensor" placeholder="-- Batterie % Sensor suchen --" .value="${this.editForm.battery_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
                     </div>
                     <div class="form-group flex-1">
                         <label>Minimale Batterieladung (%)</label>
@@ -772,7 +1036,7 @@ class OpenKairoMiningPanel extends LitElement {
                 <div class="form-row">
                     <div class="form-group flex-2">
                         <label>Prognose-Sensor (z.B. Solcast Today)</label>
-                        <input list="sensor-entities" name="forecast_sensor" placeholder="-- Wetter/Prognose Sensor suchen --" .value="${this.editForm.forecast_sensor || ''}" @input="${this.handleFormInput}">
+                        <openkairo-entity-picker name="forecast_sensor" placeholder="-- Wetter/Prognose Sensor suchen --" .value="${this.editForm.forecast_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
                     </div>
                     <div class="form-group flex-1">
                         <label>Min. Prognose (kWh)</label>
@@ -796,7 +1060,7 @@ class OpenKairoMiningPanel extends LitElement {
             <h3 style="color: #F7931A; margin-top: 0; margin-bottom: 20px;">🔋 Batterie SOC Steuerung</h3>
             <div class="form-group">
                 <label>Batterie SOC-Sensor (Ladezustand in %)</label>
-                <input list="sensor-entities" name="battery_sensor" placeholder="-- Batterie % Sensor suchen --" .value="${this.editForm.battery_sensor || ''}" @input="${this.handleFormInput}">
+                <openkairo-entity-picker name="battery_sensor" placeholder="-- Batterie % Sensor suchen --" .value="${this.editForm.battery_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
             </div>
             <div class="form-row">
                 <div class="form-group flex-1">
@@ -827,7 +1091,7 @@ class OpenKairoMiningPanel extends LitElement {
             ${this.editForm.standby_watchdog_enabled ? html`
             <div class="form-group mt-3">
                 <label>Steckdose / Plug (Hard-Off Schalter)</label>
-                <input list="switch-entities" name="standby_switch" placeholder="-- Steckdose suchen --" .value="${this.editForm.standby_switch || ''}" @input="${this.handleFormInput}">
+                <openkairo-entity-picker name="standby_switch" placeholder="-- Steckdose suchen --" .value="${this.editForm.standby_switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
                 <small>HINWEIS: Der Plug wird automatisch wieder hochgefahren, sobald die PV- oder SOC-Einschaltregeln erfüllt sind.</small>
             </div>
             <div class="form-row">
