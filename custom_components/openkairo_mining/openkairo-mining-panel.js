@@ -502,6 +502,19 @@ class OpenKairoMiningPanel extends LitElement {
     this.requestUpdate();
   }
 
+  quickUpdateMiner(id, key, value) {
+    const index = this.config.miners.findIndex(m => m.id === id);
+    if (index > -1) {
+      if (typeof value === 'boolean') {
+        this.config.miners[index][key] = value;
+      } else {
+        this.config.miners[index][key] = parseFloat(value);
+      }
+      this.saveConfig(true);
+      this.requestUpdate();
+    }
+  }
+
   setPowerLimit(entityId, value) {
     if (!this.hass || !entityId) return;
     this.hass.callService("number", "set_value", { entity_id: entityId, value: value })
@@ -813,7 +826,10 @@ class OpenKairoMiningPanel extends LitElement {
                 ${miner.mode === 'pv' ? html`
                   <div class="tech-box">
                     <p><b>Aktueller PV-Wert:</b> <span class="highlight-val">${pvValue}</span></p>
-                    <p class="small-text mt-1" style="margin-bottom: 8px;">Regeln: An &ge; ${miner.pv_on}W | Aus &le; ${miner.pv_off}W</p>
+                    <div class="small-text mt-1" style="margin-bottom: 8px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
+                        Regeln: An &ge; <input type="number" .value="${miner.pv_on}" @change="${(e) => this.quickUpdateMiner(miner.id, 'pv_on', e.target.value)}" style="width: 70px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #F7931A; border-radius: 4px; font-weight: bold;"> W 
+                        | Aus &le; <input type="number" .value="${miner.pv_off}" @change="${(e) => this.quickUpdateMiner(miner.id, 'pv_off', e.target.value)}" style="width: 70px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #F7931A; border-radius: 4px; font-weight: bold;"> W
+                    </div>
                     ${miner.allow_battery ? html`
                       <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px;">
                           <p><b>Batterie (SOC):</b> <span class="highlight-val">${batteryValue || 'N/A'}</span></p>
@@ -832,16 +848,43 @@ class OpenKairoMiningPanel extends LitElement {
                 ${miner.mode === 'soc' ? html`
                   <div class="tech-box">
                     <p><b>Aktueller SOC:</b> <span class="highlight-val">${batterySOCValue || 'N/A'}</span></p>
-                    <p class="small-text mt-1" style="margin-bottom: 8px;">Regeln: An &ge; ${miner.soc_on || 90}% | Aus &le; ${miner.soc_off || 30}%</p>
+                    <div class="small-text mt-1" style="margin-bottom: 8px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
+                        Regeln: An &ge; <input type="number" .value="${miner.soc_on !== undefined ? miner.soc_on : 90}" @change="${(e) => this.quickUpdateMiner(miner.id, 'soc_on', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #F7931A; border-radius: 4px; font-weight: bold;"> % 
+                        | Aus &le; <input type="number" .value="${miner.soc_off !== undefined ? miner.soc_off : 30}" @change="${(e) => this.quickUpdateMiner(miner.id, 'soc_off', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #F7931A; border-radius: 4px; font-weight: bold;"> %
+                    </div>
                   </div>
                 ` : ''}
 
                 ${miner.standby_watchdog_enabled ? html`
+                  ${(() => {
+            let stState = 'Unbekannt';
+            if (this.hass && miner.standby_switch && this.hass.states[miner.standby_switch]) {
+              stState = this.hass.states[miner.standby_switch].state;
+            }
+            return html`
                   <div class="tech-box" style="margin-top: 15px; border-color: rgba(231, 76, 60, 0.4); background: rgba(231, 76, 60, 0.05);">
-                    <p><b>🛡️ Watchdog:</b> <span class="highlight-val" style="color: #e74c3c;">Aktiviert</span></p>
-                    <p class="small-text mt-1" style="margin-bottom: 8px;">Auto-Off Plug wenn Verbrauch &lt; ${miner.standby_power || 100}W (für &ge; ${miner.standby_delay || 10} Min.)</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <label style="margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" .checked="${miner.standby_watchdog_enabled}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_watchdog_enabled', e.target.checked)}" style="width: 16px; height: 16px; margin: 0; accent-color: #e74c3c;">
+                            <b>🛡️ Watchdog:</b> <span class="highlight-val" style="color: ${stState === 'on' ? '#2ecc71' : '#e74c3c'};">${stState === 'on' ? 'ON' : stState === 'off' ? 'OFF' : stState}</span>
+                        </label>
+                        <button class="btn-power ${stState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner.standby_switch)}" title="Watchdog Plug manuell schalten" style="font-size: 1.2em; padding: 4px 12px; min-height: 36px;">
+                          ⏻ Plug
+                        </button>
+                    </div>
+                    <div class="small-text mt-1" style="margin-top: 10px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
+                        Off wenn &lt; <input type="number" .value="${miner.standby_power || 100}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_power', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #e74c3c; border-radius: 4px; font-weight: bold;"> W 
+                        für &ge; <input type="number" .value="${miner.standby_delay || 10}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_delay', e.target.value)}" style="width: 50px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #e74c3c; border-radius: 4px; font-weight: bold;"> Min.
+                    </div>
+                  </div>`})()}
+                ` : html`
+                  <div class="tech-box" style="margin-top: 15px; border-color: rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.2);">
+                      <label style="margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; color: #888;">
+                          <input type="checkbox" .checked="${miner.standby_watchdog_enabled}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_watchdog_enabled', e.target.checked)}" style="width: 16px; height: 16px; margin: 0; accent-color: #e74c3c;">
+                          <b>🛡️ Watchdog aktivieren</b>
+                      </label>
                   </div>
-                ` : ''}
+                `}
 
               </div>
 
