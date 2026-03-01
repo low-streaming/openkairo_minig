@@ -515,6 +515,13 @@ class OpenKairoMiningPanel extends LitElement {
     }
   }
 
+  showMoreInfo(entityId) {
+    if (!entityId) return;
+    const event = new Event('hass-more-info', { bubbles: true, composed: true });
+    event.detail = { entityId: entityId };
+    this.dispatchEvent(event);
+  }
+
   setPowerLimit(entityId, value) {
     if (!this.hass || !entityId) return;
     this.hass.callService("number", "set_value", { entity_id: entityId, value: value })
