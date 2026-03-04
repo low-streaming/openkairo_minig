@@ -384,10 +384,18 @@ class OpenKairoMiningPanel extends LitElement {
 
   calculateRuntime(entityId) {
     const data = this.switchHistoryData[entityId];
-    if (!data || data.length === 0) return { todayMinutes: 0, weekMinutes: 0 };
+    if (!data || data.length === 0) return { todayMinutes: 0, weekMinutes: 0, todayProfitableMinutes: 0, weekProfitableMinutes: 0, startCountToday: 0, startCountWeek: 0 };
 
     let todayMinutes = 0;
     let weekMinutes = 0;
+
+    let todayProfitableMinutes = 0;
+    let weekProfitableMinutes = 0;
+
+    let startCountToday = 0;
+    let startCountWeek = 0;
+
+    const bootPenaltyMins = 5; // Boot- & Pool-Connect Zeit in Minuten pro Startvorgang
 
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -401,16 +409,27 @@ class OpenKairoMiningPanel extends LitElement {
       const state = item.state;
 
       if (state === 'on') {
-        if (!lastOnTime) lastOnTime = time;
+        if (!lastOnTime) {
+          lastOnTime = time;
+          startCountWeek++;
+          if (time >= startOfToday) {
+            startCountToday++;
+          }
+        }
       } else if (state === 'off' || state === 'unavailable' || state === 'unknown') {
         if (lastOnTime) {
-          const interval = time - lastOnTime;
-          weekMinutes += interval / 60000;
+          const intervalMins = (time - lastOnTime) / 60000;
+          weekMinutes += intervalMins;
+          weekProfitableMinutes += Math.max(0, intervalMins - bootPenaltyMins);
 
           if (lastOnTime >= startOfToday) {
-            todayMinutes += interval / 60000;
+            todayMinutes += intervalMins;
+            todayProfitableMinutes += Math.max(0, intervalMins - bootPenaltyMins);
           } else if (time > startOfToday) {
-            todayMinutes += (time - startOfToday) / 60000;
+            const todayPortion = (time - startOfToday) / 60000;
+            todayMinutes += todayPortion;
+            // Wenn der Start vor heute lag, hat er die Penalty schon in den vergangenen Tagen eingesessen.
+            todayProfitableMinutes += todayPortion;
           }
           lastOnTime = null;
         }
@@ -418,17 +437,21 @@ class OpenKairoMiningPanel extends LitElement {
     }
 
     if (lastOnTime) {
-      const interval = currentMillis - lastOnTime;
-      weekMinutes += interval / 60000;
+      const intervalMins = (currentMillis - lastOnTime) / 60000;
+      weekMinutes += intervalMins;
+      weekProfitableMinutes += Math.max(0, intervalMins - bootPenaltyMins);
 
       if (lastOnTime >= startOfToday) {
-        todayMinutes += interval / 60000;
+        todayMinutes += intervalMins;
+        todayProfitableMinutes += Math.max(0, intervalMins - bootPenaltyMins);
       } else if (currentMillis > startOfToday) {
-        todayMinutes += (currentMillis - startOfToday) / 60000;
+        const todayPortion = (currentMillis - startOfToday) / 60000;
+        todayMinutes += todayPortion;
+        todayProfitableMinutes += todayPortion;
       }
     }
 
-    return { todayMinutes, weekMinutes };
+    return { todayMinutes, weekMinutes, todayProfitableMinutes, weekProfitableMinutes, startCountToday, startCountWeek };
   }
 
   async loadConfig() {
@@ -1429,7 +1452,7 @@ class OpenKairoMiningPanel extends LitElement {
                  <div style="margin-top: 15px; font-size: 0.85em; color: #666; line-height: 1.4;">
                     * <b>Break-Even</b> ist dein theoretischer Höchst-Strompreis, bei dem der Miner noch genau kostendeckend läuft.<br>
                     * Betreibst du den Miner bei reinem <b>PV-Überschuss</b> (Kosten = 0 €), erhältst du den vollen Bitcoin-Ertrag gutgeschrieben. <br>
-                    * <b>Echte Historie</b> wertet live aus, wie lange der zugewiesene Schalter in Home Assistant in den letzten 7 Tagen auf "An" stand und berechnet basierend auf dem aktuellen Ertrag die generierten Euro.
+                    * <b>Echte Historie</b> wertet die "An"-Zeit des Schalters aus und schätzt den Euro-Ertrag. <i>Hinweis: Da Miner beim Starten eine Aufwärmphase (Boot & Tuning) benötigen, bis die volle Hashrate erreicht ist, ist dies eine theoretische Näherung. Der reale Pool-Ertrag wird leicht darunter liegen.</i>
                  </div>
                  
                  ${(simModel === 'sensor' && (!miner.power_consumption_sensor || !miner.hashrate_sensor)) ? html`
