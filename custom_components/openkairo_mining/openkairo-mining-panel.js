@@ -302,6 +302,7 @@ class OpenKairoMiningPanel extends LitElement {
     this.simulatorModels = {};
     this.switchHistoryData = {};
     this.fetchingSwitchHistory = {};
+    this.manualInputs = {};
   }
 
   firstUpdated() {
@@ -389,17 +390,10 @@ class OpenKairoMiningPanel extends LitElement {
     let todayMinutes = 0;
     let weekMinutes = 0;
 
-    let todayProfitableMinutes = 0;
-    let weekProfitableMinutes = 0;
-
-    let startCountToday = 0;
-    let startCountWeek = 0;
-
-    const bootPenaltyMins = 5; // Boot- & Pool-Connect Zeit in Minuten pro Startvorgang
-
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const currentMillis = now.getTime();
+    const sevenDaysAgo = currentMillis - (7 * 24 * 60 * 60 * 1000);
 
     let lastOnTime = null;
 
@@ -409,49 +403,47 @@ class OpenKairoMiningPanel extends LitElement {
       const state = item.state;
 
       if (state === 'on') {
-        if (!lastOnTime) {
-          lastOnTime = time;
-          startCountWeek++;
-          if (time >= startOfToday) {
-            startCountToday++;
-          }
-        }
+        if (!lastOnTime) lastOnTime = time;
       } else if (state === 'off' || state === 'unavailable' || state === 'unknown') {
         if (lastOnTime) {
-          const intervalMins = (time - lastOnTime) / 60000;
-          weekMinutes += intervalMins;
-          weekProfitableMinutes += Math.max(0, intervalMins - bootPenaltyMins);
+          const interval = time - lastOnTime;
 
+          // Woche
+          if (lastOnTime >= sevenDaysAgo) {
+            weekMinutes += interval / 60000;
+          } else if (time > sevenDaysAgo) {
+            weekMinutes += (time - sevenDaysAgo) / 60000;
+          }
+
+          // Heute
           if (lastOnTime >= startOfToday) {
-            todayMinutes += intervalMins;
-            todayProfitableMinutes += Math.max(0, intervalMins - bootPenaltyMins);
+            todayMinutes += interval / 60000;
           } else if (time > startOfToday) {
-            const todayPortion = (time - startOfToday) / 60000;
-            todayMinutes += todayPortion;
-            // Wenn der Start vor heute lag, hat er die Penalty schon in den vergangenen Tagen eingesessen.
-            todayProfitableMinutes += todayPortion;
+            todayMinutes += (time - startOfToday) / 60000;
           }
           lastOnTime = null;
         }
       }
     }
 
-    if (lastOnTime) {
-      const intervalMins = (currentMillis - lastOnTime) / 60000;
-      weekMinutes += intervalMins;
-      weekProfitableMinutes += Math.max(0, intervalMins - bootPenaltyMins);
+    // If it's ON *right now*, add the ongoing live duration
+    if (lastOnTime && currentStateObj && currentStateObj.state === 'on') {
+      const interval = currentMillis - lastOnTime;
+
+      if (lastOnTime >= sevenDaysAgo) {
+        weekMinutes += interval / 60000;
+      } else if (currentMillis > sevenDaysAgo) {
+        weekMinutes += (currentMillis - sevenDaysAgo) / 60000;
+      }
 
       if (lastOnTime >= startOfToday) {
-        todayMinutes += intervalMins;
-        todayProfitableMinutes += Math.max(0, intervalMins - bootPenaltyMins);
+        todayMinutes += interval / 60000;
       } else if (currentMillis > startOfToday) {
-        const todayPortion = (currentMillis - startOfToday) / 60000;
-        todayMinutes += todayPortion;
-        todayProfitableMinutes += todayPortion;
+        todayMinutes += (currentMillis - startOfToday) / 60000;
       }
     }
 
-    return { todayMinutes, weekMinutes, todayProfitableMinutes, weekProfitableMinutes, startCountToday, startCountWeek };
+    return { todayMinutes, weekMinutes };
   }
 
   async loadConfig() {
@@ -1287,8 +1279,12 @@ class OpenKairoMiningPanel extends LitElement {
       let hashrateTH = 0;
 
       const simModel = this.simulatorModels[miner.id] || 'sensor';
+      const manualInput = this.manualInputs[miner.id] || { hashrate: 100, power: 3000 };
 
-      if (simModel === 'S9') {
+      if (simModel === 'manual') {
+        powerKW = (manualInput.power || 0) / 1000;
+        hashrateTH = manualInput.hashrate || 0;
+      } else if (simModel === 'S9') {
         powerKW = 1.372;
         hashrateTH = 14;
       } else if (simModel === 'S19') {
@@ -1363,6 +1359,7 @@ class OpenKairoMiningPanel extends LitElement {
                      <select @change="${(e) => { this.simulatorModels = { ...this.simulatorModels, [miner.id]: e.target.value }; this.requestUpdate(); }}" 
                              style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; border-radius: 6px; cursor: pointer;">
                          <option value="sensor" ?selected="${simModel === 'sensor'}">Eigene Sensoren verwenden</option>
+                         <option value="manual" ?selected="${simModel === 'manual'}">Eigene manuelle Eingabe</option>
                          <option value="Bitaxe" ?selected="${simModel === 'Bitaxe'}">Bitaxe (0.5 TH/s | 15W)</option>
                          <option value="S9" ?selected="${simModel === 'S9'}">Antminer S9 (14 TH/s | 1372W)</option>
                          <option value="S19" ?selected="${simModel === 'S19'}">Antminer S19 (90 TH/s | 3250W)</option>
@@ -1378,6 +1375,19 @@ class OpenKairoMiningPanel extends LitElement {
                      </select>
                  </div>
                  
+                 ${simModel === 'manual' ? html`
+                    <div style="display: flex; gap: 10px; margin-top: -5px; margin-bottom: 15px;">
+                      <div style="flex: 1;">
+                        <label style="color: #888; font-size: 0.8em; display: block; margin-bottom: 4px;">Hashrate (TH/s)</label>
+                        <input type="number" step="0.1" .value="${manualInput.hashrate}" @input="${(e) => { this.manualInputs = { ...this.manualInputs, [miner.id]: { ...manualInput, hashrate: parseFloat(e.target.value) || 0 } }; this.requestUpdate(); }}" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;">
+                      </div>
+                      <div style="flex: 1;">
+                        <label style="color: #888; font-size: 0.8em; display: block; margin-bottom: 4px;">Stromverbrauch (Watt)</label>
+                        <input type="number" step="10" .value="${manualInput.power}" @input="${(e) => { this.manualInputs = { ...this.manualInputs, [miner.id]: { ...manualInput, power: parseFloat(e.target.value) || 0 } }; this.requestUpdate(); }}" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;">
+                      </div>
+                    </div>
+                  ` : ''}
+                  
                  <div class="tech-box" style="background: rgba(0,0,0,0.3); border-color: rgba(247, 147, 26, 0.4); box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                         <span style="color: #888;">⛏️ Mining Ertrag:</span>
@@ -1428,13 +1438,17 @@ class OpenKairoMiningPanel extends LitElement {
           };
 
           if (!miner.switch) return '';
-
           return html`
                    <div class="tech-box" style="background: rgba(52, 152, 219, 0.05); border-color: rgba(52, 152, 219, 0.2); margin-top: 15px;">
-                       <h4 style="margin: 0 0 10px 0; color: #3498db; font-size: 0.95em; text-transform: uppercase;">🕒 Echte Historie (Home Assistant)</h4>
+                       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                           <h4 style="margin: 0; color: #3498db; font-size: 0.95em; text-transform: uppercase;">🕒 Echte Historie (Live)</h4>
+                           <button @click="${() => { this.fetchingSwitchHistory[miner.switch] = false; this.requestUpdate(); }}" style="background: none; border: 1px solid rgba(52, 152, 219, 0.5); color: #3498db; border-radius: 4px; padding: 3px 8px; font-size: 0.8em; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                               <span style="font-size: 1.2em;">🔄</span> Update
+                           </button>
+                       </div>
                        
                        ${this.fetchingSwitchHistory[miner.switch] && !this.switchHistoryData[miner.switch] ? html`
-                           <span style="color: #888;">Lade Historie...</span>
+                           <span style="color: #888;">Lade Historie aus der Datenbank...</span>
                        ` : html`
                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 5px;">
                                <span style="color: #888;">Heute (${formatTime(todayMinutes)}):</span>
@@ -1452,7 +1466,7 @@ class OpenKairoMiningPanel extends LitElement {
                  <div style="margin-top: 15px; font-size: 0.85em; color: #666; line-height: 1.4;">
                     * <b>Break-Even</b> ist dein theoretischer Höchst-Strompreis, bei dem der Miner noch genau kostendeckend läuft.<br>
                     * Betreibst du den Miner bei reinem <b>PV-Überschuss</b> (Kosten = 0 €), erhältst du den vollen Bitcoin-Ertrag gutgeschrieben. <br>
-                    * <b>Echte Historie</b> wertet die "An"-Zeit des Schalters aus und schätzt den Euro-Ertrag. <i>Hinweis: Da Miner beim Starten eine Aufwärmphase (Boot & Tuning) benötigen, bis die volle Hashrate erreicht ist, ist dies eine theoretische Näherung. Der reale Pool-Ertrag wird leicht darunter liegen.</i>
+                    * <b>Echte Historie</b> wertet die "An"-Zeit des Schalters live aus und schätzt den Euro-Ertrag. <i>Hinweis: Da Miner beim Starten eine Aufwärmphase benötigen, ist dies eine Näherung. Falls die Historie leer bleibt, prüfe, ob Home Assistant (Recorder) deinen Schalter aufzeichnet.</i>
                  </div>
                  
                  ${(simModel === 'sensor' && (!miner.power_consumption_sensor || !miner.hashrate_sensor)) ? html`
