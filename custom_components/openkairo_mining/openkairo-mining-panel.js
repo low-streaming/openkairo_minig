@@ -1264,7 +1264,7 @@ class OpenKairoMiningPanel extends LitElement {
                          <option value="M50" ?selected="${simModel === 'M50'}">Whatsminer M50 (114 TH/s | 3306W)</option>
                          <option value="Avalon" ?selected="${simModel === 'Avalon'}">Avalon A1346 (110 TH/s | 3300W)</option>
                          <option value="AvalonQ" ?selected="${simModel === 'AvalonQ'}">Avalon Q (90 TH/s | 1674W)</option>
-                         <option value="AvalonNano" ?selected="${simModel === 'AvalonNano'}">Avalon Nano 3 (4 TH/s | 140W)</option>
+                         <option value="AvalonNano3" ?selected="${simModel === 'AvalonNano'}">Avalon Nano 3 (4 TH/s | 140W)</option>
                          <option value="AvalonNano3s" ?selected="${simModel === 'AvalonNano3s'}">Avalon Nano 3S (6 TH/s | 140W)</option>
                      </select>
                  </div>
