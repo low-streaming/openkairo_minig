@@ -384,8 +384,26 @@ class OpenKairoMiningPanel extends LitElement {
   }
 
   calculateRuntime(entityId) {
-    const data = this.switchHistoryData[entityId];
-    if (!data || data.length === 0) return { todayMinutes: 0, weekMinutes: 0, todayProfitableMinutes: 0, weekProfitableMinutes: 0, startCountToday: 0, startCountWeek: 0 };
+    const historyData = this.switchHistoryData[entityId] || [];
+    const currentStateObj = this.hass ? this.hass.states[entityId] : null;
+
+    let data = [...historyData];
+
+    if (currentStateObj) {
+      const lastHistoryTime = data.length > 0 ? new Date(data[data.length - 1].last_changed).getTime() : 0;
+      const currentTime = new Date(currentStateObj.last_changed).getTime();
+
+      if (currentTime > lastHistoryTime) {
+        data.push({
+          state: currentStateObj.state,
+          last_changed: currentStateObj.last_changed
+        });
+      }
+    }
+
+    if (data.length === 0 && !currentStateObj) {
+      return { todayMinutes: 0, weekMinutes: 0 };
+    }
 
     let todayMinutes = 0;
     let weekMinutes = 0;
@@ -426,7 +444,7 @@ class OpenKairoMiningPanel extends LitElement {
       }
     }
 
-    // If it's ON *right now*, add the ongoing live duration
+    // Wenn der Miner *jetzt* an ist, die laufende Strecke ab dem letzten 'on' addieren
     if (lastOnTime && currentStateObj && currentStateObj.state === 'on') {
       const interval = currentMillis - lastOnTime;
 
