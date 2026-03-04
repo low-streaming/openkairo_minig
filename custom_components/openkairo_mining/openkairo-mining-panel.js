@@ -1186,12 +1186,39 @@ class OpenKairoMiningPanel extends LitElement {
       if (simModel === 'S9') {
         powerKW = 1.372;
         hashrateTH = 14;
+      } else if (simModel === 'S19') {
+        powerKW = 3.250;
+        hashrateTH = 90;
+      } else if (simModel === 'S19Pro') {
+        powerKW = 3.250;
+        hashrateTH = 110;
+      } else if (simModel === 'S19XP') {
+        powerKW = 3.010;
+        hashrateTH = 140;
       } else if (simModel === 'S21') {
         powerKW = 3.500;
         hashrateTH = 200;
       } else if (simModel === 'Avalon') {
         powerKW = 3.300;
         hashrateTH = 110;
+      } else if (simModel === 'AvalonQ') {
+        powerKW = 1.674;
+        hashrateTH = 90;
+      } else if (simModel === 'AvalonNano3') {
+        powerKW = 0.140;
+        hashrateTH = 4;
+      } else if (simModel === 'AvalonNano3s') {
+        powerKW = 0.140;
+        hashrateTH = 6;
+      } else if (simModel === 'M30S') {
+        powerKW = 3.472;
+        hashrateTH = 112;
+      } else if (simModel === 'M50') {
+        powerKW = 3.306;
+        hashrateTH = 114;
+      } else if (simModel === 'Bitaxe') {
+        powerKW = 0.015;
+        hashrateTH = 0.5;
       } else {
         // Sensor fallback
         if (this.hass && miner.power_consumption_sensor && this.hass.states[miner.power_consumption_sensor]) {
@@ -1227,9 +1254,18 @@ class OpenKairoMiningPanel extends LitElement {
                      <select @change="${(e) => { this.simulatorModels = { ...this.simulatorModels, [miner.id]: e.target.value }; this.requestUpdate(); }}" 
                              style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; border-radius: 6px; cursor: pointer;">
                          <option value="sensor" ?selected="${simModel === 'sensor'}">Eigene Sensoren verwenden</option>
+                         <option value="Bitaxe" ?selected="${simModel === 'Bitaxe'}">Bitaxe (0.5 TH/s | 15W)</option>
                          <option value="S9" ?selected="${simModel === 'S9'}">Antminer S9 (14 TH/s | 1372W)</option>
+                         <option value="S19" ?selected="${simModel === 'S19'}">Antminer S19 (90 TH/s | 3250W)</option>
+                         <option value="S19Pro" ?selected="${simModel === 'S19Pro'}">Antminer S19 Pro (110 TH/s | 3250W)</option>
+                         <option value="S19XP" ?selected="${simModel === 'S19XP'}">Antminer S19 XP (140 TH/s | 3010W)</option>
                          <option value="S21" ?selected="${simModel === 'S21'}">Antminer S21 (200 TH/s | 3500W)</option>
+                         <option value="M30S" ?selected="${simModel === 'M30S'}">Whatsminer M30S++ (112 TH/s | 3472W)</option>
+                         <option value="M50" ?selected="${simModel === 'M50'}">Whatsminer M50 (114 TH/s | 3306W)</option>
                          <option value="Avalon" ?selected="${simModel === 'Avalon'}">Avalon A1346 (110 TH/s | 3300W)</option>
+                         <option value="AvalonQ" ?selected="${simModel === 'AvalonQ'}">Avalon Q (90 TH/s | 1674W)</option>
+                         <option value="AvalonNano" ?selected="${simModel === 'AvalonNano'}">Avalon Nano 3 (4 TH/s | 140W)</option>
+                         <option value="AvalonNano3s" ?selected="${simModel === 'AvalonNano3s'}">Avalon Nano 3S (6 TH/s | 140W)</option>
                      </select>
                  </div>
                  
@@ -1243,18 +1279,6 @@ class OpenKairoMiningPanel extends LitElement {
                         <span style="color: #888;">Break-Even (Max. Strompreis):</span>
                         <strong style="color: #fff; font-size: 1.1em;">${revenuePerKwh.toFixed(4)} € / kWh</strong>
                     </div>
-                    
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; margin-top: 10px;">
-                        <span style="color: #888;">Dein Strompreis (Netz):</span>
-                        <span style="color: #e74c3c; font-size: 1.1em;">-${refPrice.toFixed(4)} € / kWh</span>
-                    </div>
-
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed rgba(255,255,255,0.1);">
-                        <span style="color: #fff;">Profit bei Netzstrom:</span>
-                        <strong style="color: ${isProfitable ? '#2ecc71' : '#e74c3c'}; font-size: 1.1em;">
-                            ${profitPerKwh > 0 ? '+' : ''}${profitPerKwh.toFixed(4)} € / kWh
-                        </strong>
-                    </div>
 
                     <div style="display: flex; justify-content: space-between; margin-top: 10px;">
                         <span style="color: #fff; font-weight: bold;">Profit bei PV-Strom (0 € Kosten):</span>
@@ -1265,8 +1289,8 @@ class OpenKairoMiningPanel extends LitElement {
                  </div>
 
                  <div style="margin-top: 15px; font-size: 0.85em; color: #666; line-height: 1.4;">
-                    * <b>Break-Even</b> ist der Strompreis, bei dem du genau auf Null herauskommst.<br>
-                    * <b>Profit bei PV-Strom</b> nimmt an, dass dein Solarstrom kostenlos ist. Opportunitätskosten (entgangene Einspeisevergütung) sind hier nicht abgezogen.
+                    * <b>Break-Even</b> ist dein theoretischer Höchst-Strompreis, bei dem der Miner noch genau kostendeckend läuft.<br>
+                    * <b>Profit bei PV-Strom</b> zeigt deinen direkten finanziellen Zugewinn durch den Bitcoin-Ertrag, wenn der Miner rein aus kostenlosem Solarstrom betrieben wird.
                  </div>
                  
                  ${(simModel === 'sensor' && (!miner.power_consumption_sensor || !miner.hashrate_sensor)) ? html`
