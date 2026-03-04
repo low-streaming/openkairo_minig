@@ -2,13 +2,13 @@
     "domain": "openkairo_mining",
     "name": "OpenKairo Mining",
     "version": "1.1.0",
-    "documentation": "https://github.com/low-streaming/openkairo_minig",
+    "documentation": "https://github.com/openkairo/openKairo_Mining",
     "dependencies": [],
     "codeowners": [
-        "@low-streaming"
+        "@openkairo"
     ],
     "requirements": [],
     "iot_class": "local_polling",
     "config_flow": true,
-    "issue_tracker": "https://github.com/low-streaming/openkairo_minig/issues"
+    "issue_tracker": "https://github.com/openkairo/openKairo_Mining/issues"
 }

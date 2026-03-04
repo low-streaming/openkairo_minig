@@ -29,7 +29,7 @@ Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intellig
 ## Installation via HACS (Custom Repository)
 1. Gehe in Home Assistant zu **HACS** > **Integrationen**.
 2. Klicke oben rechts auf die drei Punkte und wähle **Benutzerdefinierte Repositories**.
-3. URL einfügen: `https://github.com/low-streaming/openkairo_minig`
+3. URL einfügen: `https://github.com/openkairo/openKairo_Mining`
 4. Kategorie: **Integration**
 5. Auf **Hinzufügen** klicken und "OpenKairo Mining" herunterladen.
 6. Home Assistant **neu starten!**
