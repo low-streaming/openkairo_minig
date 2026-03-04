@@ -1,4 +1,4 @@
-# OpenKairo Mining ⚡
+# OpenKairo Mining v1.1 ⚡
 
 Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intelligent nach PV-Überschuss zu steuern. *Powered by OpenKairo*
 
@@ -13,9 +13,12 @@ Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intellig
 
 ## Features
 - **Designstarkes Dashboard:** Eine moderne Weboberfläche zur zentralen Steuerung und Überwachung aller Miner.
+- **Live-Rentabilitätsrechner:** Echtzeit-Abruf von Bitcoin-Kurs & Network-Difficulty zur metergenauen Berechnung von Profit, Break-Even Preisen, sowie Tages- und Monatserträgen.
+- **Umfangreiche Hardware-Datenbank:** Integrierte Profile für Standard-Miner (Antminer S9/S19/S21, Whatsminer, Avalon Nano, Bitaxe, etc.) oder "Custom"-Eingabe für Exoten.
+- **Echte Historie (Live):** Direkte Anbindung an die Home Assistant Datenbank zur Auswertung der **tatsächlichen** Laufzeiten (Heute / Letzte 7 Tage) und Generierung konkreter Ertrags-Auswertungen.
 - **Intelligente PV-Steuerung:** Automatisches Schalten basierend auf Solareinspeisung. Inklusive Priorisierung mehrerer Miner und optionalem Batterie-Backup (SOC).
 - **Batterie SOC-Steuerung:** Eigener Betriebsmodus, um Miner rein nach dem Ladezustand (SOC) des Hausakkus zu steuern (z.B. Start bei 90%, Stopp bei 30%).
-- **Standby-Watchdog:** Schaltet eine Steckdose (z.B. Shelly Plug) komplett ab, wenn der Miner sich aufhängt oder zu lange sehr wenig Strom verbraucht. Sobald wieder genug Überschuss/SOC vorhanden ist, wird die Steckdose vollautomatisch wieder aktiviert.
+- **Standby-Watchdog (mit Live-Timer):** Schaltet die Steckdose (z.B. Shelly Plug) komplett ab, wenn der Stromverbrauch für längere Zeit unter einen Grenzwert fällt. Inklusive grafischem Countdown-Timer.
 - **Hysteresen-Schutz:** Einstellbare Ein- und Ausschaltverzögerungen, um die Hardware bei wechselhafter Bewölkung zu schonen.
 - **Tiefe Hass-Miner Integration:**
   - Live-Monitoring von Hashrate, Temperaturen, Minerverbrauch (Watt) und Batterie SOC (%).

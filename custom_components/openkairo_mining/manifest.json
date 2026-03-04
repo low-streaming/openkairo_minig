@@ -1,7 +1,7 @@
 {
     "domain": "openkairo_mining",
     "name": "OpenKairo Mining",
-    "version": "1.2.0",
+    "version": "1.1.0",
     "documentation": "https://github.com/low-streaming/openkairo_minig",
     "dependencies": [],
     "codeowners": [

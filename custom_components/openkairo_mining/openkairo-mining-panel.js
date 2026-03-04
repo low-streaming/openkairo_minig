@@ -675,7 +675,7 @@ class OpenKairoMiningPanel extends LitElement {
   render() {
     return html`
       <div class="header">
-        <h1>₿ OpenKairo Mining ⚡</h1>
+        <h1>₿ OpenKairo Mining ⚡ <span style="font-size: 0.5em; vertical-align: middle; background: #F7931A; border-radius: 4px; padding: 2px 6px; color: #fff; margin-left: 8px;">v1.1</span></h1>
         <p class="subtitle">Intelligente Miner-Steuerung</p>
       </div>
 
@@ -719,11 +719,20 @@ class OpenKairoMiningPanel extends LitElement {
         </div>
 
         <div class="tech-box" style="margin-top: 15px;">
+          <h3 style="margin-top:0; color:#3498db;">📊 Rentabilität & Echte Historie:</h3>
+          <p style="color:#bbb; line-height:1.6; margin-top: 5px;">Das Panel verfügt nun über eine integrierte Wirtschaftlichkeitsauswertung (Live):</p>
+          <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
+            <li><strong style="color:#ddd;">Live-Rentabilitätsrechner:</strong> Berechnet auf Basis des aktuellen Bitcoin-Kurses und der Live Network-Difficulty deinen potenziellen Gewinn (Monat/Tag) und den Break-Even Strompreis. Wähle einfach dein Modell im Dropdown (z.B. S19).</li>
+            <li><strong style="color:#ddd;">Echte Historie (HA-Recorder):</strong> Liest live aus deiner Home Assistant Datenbank aus, wie viele Minuten/Stunden dein Miner in den letzten 7 Tagen <u style="text-decoration-color: #3498db">tatsächlich</u> an war und schätzt basierend auf dem aktuellen Kurs die genauen Live-Erträge.</li>
+          </ul>
+        </div>
+
+        <div class="tech-box" style="margin-top: 15px;">
           <h3 style="margin-top:0; color:#2ecc71;">🔋 Batterie SOC-Modus & Watchdog:</h3>
           <p style="color:#bbb; line-height:1.6; margin-top: 5px;">Zusätzlich zum reinen PV-Überschuss gibt es weitere Steuerungsmöglichkeiten:</p>
           <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
             <li><strong style="color:#ddd;">Batterie SOC-Steuerung:</strong> Ein eigener Modus, bei dem der Miner rein nach dem Füllstand deines Hausakkus gesteuert wird (z.B. An ab 90%, Aus unter 30%).</li>
-            <li><strong style="color:#ddd;">Standby-Watchdog:</strong> Eine Sicherheitsfunktion, die einen Smart-Plug (z.B. Shelly) komplett ausschaltet, wenn der Miner sich aufhängt oder zu lange sehr wenig Strom verbraucht. Sobald wieder genug Überschuss oder SOC vorhanden ist, wird die Steckdose vollautomatisch wieder aktiviert.</li>
+            <li><strong style="color:#ddd;">Standby-Watchdog (mit Live-Timer):</strong> Eine Sicherheitsfunktion, die einen Smart-Plug (z.B. Shelly) komplett ausschaltet, wenn der Miner sich aufhängt oder zu lange extrem wenig Strom verbraucht. Inkl. optischem Countdown-Timer. Sobald wieder genug Überschuss oder SOC vorhanden ist, wird die Steckdose vollautomatisch wieder aktiviert.</li>
           </ul>
         </div>
 
