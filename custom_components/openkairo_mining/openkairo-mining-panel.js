@@ -285,7 +285,8 @@ class OpenKairoMiningPanel extends LitElement {
       config: { type: Object },
       activeTab: { type: String },
       editingMinerId: { type: String },
-      editForm: { type: Object }
+      editForm: { type: Object },
+      simulatorModels: { type: Object }
     };
   }
 
@@ -298,6 +299,7 @@ class OpenKairoMiningPanel extends LitElement {
     this.btcDifficulty = null;
     this.historyData = {};
     this.fetchingHistory = {};
+    this.simulatorModels = {};
   }
 
   firstUpdated() {
@@ -574,7 +576,7 @@ class OpenKairoMiningPanel extends LitElement {
       <div class="tabs">
         <div class="tab ${this.activeTab === 'dashboard' ? 'active' : ''}" @click="${() => { this.activeTab = 'dashboard'; this.editingMinerId = null; }}">Dashboard</div>
         <div class="tab ${this.activeTab === 'statistics' ? 'active' : ''}" @click="${() => { this.activeTab = 'statistics'; this.editingMinerId = null; }}">Graphen</div>
-        ${this.config.show_energy_tab ? html`<div class="tab ${this.activeTab === 'energy' ? 'active' : ''}" @click="${() => { this.activeTab = 'energy'; this.editingMinerId = null; }}">⚡ Ersparnis</div>` : ''}
+        ${this.config.show_energy_tab ? html`<div class="tab ${this.activeTab === 'energy' ? 'active' : ''}" @click="${() => { this.activeTab = 'energy'; this.editingMinerId = null; }}">⚡ Rentabilität</div>` : ''}
         <div class="tab ${this.activeTab === 'settings' ? 'active' : ''}" @click="${() => { this.activeTab = 'settings'; this.editingMinerId = null; }}">Einstellungen</div>
         <div class="tab ${this.activeTab === 'info' ? 'active' : ''}" @click="${() => { this.activeTab = 'info'; this.editingMinerId = null; }}">Hilfe</div>
       </div>
@@ -933,14 +935,14 @@ class OpenKairoMiningPanel extends LitElement {
             <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
               <label>Strompreis Referenz (€/kWh)</label>
               <input type="number" step="0.01" .value="${this.config.ref_price || 0.30}" @change="${(e) => { this.config.ref_price = parseFloat(e.target.value); this.saveConfig(true); }}">
-              <small>Wird für die Berechnung der Ersparnis genutzt.</small>
+              <small>Wird für die Berechnung der Rentabilität genutzt.</small>
             </div>
             <div style="flex: 1; min-width: 200px;">
                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                   <input type="checkbox" ?checked="${this.config.show_energy_tab}" @change="${(e) => { this.config.show_energy_tab = e.target.checked; this.saveConfig(true); }}" style="width: 20px; height: 20px; accent-color: #F7931A;">
                   Energy-Stats Tab anzeigen
                </label>
-               <small>Aktiviert den Tab zur Visualisierung der Ersparnis.</small>
+               <small>Aktiviert den Tab zur Visualisierung der Rentabilität.</small>
             </div>
           </div>
         </div>
@@ -1168,59 +1170,116 @@ class OpenKairoMiningPanel extends LitElement {
   renderEnergyStats() {
     return html`
       <div class="card">
-        <h2>⚡ Energie-Ersparnis (PV-Eigennutzung)</h2>
-        <p>Hier siehst du, wie viel Stromkosten du durch die intelligente PV-Steuerung deiner Miner bereits eingespart hast.</p>
+        <h2>⚡ Rentabilität & Überschuss-Nutzung</h2>
+        <p>Hier berechnest du die Rentabilität deiner Hardware (S9, S21, Avalon) und siehst deinen theoretischen Ertrag durch PV-Überschuss.</p>
         
         <div class="dashboard-grid" style="margin-top: 25px;">
            ${this.config.miners && this.config.miners.length > 0 ? this.config.miners.map(miner => {
       const isPV = miner.mode === 'pv';
       const refPrice = this.config.ref_price || 0.30;
-      let powerKW = 0;
 
-      if (this.hass && miner.power_consumption_sensor && this.hass.states[miner.power_consumption_sensor]) {
-        powerKW = (parseFloat(this.hass.states[miner.power_consumption_sensor].state) || 0) / 1000;
+      let powerKW = 0;
+      let hashrateTH = 0;
+
+      const simModel = this.simulatorModels[miner.id] || 'sensor';
+
+      if (simModel === 'S9') {
+        powerKW = 1.372;
+        hashrateTH = 14;
+      } else if (simModel === 'S21') {
+        powerKW = 3.500;
+        hashrateTH = 200;
+      } else if (simModel === 'Avalon') {
+        powerKW = 3.300;
+        hashrateTH = 110;
+      } else {
+        // Sensor fallback
+        if (this.hass && miner.power_consumption_sensor && this.hass.states[miner.power_consumption_sensor]) {
+          powerKW = (parseFloat(this.hass.states[miner.power_consumption_sensor].state) || 0) / 1000;
+        }
+        if (this.hass && miner.hashrate_sensor && this.hass.states[miner.hashrate_sensor]) {
+          hashrateTH = parseFloat(this.hass.states[miner.hashrate_sensor].state) || 0;
+        }
       }
 
       const hourlySaving = isPV ? (powerKW * refPrice) : 0;
-      const dailySavingPotential = hourlySaving * 24; // Theoretisch wenn 24h Sonne
+      const dailySavingPotential = hourlySaving * 24;
+
+      let btcHourlyRevenue = 0;
+      if (this.btcDifficulty && this.btcPriceEur && hashrateTH > 0) {
+        const btcPerDay = (hashrateTH * 1e12 / (this.btcDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
+        btcHourlyRevenue = (btcPerDay * this.btcPriceEur) / 24;
+      }
+
+      // Rentabilität pro kWh
+      const revenuePerKwh = powerKW > 0 ? (btcHourlyRevenue / powerKW) : 0;
+      const profitPerKwh = revenuePerKwh - refPrice;
+      const isProfitable = profitPerKwh > 0;
 
       return html`
                <div class="miner-card">
-                 <div class="miner-header">
+                 <div class="miner-header" style="flex-wrap: wrap; gap: 10px;">
                    <h3>${miner.name}</h3>
                    <span class="prio-badge ${isPV ? 'on' : ''}">${isPV ? 'PV-Modus aktiv' : 'Manuell'}</span>
+                 </div>
+
+                 <div style="margin-top: 10px; margin-bottom: 15px;">
+                     <select @change="${(e) => { this.simulatorModels = { ...this.simulatorModels, [miner.id]: e.target.value }; this.requestUpdate(); }}" 
+                             style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; border-radius: 6px; cursor: pointer;">
+                         <option value="sensor" ?selected="${simModel === 'sensor'}">Eigene Sensoren verwenden</option>
+                         <option value="S9" ?selected="${simModel === 'S9'}">Antminer S9 (14 TH/s | 1372W)</option>
+                         <option value="S21" ?selected="${simModel === 'S21'}">Antminer S21 (200 TH/s | 3500W)</option>
+                         <option value="Avalon" ?selected="${simModel === 'Avalon'}">Avalon A1346 (110 TH/s | 3300W)</option>
+                     </select>
                  </div>
                  
                  <div class="tech-box" style="background: rgba(46, 204, 113, 0.05); border-color: rgba(46, 204, 113, 0.2);">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                        <span style="color: #888;">Live-Ersparnis:</span>
-                        <strong style="color: #2ecc71; font-size: 1.2em;">${hourlySaving.toFixed(3)} € / Std.</strong>
+                        <span style="color: #888;">Live PV-Gegenwert:</span>
+                        <strong style="color: #2ecc71; font-size: 1.1em;">${hourlySaving.toFixed(3)} € / Std.</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
-                        <span style="color: #888;">Potential (24h):</span>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed rgba(255,255,255,0.1);">
+                        <span style="color: #888;">Potential Gegenwert (24h):</span>
                         <span style="color: #fff;">${dailySavingPotential.toFixed(2)} €</span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="color: #888;">Ertrag pro kWh:</span>
+                        <strong style="color: #F7931A; font-size: 1.1em;">${revenuePerKwh.toFixed(4)} € / kWh</strong>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="color: #888;">Netzstrom-Kosten:</span>
+                        <span style="color: #e74c3c; font-size: 1.1em;">-${refPrice.toFixed(4)} € / kWh</span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
+                        <span style="color: #fff; font-weight: bold;">Netz-Rentabilität:</span>
+                        <strong style="color: ${isProfitable ? '#2ecc71' : '#e74c3c'}; font-size: 1.25em;">
+                            ${profitPerKwh > 0 ? '+' : ''}${profitPerKwh.toFixed(4)} € / kWh
+                        </strong>
                     </div>
                  </div>
 
-                 <div style="margin-top: 15px; font-size: 0.85em; color: #666;">
-                    * Basierend auf dem Referenzpreis von ${refPrice.toFixed(2)} €/kWh und aktuellem Verbrauch.
+                 <div style="margin-top: 15px; font-size: 0.85em; color: #666; line-height: 1.4;">
+                    * Der <b>PV-Gegenwert</b> zeigt dir, welchen (Netzstrom)-Gegenwert dein überschüssiger Solarstrom gerade generiert.<br>
+                    * Die <b>Netz-Rentabilität</b> zeigt an, ob der Miner profitabel wäre, falls du den Strom teuer zum Referenzpreis (${refPrice.toFixed(2)} €) aus dem Netz einkaufen müsstest.
                  </div>
                  
-                 ${miner.power_consumption_sensor ? '' : html`
+                 ${(simModel === 'sensor' && (!miner.power_consumption_sensor || !miner.hashrate_sensor)) ? html`
                    <div style="margin-top: 10px; color: #e67e22; font-size: 0.8em; border: 1px dashed #e67e22; padding: 8px; border-radius: 4px;">
-                     ⚠️ Kein Verbrauchssensor hinterlegt. Bitte in den Einstellungen ergänzen.
+                     ⚠️ Verbrauch- oder Hashratesensor fehlen. Wähle ein Modell oben aus oder trage die Sensoren ein.
                    </div>
-                 `}
+                 ` : ''}
                </div>
              `;
     }) : html`<p>Keine Miner konfiguriert.</p>`}
         </div>
 
         <div class="tech-box" style="margin-top: 30px; border-color: rgba(247, 147, 26, 0.2);">
-           <h3 style="color: #F7931A; margin-top: 0;">💡 Info zur Ersparnis</h3>
+           <h3 style="color: #F7931A; margin-top: 0;">💡 Live Bitcoin Infos</h3>
            <p style="color: #bbb; font-size: 0.9em; line-height: 1.5;">
-              Die Live-Ersparnis wird berechnet, indem der aktuelle Stromverbrauch deines Miners mit deinem eingestellten Referenz-Strompreis multipliziert wird – vorausgesetzt der Miner läuft im PV-Modus. 
-              Dies entspricht den Kosten, die du hättest, wenn du den Strom stattdessen aus dem Netz beziehen müsstest.
+              Die Berechnung nutzt die aktuelle Bitcoin Difficulty (${this.btcDifficulty ? this.btcDifficulty.toExponential(2) : '-'}) und den stetigen Live-Preis (${this.btcPriceEur ? this.btcPriceEur.toFixed(2) : '-'} €). Basis-Daten von <a href="https://www.asicminervalue.com/de" target="_blank" style="color:#F7931A;">ASIC Miner Value</a>.
            </p>
         </div>
       </div>
