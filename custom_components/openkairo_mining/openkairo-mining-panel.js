@@ -976,20 +976,53 @@ class OpenKairoMiningPanel extends LitElement {
             if (this.hass && miner.standby_switch && this.hass.states[miner.standby_switch]) {
               stState = this.hass.states[miner.standby_switch].state;
             }
+
+            // Watchdog Timer Calculation
+            let watchdogWarning = '';
+            let watchdogProgress = 0;
+            if (this.hass && miner.power_consumption_sensor && this.hass.states[miner.power_consumption_sensor] && stState === 'on') {
+              const pwrStateObj = this.hass.states[miner.power_consumption_sensor];
+              const currentPower = parseFloat(pwrStateObj.state) || 0;
+              const threshold = miner.standby_power || 100;
+              const delayMins = miner.standby_delay || 10;
+
+              if (currentPower < threshold) {
+                const lastChanged = new Date(pwrStateObj.last_changed).getTime();
+                const nowMillis = new Date().getTime();
+                const elapsedMins = (nowMillis - lastChanged) / 60000;
+                if (elapsedMins > 0) {
+                  const remainingMins = Math.max(0, delayMins - elapsedMins);
+                  watchdogProgress = Math.min(100, (elapsedMins / delayMins) * 100);
+
+                  if (remainingMins > 0) {
+                    watchdogWarning = `⏳ Abschaltung in ${Math.ceil(remainingMins)} Min.`;
+                  } else {
+                    watchdogWarning = `⚠️ Abschaltung wird ausgelöst...`;
+                  }
+                }
+              }
+            }
+
             return html`
-                  <div class="tech-box" style="margin-top: 15px; border-color: rgba(231, 76, 60, 0.4); background: rgba(231, 76, 60, 0.05);">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" .checked="${miner.standby_watchdog_enabled}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_watchdog_enabled', e.target.checked)}" style="width: 16px; height: 16px; margin: 0; accent-color: #e74c3c;">
-                            <b>🛡️ Watchdog:</b> <span class="highlight-val" style="color: ${stState === 'on' ? '#2ecc71' : '#e74c3c'};">${stState === 'on' ? 'ON' : stState === 'off' ? 'OFF' : stState}</span>
-                        </label>
-                        <button class="btn-power ${stState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner.standby_switch)}" title="Watchdog Plug manuell schalten" style="font-size: 1.2em; padding: 4px 12px; min-height: 36px;">
-                          ⏻ Plug
-                        </button>
-                    </div>
-                    <div class="small-text mt-1" style="margin-top: 10px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
-                        Off wenn &lt; <input type="number" .value="${miner.standby_power || 100}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_power', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #e74c3c; border-radius: 4px; font-weight: bold;"> W 
-                        für &ge; <input type="number" .value="${miner.standby_delay || 10}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_delay', e.target.value)}" style="width: 50px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #e74c3c; border-radius: 4px; font-weight: bold;"> Min.
+                  <div class="tech-box" style="margin-top: 15px; border-color: rgba(231, 76, 60, 0.4); background: rgba(231, 76, 60, 0.05); position: relative; overflow: hidden;">
+                    ${watchdogWarning ? html`
+                        <div style="position: absolute; top: 0; left: 0; height: 100%; width: ${watchdogProgress}%; background: rgba(231, 76, 60, 0.1); z-index: 0; transition: width 5s linear;"></div>
+                    ` : ''}
+                    <div style="position: relative; z-index: 1;">
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                          <label style="margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                              <input type="checkbox" .checked="${miner.standby_watchdog_enabled}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_watchdog_enabled', e.target.checked)}" style="width: 16px; height: 16px; margin: 0; accent-color: #e74c3c;">
+                              <b>🛡️ Watchdog:</b> <span class="highlight-val" style="color: ${stState === 'on' ? '#2ecc71' : '#e74c3c'};">${stState === 'on' ? 'ON' : stState === 'off' ? 'OFF' : stState}</span>
+                          </label>
+                          <button class="btn-power ${stState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner.standby_switch)}" title="Watchdog Plug manuell schalten" style="font-size: 1.2em; padding: 4px 12px; min-height: 36px;">
+                            ${watchdogWarning ? html`<span style="color: #e74c3c; font-size: 0.85em; margin-right: 10px; animation: pulse 2s infinite;">${watchdogWarning}</span>` : ''}
+                            ⏻ Plug
+                          </button>
+                      </div>
+                      <div class="small-text mt-1" style="margin-top: 10px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
+                          Off wenn &lt; <input type="number" .value="${miner.standby_power || 100}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_power', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #e74c3c; border-radius: 4px; font-weight: bold;"> W 
+                          für &ge; <input type="number" .value="${miner.standby_delay || 10}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_delay', e.target.value)}" style="width: 50px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #e74c3c; border-radius: 4px; font-weight: bold;"> Min.
+                      </div>
                     </div>
                   </div>`})()}
                 ` : html`
