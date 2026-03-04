@@ -1233,37 +1233,40 @@ class OpenKairoMiningPanel extends LitElement {
                      </select>
                  </div>
                  
-                 <div class="tech-box" style="background: rgba(46, 204, 113, 0.05); border-color: rgba(46, 204, 113, 0.2);">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                        <span style="color: #888;">Live PV-Gegenwert:</span>
-                        <strong style="color: #2ecc71; font-size: 1.1em;">${hourlySaving.toFixed(3)} € / Std.</strong>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed rgba(255,255,255,0.1);">
-                        <span style="color: #888;">Potential Gegenwert (24h):</span>
-                        <span style="color: #fff;">${dailySavingPotential.toFixed(2)} €</span>
-                    </div>
-                    
+                 <div class="tech-box" style="background: rgba(0,0,0,0.3); border-color: rgba(247, 147, 26, 0.3);">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="color: #888;">Ertrag pro kWh:</span>
+                        <span style="color: #888;">Mining Ertrag:</span>
                         <strong style="color: #F7931A; font-size: 1.1em;">${revenuePerKwh.toFixed(4)} € / kWh</strong>
                     </div>
                     
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="color: #888;">Netzstrom-Kosten:</span>
-                        <span style="color: #e74c3c; font-size: 1.1em;">-${refPrice.toFixed(4)} € / kWh</span>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed rgba(255,255,255,0.1);">
+                        <span style="color: #888;">Break-Even (Max. Strompreis):</span>
+                        <strong style="color: #fff; font-size: 1.1em;">${revenuePerKwh.toFixed(4)} € / kWh</strong>
                     </div>
                     
-                    <div style="display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
-                        <span style="color: #fff; font-weight: bold;">Netz-Rentabilität:</span>
-                        <strong style="color: ${isProfitable ? '#2ecc71' : '#e74c3c'}; font-size: 1.25em;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; margin-top: 10px;">
+                        <span style="color: #888;">Dein Strompreis (Netz):</span>
+                        <span style="color: #e74c3c; font-size: 1.1em;">-${refPrice.toFixed(4)} € / kWh</span>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed rgba(255,255,255,0.1);">
+                        <span style="color: #fff;">Profit bei Netzstrom:</span>
+                        <strong style="color: ${isProfitable ? '#2ecc71' : '#e74c3c'}; font-size: 1.1em;">
                             ${profitPerKwh > 0 ? '+' : ''}${profitPerKwh.toFixed(4)} € / kWh
+                        </strong>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                        <span style="color: #fff; font-weight: bold;">Profit bei PV-Strom (0 € Kosten):</span>
+                        <strong style="color: #2ecc71; font-size: 1.25em;">
+                            +${revenuePerKwh.toFixed(4)} € / kWh
                         </strong>
                     </div>
                  </div>
 
                  <div style="margin-top: 15px; font-size: 0.85em; color: #666; line-height: 1.4;">
-                    * Der <b>PV-Gegenwert</b> zeigt dir, welchen (Netzstrom)-Gegenwert dein überschüssiger Solarstrom gerade generiert.<br>
-                    * Die <b>Netz-Rentabilität</b> zeigt an, ob der Miner profitabel wäre, falls du den Strom teuer zum Referenzpreis (${refPrice.toFixed(2)} €) aus dem Netz einkaufen müsstest.
+                    * <b>Break-Even</b> ist der Strompreis, bei dem du genau auf Null herauskommst.<br>
+                    * <b>Profit bei PV-Strom</b> nimmt an, dass dein Solarstrom kostenlos ist. Opportunitätskosten (entgangene Einspeisevergütung) sind hier nicht abgezogen.
                  </div>
                  
                  ${(simModel === 'sensor' && (!miner.power_consumption_sensor || !miner.hashrate_sensor)) ? html`
