@@ -300,6 +300,8 @@ class OpenKairoMiningPanel extends LitElement {
     this.historyData = {};
     this.fetchingHistory = {};
     this.simulatorModels = {};
+    this.switchHistoryData = {};
+    this.fetchingSwitchHistory = {};
   }
 
   firstUpdated() {
@@ -356,6 +358,77 @@ class OpenKairoMiningPanel extends LitElement {
       this.historyData = { ...this.historyData, [entityId]: [] };
       this.requestUpdate();
     }
+  }
+
+  async fetchSwitchHistory(entityId) {
+    if (!this.hass || !entityId) return;
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6); // roughly 7 days including today
+    const startStr = sevenDaysAgo.toISOString();
+
+    try {
+      const response = await this.hass.callApi('GET', `history/period/${startStr}?filter_entity_id=${entityId}`);
+      if (response && response.length > 0) {
+        this.switchHistoryData = { ...this.switchHistoryData, [entityId]: response[0] };
+        this.requestUpdate();
+      } else {
+        this.switchHistoryData = { ...this.switchHistoryData, [entityId]: [] };
+        this.requestUpdate();
+      }
+    } catch (e) {
+      console.error("Failed to fetch switch history for " + entityId, e);
+      this.switchHistoryData = { ...this.switchHistoryData, [entityId]: [] };
+      this.requestUpdate();
+    }
+  }
+
+  calculateRuntime(entityId) {
+    const data = this.switchHistoryData[entityId];
+    if (!data || data.length === 0) return { todayMinutes: 0, weekMinutes: 0 };
+
+    let todayMinutes = 0;
+    let weekMinutes = 0;
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const currentMillis = now.getTime();
+
+    let lastOnTime = null;
+
+    for (let i = 0; i < data.length; i++) {
+      const item = data[i];
+      const time = new Date(item.last_changed).getTime();
+      const state = item.state;
+
+      if (state === 'on') {
+        if (!lastOnTime) lastOnTime = time;
+      } else if (state === 'off' || state === 'unavailable' || state === 'unknown') {
+        if (lastOnTime) {
+          const interval = time - lastOnTime;
+          weekMinutes += interval / 60000;
+
+          if (lastOnTime >= startOfToday) {
+            todayMinutes += interval / 60000;
+          } else if (time > startOfToday) {
+            todayMinutes += (time - startOfToday) / 60000;
+          }
+          lastOnTime = null;
+        }
+      }
+    }
+
+    if (lastOnTime) {
+      const interval = currentMillis - lastOnTime;
+      weekMinutes += interval / 60000;
+
+      if (lastOnTime >= startOfToday) {
+        todayMinutes += interval / 60000;
+      } else if (currentMillis > startOfToday) {
+        todayMinutes += (currentMillis - startOfToday) / 60000;
+      }
+    }
+
+    return { todayMinutes, weekMinutes };
   }
 
   async loadConfig() {
@@ -1168,10 +1241,19 @@ class OpenKairoMiningPanel extends LitElement {
   }
 
   renderEnergyStats() {
+    const formatDifficulty = (diff) => {
+      if (!diff) return '-';
+      const num = parseFloat(diff);
+      if (num >= 1e12) return (num / 1e12).toFixed(2) + ' T';
+      if (num >= 1e9) return (num / 1e9).toFixed(2) + ' G';
+      if (num >= 1e6) return (num / 1e6).toFixed(2) + ' M';
+      return num.toLocaleString();
+    };
+
     return html`
       <div class="card">
         <h2>⚡ Rentabilität & Überschuss-Nutzung</h2>
-        <p>Hier berechnest du die Rentabilität deiner Hardware (S9, S21, Avalon) und siehst deinen theoretischen Ertrag durch PV-Überschuss.</p>
+        <p>Hier berechnest du die Rentabilität deiner Hardware und siehst deinen theoretischen Ertrag, wenn du sie als "Heizung" oder mit PV-Überschuss betreibst.</p>
         
         <div class="dashboard-grid" style="margin-top: 25px;">
            ${this.config.miners && this.config.miners.length > 0 ? this.config.miners.map(miner => {
@@ -1233,9 +1315,13 @@ class OpenKairoMiningPanel extends LitElement {
       const dailySavingPotential = hourlySaving * 24;
 
       let btcHourlyRevenue = 0;
+      let dailyRevenue = 0;
+      let monthlyRevenue = 0;
       if (this.btcDifficulty && this.btcPriceEur && hashrateTH > 0) {
         const btcPerDay = (hashrateTH * 1e12 / (this.btcDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
-        btcHourlyRevenue = (btcPerDay * this.btcPriceEur) / 24;
+        dailyRevenue = btcPerDay * this.btcPriceEur;
+        btcHourlyRevenue = dailyRevenue / 24;
+        monthlyRevenue = dailyRevenue * 30.416; // Ø Tage im Monat
       }
 
       // Rentabilität pro kWh
@@ -1269,28 +1355,81 @@ class OpenKairoMiningPanel extends LitElement {
                      </select>
                  </div>
                  
-                 <div class="tech-box" style="background: rgba(0,0,0,0.3); border-color: rgba(247, 147, 26, 0.3);">
+                 <div class="tech-box" style="background: rgba(0,0,0,0.3); border-color: rgba(247, 147, 26, 0.4); box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="color: #888;">Mining Ertrag:</span>
+                        <span style="color: #888;">⛏️ Mining Ertrag:</span>
                         <strong style="color: #F7931A; font-size: 1.1em;">${revenuePerKwh.toFixed(4)} € / kWh</strong>
                     </div>
                     
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed rgba(255,255,255,0.1);">
-                        <span style="color: #888;">Break-Even (Max. Strompreis):</span>
+                        <span style="color: #888;">⚖️ Break-Even (Strompreis):</span>
                         <strong style="color: #fff; font-size: 1.1em;">${revenuePerKwh.toFixed(4)} € / kWh</strong>
                     </div>
 
-                    <div style="display: flex; justify-content: space-between; margin-top: 10px;">
-                        <span style="color: #fff; font-weight: bold;">Profit bei PV-Strom (0 € Kosten):</span>
-                        <strong style="color: #2ecc71; font-size: 1.25em;">
+                    <div style="display: flex; justify-content: space-between; margin-top: 12px; margin-bottom: 4px;">
+                        <span style="color: #fff; font-weight: bold;">☀️ Profit (PV / 0 € Kosten):</span>
+                        <strong style="color: #2ecc71; font-size: 1.25em; text-shadow: 0 0 10px rgba(46, 204, 113, 0.2);">
                             +${revenuePerKwh.toFixed(4)} € / kWh
                         </strong>
                     </div>
                  </div>
 
+                 ${(dailyRevenue > 0) ? html`
+                 <div class="tech-box" style="background: rgba(46, 204, 113, 0.05); border-color: rgba(46, 204, 113, 0.2); margin-top: 15px;">
+                     <h4 style="margin: 0 0 10px 0; color: #2ecc71; font-size: 0.95em; text-transform: uppercase;">📈 Ertrag bei 24/7 Betrieb</h4>
+                     <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                         <span style="color: #888;">Pro Tag:</span>
+                         <strong style="color: #2ecc71;">+${dailyRevenue.toFixed(2)} €</strong>
+                     </div>
+                     <div style="display: flex; justify-content: space-between;">
+                         <span style="color: #888;">Pro Monat:</span>
+                         <strong style="color: #2ecc71; font-size: 1.2em;">+${monthlyRevenue.toFixed(2)} €</strong>
+                     </div>
+                 </div>
+                 ` : ''}
+                 
+                 ${(() => {
+          if (miner.switch && !this.switchHistoryData[miner.switch] && !this.fetchingSwitchHistory[miner.switch]) {
+            this.fetchingSwitchHistory[miner.switch] = true;
+            this.fetchSwitchHistory(miner.switch);
+          }
+
+          const { todayMinutes, weekMinutes } = miner.switch ? this.calculateRuntime(miner.switch) : { todayMinutes: 0, weekMinutes: 0 };
+          const todayErtrag = (todayMinutes / 60) * btcHourlyRevenue;
+          const weekErtrag = (weekMinutes / 60) * btcHourlyRevenue;
+
+          const formatTime = (totalMins) => {
+            const h = Math.floor(totalMins / 60);
+            const m = Math.floor(totalMins % 60);
+            return `${h}h ${m}m`;
+          };
+
+          if (!miner.switch) return '';
+
+          return html`
+                   <div class="tech-box" style="background: rgba(52, 152, 219, 0.05); border-color: rgba(52, 152, 219, 0.2); margin-top: 15px;">
+                       <h4 style="margin: 0 0 10px 0; color: #3498db; font-size: 0.95em; text-transform: uppercase;">🕒 Echte Historie (Home Assistant)</h4>
+                       
+                       ${this.fetchingSwitchHistory[miner.switch] && !this.switchHistoryData[miner.switch] ? html`
+                           <span style="color: #888;">Lade Historie...</span>
+                       ` : html`
+                           <div style="display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 5px;">
+                               <span style="color: #888;">Heute (${formatTime(todayMinutes)}):</span>
+                               <strong style="color: #3498db;">+${todayErtrag.toFixed(2)} €</strong>
+                           </div>
+                           <div style="display: flex; justify-content: space-between;">
+                               <span style="color: #888;">Letzte 7 Tage (${formatTime(weekMinutes)}):</span>
+                               <strong style="color: #3498db; font-size: 1.1em;">+${weekErtrag.toFixed(2)} €</strong>
+                           </div>
+                       `}
+                   </div>
+                   `;
+        })()}
+
                  <div style="margin-top: 15px; font-size: 0.85em; color: #666; line-height: 1.4;">
                     * <b>Break-Even</b> ist dein theoretischer Höchst-Strompreis, bei dem der Miner noch genau kostendeckend läuft.<br>
-                    * <b>Profit bei PV-Strom</b> zeigt deinen direkten finanziellen Zugewinn durch den Bitcoin-Ertrag, wenn der Miner rein aus kostenlosem Solarstrom betrieben wird.
+                    * Betreibst du den Miner bei reinem <b>PV-Überschuss</b> (Kosten = 0 €), erhältst du den vollen Bitcoin-Ertrag gutgeschrieben. <br>
+                    * <b>Echte Historie</b> wertet live aus, wie lange der zugewiesene Schalter in Home Assistant in den letzten 7 Tagen auf "An" stand und berechnet basierend auf dem aktuellen Ertrag die generierten Euro.
                  </div>
                  
                  ${(simModel === 'sensor' && (!miner.power_consumption_sensor || !miner.hashrate_sensor)) ? html`
@@ -1306,7 +1445,7 @@ class OpenKairoMiningPanel extends LitElement {
         <div class="tech-box" style="margin-top: 30px; border-color: rgba(247, 147, 26, 0.2);">
            <h3 style="color: #F7931A; margin-top: 0;">💡 Live Bitcoin Infos</h3>
            <p style="color: #bbb; font-size: 0.9em; line-height: 1.5;">
-              Die Berechnung nutzt die aktuelle Bitcoin Difficulty (${this.btcDifficulty ? this.btcDifficulty.toExponential(2) : '-'}) und den stetigen Live-Preis (${this.btcPriceEur ? this.btcPriceEur.toFixed(2) : '-'} €). Basis-Daten von <a href="https://www.asicminervalue.com/de" target="_blank" style="color:#F7931A;">ASIC Miner Value</a>.
+              Die Berechnung nutzt die aktuelle Bitcoin Difficulty (<b>${formatDifficulty(this.btcDifficulty)}</b>) und den stetigen Live-Preis (<b>${this.btcPriceEur ? this.btcPriceEur.toLocaleString("de-DE", { style: "currency", currency: "EUR" }) : '-'}</b>). Basis-Daten nach dem <a href="https://www.asicminervalue.com/de" target="_blank" style="color:#F7931A; text-decoration: none; border-bottom: 1px dotted #F7931A;">ASIC Miner Value</a> Standard.
            </p>
         </div>
       </div>
