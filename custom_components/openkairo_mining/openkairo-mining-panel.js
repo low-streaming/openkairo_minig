@@ -475,8 +475,10 @@ class OpenKairoMiningPanel extends LitElement {
         const data = await response.json();
         if (data.config && data.config.miners) {
           this.config = data.config;
+          this.states = data.states || {};
         } else {
           this.config = { miners: [] };
+          this.states = {};
         }
       }
     } catch (error) {
@@ -545,7 +547,13 @@ class OpenKairoMiningPanel extends LitElement {
       standby_watchdog_enabled: false,
       standby_switch: '',
       standby_power: 100,
-      standby_delay: 10
+      standby_delay: 10,
+      soft_start_enabled: false,
+      soft_stop_enabled: false,
+      soft_start_steps: '100, 500, 1000',
+      soft_stop_steps: '1000, 500, 100',
+      soft_interval: 60,
+      soft_target_power: 1200
     };
   }
 
@@ -900,6 +908,8 @@ class OpenKairoMiningPanel extends LitElement {
         ? this.hass.states[miner.switch].attributes.friendly_name
         : miner.switch;
 
+      let stateObj = this.states ? this.states[miner.id] : null;
+
       return html`
             <div class="miner-card">
               ${miner.image ? html`<div class="miner-image" style="background-image: url('${miner.image}')"></div>` : html`<div class="miner-image placeholder">₿</div>`}
@@ -909,8 +919,8 @@ class OpenKairoMiningPanel extends LitElement {
               </div>
               
               <div class="miner-status">
-                <span class="status-badge ${switchState === 'on' ? 'on' : switchState === 'off' ? 'off' : ''}">
-                  ${switchState === 'on' ? 'MINING 🚀' : switchState === 'off' ? 'STANDBY 💤' : switchState}
+                <span class="status-badge ${switchState === 'on' ? 'on' : switchState === 'off' ? 'off' : ''} ${stateObj && stateObj.ramping ? 'pulse-orange' : ''}">
+                  ${stateObj && stateObj.ramping === 'up' ? 'RAMPING UP ⚡' : stateObj && stateObj.ramping === 'down' ? 'RAMPING DOWN 💤' : (switchState === 'on' ? 'MINING 🚀' : switchState === 'off' ? 'STANDBY 💤' : switchState)}
                 </span>
                 <button class="btn-power ${switchState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner.switch)}" title="Manuell ein/ausschalten">
                   ⏻
@@ -1176,8 +1186,54 @@ class OpenKairoMiningPanel extends LitElement {
                 <div class="form-group flex-1">
                     <label>Power Limit ('number' Entität)</label>
                     <openkairo-entity-picker name="power_entity" placeholder="-- Power Limit suchen --" .value="${this.editForm.power_entity || ''}" .entities="${numberOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
-                    <small>Optional: ASIC Slider für Dashboard.</small>
+                    <small>Wichtig für Soft Start/Stop (S9/ASIC).</small>
                 </div>
+            </div>
+
+            <div style="margin-top: 20px; padding: 15px; border: 1px dashed rgba(247, 147, 26, 0.3); border-radius: 8px; background: rgba(247, 147, 26, 0.05);">
+                <h4 style="margin: 0 0 10px 0; color: #F7931A; display: flex; align-items: center; gap: 8px;">🚀 Soft Start / Stop (Mehrstufiges Hochfahren)</h4>
+                
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="soft_start_enabled" .checked="${this.editForm.soft_start_enabled}" @change="${this.handleFormInput}" style="width: 16px; height: 16px; margin: 0; accent-color: #F7931A;">
+                            <b>Soft-Start aktivieren</b>
+                        </label>
+                    </div>
+                    <div class="form-group flex-1">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="soft_stop_enabled" .checked="${this.editForm.soft_stop_enabled}" @change="${this.handleFormInput}" style="width: 16px; height: 16px; margin: 0; accent-color: #F7931A;">
+                            <b>Soft-Stop aktivieren</b>
+                        </label>
+                    </div>
+                </div>
+
+                ${this.editForm.soft_start_enabled || this.editForm.soft_stop_enabled ? html`
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label>Start-Abstufungen (Watt)</label>
+                            <input type="text" name="soft_start_steps" placeholder="100, 500, 1000" .value="${this.editForm.soft_start_steps || '100, 500, 1000'}" @input="${this.handleFormInput}">
+                            <small>Kommasepariert, z.B. 100, 500, 1000</small>
+                        </div>
+                        <div class="form-group flex-1">
+                            <label>Stopp-Abstufungen (Watt)</label>
+                            <input type="text" name="soft_stop_steps" placeholder="1000, 500, 100" .value="${this.editForm.soft_stop_steps || '1000, 500, 100'}" @input="${this.handleFormInput}">
+                            <small>Kommasepariert, z.B. 1000, 500, 100</small>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label>Intervall (Sekunden)</label>
+                            <input type="number" name="soft_interval" min="10" .value="${this.editForm.soft_interval || 60}" @input="${this.handleFormInput}">
+                            <small>Wartezeit zwischen den Stufen.</small>
+                        </div>
+                        <div class="form-group flex-1">
+                             <label>End-Leistung (Watt)</label>
+                             <input type="number" name="soft_target_power" .value="${this.editForm.soft_target_power || 1200}" @input="${this.handleFormInput}">
+                             <small>Zielwert nach dem Hochfahren.</small>
+                        </div>
+                    </div>
+                ` : ''}
             </div>
         </div>
 
@@ -1822,6 +1878,17 @@ class OpenKairoMiningPanel extends LitElement {
       .status-badge.off { 
         background: rgba(231, 76, 60, 0.1); color: #e74c3c; 
         border-color: rgba(231, 76, 60, 0.3); 
+      }
+      .pulse-orange { 
+        animation: pulse-orange 2s infinite; 
+        background: rgba(247, 147, 26, 0.1) !important;
+        color: #F7931A !important;
+        border-color: rgba(247, 147, 26, 0.4) !important;
+      }
+      @keyframes pulse-orange {
+        0% { box-shadow: 0 0 0 0 rgba(247, 147, 26, 0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(247, 147, 26, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(247, 147, 26, 0); }
       }
       
       .btn-power {
