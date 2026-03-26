@@ -22,7 +22,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     _LOGGER.info("Setting up OpenKairo Mining Integration")
     
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN]["config"] = _load_config(hass)
+    hass.data[DOMAIN]["config"] = await hass.async_add_executor_job(_load_config, hass)
     
     async_register_built_in_panel(
         hass,
@@ -86,9 +86,11 @@ class OpenKairoMiningFrontendView(HomeAssistantView):
 
     async def get(self, request):
         path = os.path.join(os.path.dirname(__file__), "openkairo-mining-panel.js")
+        hass = request.app["hass"]
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                content = f.read()
+            content = await hass.async_add_executor_job(
+                lambda: open(path, "r", encoding="utf-8").read()
+            )
             from aiohttp import web
             return web.Response(body=content, content_type="application/javascript")
         except Exception as e:
@@ -117,7 +119,7 @@ class OpenKairoMiningApiView(HomeAssistantView):
     async def post(self, request):
         hass = request.app["hass"]
         data = await request.json()
-        _save_config(hass, data)
+        await hass.async_add_executor_job(_save_config, hass, data)
         from aiohttp import web
         return web.json_response({"status": "success"})
 
