@@ -136,14 +136,19 @@ async def _mining_loop(hass):
             
             for miner in sorted_miners:
                 mode = miner.get("mode", "manual")
-                miner_switch = miner.get("switch")
                 miner_name = miner.get("name", "Unknown Miner")
+                
+                miner_switch = miner.get("switch")
+                miner_switch_2 = miner.get("switch_2")
                 
                 if not miner_switch:
                     continue
                     
-                switch_state = hass.states.get(miner_switch)
-                is_on = switch_state.state == "on" if switch_state else False
+                switches = [miner_switch]
+                if miner_switch_2:
+                    switches.append(miner_switch_2)
+                    
+                is_on = all(hass.states.get(s).state == "on" if hass.states.get(s) else False for s in switches)
 
                 if "miner_states" not in hass.data[DOMAIN]:
                     hass.data[DOMAIN]["miner_states"] = {}
@@ -274,8 +279,8 @@ async def _mining_loop(hass):
                                     state["ramping_step"] = 0
                                     state["ramping_last_time"] = 0 # trigger immediately
                                 else:
-                                    _LOGGER.info(f"[{miner_name}] Turn ON condition met for >= {delay_minutes} min, turning ON {miner_switch}")
-                                    await hass.services.async_call("switch", "turn_on", {"entity_id": miner_switch}, blocking=False)
+                                    _LOGGER.info(f"[{miner_name}] Turn ON condition met for >= {delay_minutes} min, turning ON {switches}")
+                                    await hass.services.async_call("switch", "turn_on", {"entity_id": switches}, blocking=False)
                     else:
                         state["on_since"] = None
 
@@ -290,8 +295,8 @@ async def _mining_loop(hass):
                                     state["ramping_step"] = 0
                                     state["ramping_last_time"] = 0 # trigger immediately
                                 else:
-                                    _LOGGER.info(f"[{miner_name}] Turn OFF condition met for >= {delay_minutes} min, turning OFF {miner_switch}")
-                                    await hass.services.async_call("switch", "turn_off", {"entity_id": miner_switch}, blocking=False)
+                                    _LOGGER.info(f"[{miner_name}] Turn OFF condition met for >= {delay_minutes} min, turning OFF {switches}")
+                                    await hass.services.async_call("switch", "turn_off", {"entity_id": switches}, blocking=False)
                     else:
                         state["off_since"] = None
                     
@@ -309,7 +314,7 @@ async def _mining_loop(hass):
                                     _LOGGER.info(f"[{miner_name}] Soft-Start step {state['ramping_step'] + 1}/{len(steps)}: Setting power to {val}W")
                                     await hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val}, blocking=False)
                                     if state["ramping_step"] == 0 and not is_on:
-                                        await hass.services.async_call("switch", "turn_on", {"entity_id": miner_switch}, blocking=False)
+                                        await hass.services.async_call("switch", "turn_on", {"entity_id": switches}, blocking=False)
                                     state["ramping_step"] += 1
                                     state["ramping_last_time"] = current_time
                                 else:
@@ -325,8 +330,8 @@ async def _mining_loop(hass):
                                     state["ramping_step"] += 1
                                     state["ramping_last_time"] = current_time
                                 else:
-                                    _LOGGER.info(f"[{miner_name}] Soft-Stop complete. Turning OFF {miner_switch}")
-                                    await hass.services.async_call("switch", "turn_off", {"entity_id": miner_switch}, blocking=False)
+                                    _LOGGER.info(f"[{miner_name}] Soft-Stop complete. Turning OFF {switches}")
+                                    await hass.services.async_call("switch", "turn_off", {"entity_id": switches}, blocking=False)
                                     state["ramping"] = None
                 
                 # Manual mode might also need to stop ramping if state changed manually?

@@ -25,6 +25,7 @@ Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intellig
   - **Power Limit Slider:** Reguliere den Stromverbrauch kompatibler Miner stufenlos direkt im Dashboard.
   - **ASIC-Kontrolle:** Sende Befehle wie Neustart, Reboot oder Modus-Wechsel (Low/Normal/High Power) per Knopfdruck.
 - **Soft Start / Soft Stop (Ramping):** Mehrstufiges Hochfahren beim Start (z.B. 100W -> 500W -> 1000W) und sanftes Herunterfahren vor dem Ausschalten, um Hardware und Stromnetz zu schonen.
+- **Dual-Plug Support (2 Kabel):** Unterstützung für Miner mit zwei Netzteilen. Diese können über zwei getrennte smarte Steckdosen synchron geschaltet werden (Hinweis: Nutzung auf eigene Gefahr bezüglich Leistungsschutz).
 - **Personalisierung:** Hinterlege eigene Bilder für jeden Miner für eine individuelle Optik.
 
 ## Installation via HACS (Custom Repository)

@@ -553,7 +553,8 @@ class OpenKairoMiningPanel extends LitElement {
       soft_start_steps: '100, 500, 1000',
       soft_stop_steps: '1000, 500, 100',
       soft_interval: 60,
-      soft_target_power: 1200
+      soft_target_power: 1200,
+      switch_2: ''
     };
   }
 
@@ -584,9 +585,11 @@ class OpenKairoMiningPanel extends LitElement {
     }
   }
 
-  toggleMiner(entityId) {
-    if (!this.hass || !entityId) return;
-    this.hass.callService("switch", "toggle", { entity_id: entityId });
+  toggleMiner(miner) {
+    if (!this.hass || !miner.switch) return;
+    const switches = [miner.switch];
+    if (miner.switch_2) switches.push(miner.switch_2);
+    this.hass.callService("switch", "toggle", { entity_id: switches });
   }
 
   callMinerService(miner, serviceName, serviceData = {}) {
@@ -614,6 +617,14 @@ class OpenKairoMiningPanel extends LitElement {
 
   handleFormInput(e) {
     const { name, value, type, checked } = e.target;
+    
+    if (name === 'switch_2' && value && value !== this.editForm.switch_2) {
+        if (!confirm("⚠️ WARNUNG: Der Betrieb eines Miners an zwei getrennten smarten Steckdosen ist eigentlich nicht zulässig und erfolgt auf eigene Gefahr! \n\nEs kann zu Problemen beim Leistungsschutz oder zur Überlastung führen. Möchtest du fortfahren?")) {
+            e.target.value = '';
+            return;
+        }
+    }
+
     this.editForm = { ...this.editForm, [name]: type === 'checkbox' ? checked : value };
     this.requestUpdate();
   }
@@ -907,6 +918,10 @@ class OpenKairoMiningPanel extends LitElement {
       const friendlySwitchName = this.hass && this.hass.states[miner.switch] && this.hass.states[miner.switch].attributes.friendly_name
         ? this.hass.states[miner.switch].attributes.friendly_name
         : miner.switch;
+      
+      const friendlySwitchName2 = miner.switch_2 && this.hass && this.hass.states[miner.switch_2] && this.hass.states[miner.switch_2].attributes.friendly_name
+        ? this.hass.states[miner.switch_2].attributes.friendly_name
+        : miner.switch_2;
 
       let stateObj = this.states ? this.states[miner.id] : null;
 
@@ -922,7 +937,7 @@ class OpenKairoMiningPanel extends LitElement {
                 <span class="status-badge ${switchState === 'on' ? 'on' : switchState === 'off' ? 'off' : ''} ${stateObj && stateObj.ramping ? 'pulse-orange' : ''}">
                   ${stateObj && stateObj.ramping === 'up' ? 'RAMPING UP ⚡' : stateObj && stateObj.ramping === 'down' ? 'RAMPING DOWN 💤' : (switchState === 'on' ? 'MINING 🚀' : switchState === 'off' ? 'STANDBY 💤' : switchState)}
                 </span>
-                <button class="btn-power ${switchState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner.switch)}" title="Manuell ein/ausschalten">
+                <button class="btn-power ${switchState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner)}" title="Manuell ein/ausschalten">
                   ⏻
                 </button>
               </div>
@@ -955,7 +970,7 @@ class OpenKairoMiningPanel extends LitElement {
               
               <div class="miner-details">
                 <p><b>Modus:</b> <span class="accent-text">${modeMap[miner.mode] || 'Unbekannt'}</span></p>
-                <p><b>Dose:</b> ${friendlySwitchName || 'Nicht gesetzt'}</p>
+                <p><b>Dose:</b> ${friendlySwitchName || 'Nicht gesetzt'} ${friendlySwitchName2 ? html` + ${friendlySwitchName2}` : ''}</p>
                 
                 ${miner.mode === 'pv' ? html`
                   <div class="tech-box">
@@ -1157,11 +1172,17 @@ class OpenKairoMiningPanel extends LitElement {
           <small>Lade ein Foto deines Miners hoch (wird lokal im Browser/Dashboard gespeichert).</small>
         </div>
 
-        <div class="form-group">
-          <label>Schalter / Steckdose</label>
-          <openkairo-entity-picker name="switch" placeholder="-- Steckdose suchen oder wählen --" .value="${this.editForm.switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
-          <small>Die Steckdose oder der 'hass-miner' Switch, an dem der Miner pausiert wird.</small>
+        <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Schalter / Steckdose 1</label>
+              <openkairo-entity-picker name="switch" placeholder="-- Steckdose 1 wählen --" .value="${this.editForm.switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+            </div>
+            <div class="form-group flex-1">
+              <label>Schalter / Steckdose 2 (Optional)</label>
+              <openkairo-entity-picker name="switch_2" placeholder="-- Optionale Steckdose 2 --" .value="${this.editForm.switch_2 || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+            </div>
         </div>
+        <small style="margin-top: -15px; display: block; margin-bottom: 20px;">Die Steckdose(n) oder der 'hass-miner' Switch, an dem der Miner pausiert wird.</small>
 
         <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);">
             <h3 style="color: #aaa; font-size: 1.1em;">🔌 Hass-Miner Integration (Optional)</h3>
