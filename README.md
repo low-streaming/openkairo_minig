@@ -11,7 +11,12 @@ Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intellig
 >
 > Erst danach stehen die Entitäten bereit, die im OpenKairo Mining Panel verknüpft werden.
 
-## Features
+## 🆕 Neu in v1.2
+- **Ramping (Soft-Start & Soft-Stop):** Sanftes, mehrstufiges Hoch- und Herunterfahren der ASIC-Leistung (Watt) beim Ein- und Ausschalten.
+- **Dual-Plug Support:** Unterstützung für Miner mit zwei Netzteilen. Zwei smarte Steckdosen können nun absolut synchron gesteuert werden.
+- **Dauerbetrieb optimiert:** Ein wichtiges Stabilitätsupdate verhindert Abstürze der Anzeige ("Black Screen") bei unvollständigen State-Updates von Home Assistant.
+
+## ⚙️ Alle Features
 - **Designstarkes Dashboard:** Eine moderne Weboberfläche zur zentralen Steuerung und Überwachung aller Miner.
 - **Live-Rentabilitätsrechner:** Echtzeit-Abruf von Bitcoin-Kurs & Network-Difficulty zur metergenauen Berechnung von Profit, Break-Even Preisen, sowie Tages- und Monatserträgen.
 - **Umfangreiche Hardware-Datenbank:** Integrierte Profile für Standard-Miner (Antminer S9/S19/S21, Whatsminer, Avalon Nano, Bitaxe, etc.) oder "Custom"-Eingabe für Exoten.

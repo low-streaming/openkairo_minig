@@ -16,14 +16,6 @@ Mit der **Version 1.2** liefert OpenKairo Mining ein wichtiges Stabilitätsupdat
   In Home Assistant kann es vorkommen, dass Entitäten für den Bruchteil einer Sekunde keine zusätzlichen Attribute (wie `unit_of_measurement` oder `friendly_name`) senden (z.B. bei Integration-Reloads oder WLAN-Aussetzern). Dies führte in den Vorgängerversionen gelegentlich dazu, dass die gesamte Panel-Anzeige "abstürzte" und einfach schwarz wurde (bis zu einem manuellen Seiten-Reload). 
   In v1.2 wurde die gesamte Datenauswertung durch strenges *Optional Chaining* abgesichert, sodass fehlende Werte im Hintergrund einfach souverän ignoriert werden und die UI dauerhaft stabil bleibt!
 
-## 🏷️ Rebranding & Systemanpassungen
-
-- **Namensanpassung (Weg von Low-Streaming):**
-  Alle internen und externen Namensreferenzen wurden endgültig von `low-streaming` auf `openkairo` zurückgeändert, um die Markenidentität einheitlich auf OpenKairo auszurichten. Dazu gehört auch der PayPal-Support-Link.
-- Die Integration-Version in der `manifest.json` lautet nun offiziell **1.2.0**.
-
----
-
 ### Installation des Updates:
 1. Im HACS-Store auf das OpenKairo Mining-Repository gehen und **Aktualisieren** klicken.
 2. Zur Sicherheit den Browser-Cache löschen (oder STRG + F5 drücken), damit die alte JavaScript-Datei (`openkairo-mining-panel.js`) überschrieben wird.
