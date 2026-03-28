@@ -1,4 +1,4 @@
-# OpenKairo Mining v1.1 ⚡
+# OpenKairo Mining v1.2 ⚡
 
 Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intelligent nach PV-Überschuss zu steuern. *Powered by OpenKairo*
 

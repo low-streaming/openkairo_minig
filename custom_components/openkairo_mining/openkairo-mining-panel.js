@@ -694,7 +694,7 @@ class OpenKairoMiningPanel extends LitElement {
   render() {
     return html`
       <div class="header">
-        <h1>₿ OpenKairo Mining ⚡ <span style="font-size: 0.5em; vertical-align: middle; background: #F7931A; border-radius: 4px; padding: 2px 6px; color: #fff; margin-left: 8px;">v1.1</span></h1>
+        <h1>₿ OpenKairo Mining ⚡ <span style="font-size: 0.5em; vertical-align: middle; background: #F7931A; border-radius: 4px; padding: 2px 6px; color: #fff; margin-left: 8px;">v1.2</span></h1>
         <p class="subtitle">Intelligente Miner-Steuerung</p>
       </div>
 
@@ -768,7 +768,7 @@ class OpenKairoMiningPanel extends LitElement {
         <div class="tech-box" style="margin-top: 25px; text-align: center; border-color: rgba(247, 147, 26, 0.4); background: rgba(247, 147, 26, 0.05);">
           <h3 style="margin-top:0; color:#fff;">☕ Unterstütze das Projekt</h3>
           <p style="color:#bbb; margin-bottom: 25px;">OpenKairo ist ein Community-Projekt. Wenn dir die Integration hilft, Energiekosten zu sparen, freuen wir uns über eine kleine Unterstützung für die Weiterentwicklung!</p>
-          <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=info@low-streaming.de&currency_code=EUR&source=url" target="_blank" class="btn-primary" style="display:inline-block; text-decoration:none; width:auto; padding: 15px 40px; border-radius:30px; line-height:1;">
+          <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=info@openkairo.de&currency_code=EUR&source=url" target="_blank" class="btn-primary" style="display:inline-block; text-decoration:none; width:auto; padding: 15px 40px; border-radius:30px; line-height:1;">
             ☕ Kaffee / Energy spendieren (PayPal)
           </a>
         </div>
