@@ -686,7 +686,7 @@ class OpenKairoMiningPanel extends LitElement {
         const stateObj = this.hass.states[entityId];
         return {
           id: entityId,
-          name: stateObj.attributes.friendly_name ? `${stateObj.attributes.friendly_name} (${entityId})` : entityId
+          name: stateObj.attributes?.friendly_name ? `${stateObj.attributes.friendly_name} (${entityId})` : entityId
         };
       });
   }
@@ -815,25 +815,25 @@ class OpenKairoMiningPanel extends LitElement {
       let hashrateValue = '';
       if (miner.hashrate_sensor && this.hass && this.hass.states[miner.hashrate_sensor]) {
         const stateObj = this.hass.states[miner.hashrate_sensor];
-        hashrateValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || 'TH/s');
+        hashrateValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || 'TH/s');
       }
 
       let tempValue = '';
       if (miner.temp_sensor && this.hass && this.hass.states[miner.temp_sensor]) {
         const stateObj = this.hass.states[miner.temp_sensor];
-        tempValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || '°C');
+        tempValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || '°C');
       }
 
       let powerConsumptionValue = '';
       if (miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]) {
         const stateObj = this.hass.states[miner.power_consumption_sensor];
-        powerConsumptionValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || 'W');
+        powerConsumptionValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || 'W');
       }
 
       let batterySOCValue = '';
       if (miner.battery_sensor && this.hass && this.hass.states[miner.battery_sensor]) {
         const stateObj = this.hass.states[miner.battery_sensor];
-        batterySOCValue = stateObj.state + ' ' + (stateObj.attributes.unit_of_measurement || '%');
+        batterySOCValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || '%');
       }
 
       // Profitabilitäts-Berechnung
@@ -850,7 +850,7 @@ class OpenKairoMiningPanel extends LitElement {
       } else if ((!miner.coin_price_source || miner.coin_price_source === 'sensor') && miner.coin_price_sensor && this.hass && this.hass.states[miner.coin_price_sensor]) {
         const priceState = this.hass.states[miner.coin_price_sensor];
         currentCoinPrice = parseFloat(priceState.state) || 0;
-        if (priceState.attributes.unit_of_measurement) {
+        if (priceState.attributes?.unit_of_measurement) {
           fiatSymbol = priceState.attributes.unit_of_measurement.replace('/BTC', '').replace('/ETH', '').replace('/KAS', '').trim();
         }
       }
@@ -860,7 +860,7 @@ class OpenKairoMiningPanel extends LitElement {
         const hrValue = parseFloat(hrState.state) || 0;
 
         let hrInTH = hrValue;
-        const unit = (hrState.attributes.unit_of_measurement || 'TH/s').toUpperCase();
+        const unit = (hrState.attributes?.unit_of_measurement || 'TH/s').toUpperCase();
         if (unit.includes('GH')) hrInTH = hrValue / 1000;
         if (unit.includes('PH')) hrInTH = hrValue * 1000;
 
@@ -888,7 +888,7 @@ class OpenKairoMiningPanel extends LitElement {
       } else if ((!miner.electricity_price_source || miner.electricity_price_source === 'sensor') && miner.electricity_price_sensor && this.hass && this.hass.states[miner.electricity_price_sensor]) {
         const eleState = this.hass.states[miner.electricity_price_sensor];
         electricityPrice = parseFloat(eleState.state) || 0;
-        const priceUnit = eleState.attributes.unit_of_measurement || '';
+        const priceUnit = eleState.attributes?.unit_of_measurement || '';
         if (priceUnit.toLowerCase().includes('cent') || priceUnit === 'ct' || priceUnit === '¢' || electricityPrice > 5) {
           electricityPrice = electricityPrice / 100; // assume >5 means cents if not EUR exactly
         }
@@ -915,11 +915,11 @@ class OpenKairoMiningPanel extends LitElement {
         powerObj = this.hass.states[miner.power_entity];
       }
 
-      const friendlySwitchName = this.hass && this.hass.states[miner.switch] && this.hass.states[miner.switch].attributes.friendly_name
+      const friendlySwitchName = this.hass && this.hass.states[miner.switch] && this.hass.states[miner.switch].attributes?.friendly_name
         ? this.hass.states[miner.switch].attributes.friendly_name
         : miner.switch;
       
-      const friendlySwitchName2 = miner.switch_2 && this.hass && this.hass.states[miner.switch_2] && this.hass.states[miner.switch_2].attributes.friendly_name
+      const friendlySwitchName2 = miner.switch_2 && this.hass && this.hass.states[miner.switch_2] && this.hass.states[miner.switch_2].attributes?.friendly_name
         ? this.hass.states[miner.switch_2].attributes.friendly_name
         : miner.switch_2;
 
@@ -955,12 +955,12 @@ class OpenKairoMiningPanel extends LitElement {
               <div class="power-limit-box" style="margin-top: 15px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
                   <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                       <span style="font-size: 0.85em; color: #888;">Power Limit (S9/ASIC)</span>
-                      <strong style="color: #F7931A;">${powerObj.state} ${powerObj.attributes.unit_of_measurement || 'W'}</strong>
+                      <strong style="color: #F7931A;">${powerObj.state} ${powerObj.attributes?.unit_of_measurement || 'W'}</strong>
                   </div>
                   <input type="range" 
-                         min="${powerObj.attributes.min || 0}" 
-                         max="${powerObj.attributes.max || 100}" 
-                         step="${powerObj.attributes.step || 1}" 
+                         min="${powerObj.attributes?.min || 0}" 
+                         max="${powerObj.attributes?.max || 100}" 
+                         step="${powerObj.attributes?.step || 1}" 
                          .value="${powerObj.state}" 
                          @change="${(e) => this.setPowerLimit(miner.power_entity, e.target.value)}"
                          style="width: 100%; accent-color: #F7931A; cursor: pointer;">
@@ -987,7 +987,7 @@ class OpenKairoMiningPanel extends LitElement {
                     ` : ''}
                     ${miner.forecast_sensor && this.hass && this.hass.states[miner.forecast_sensor] ? html`
                       <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px;">
-                          <p><b>Prognose heute:</b> <span class="highlight-val">${this.hass.states[miner.forecast_sensor].state} ${this.hass.states[miner.forecast_sensor].attributes.unit_of_measurement || 'kWh'}</span></p>
+                          <p><b>Prognose heute:</b> <span class="highlight-val">${this.hass.states[miner.forecast_sensor].state} ${this.hass.states[miner.forecast_sensor].attributes?.unit_of_measurement || 'kWh'}</span></p>
                           <p class="small-text mt-1">🌤️ Limit: Miner startet nur ab ${miner.forecast_min || 0} kWh</p>
                       </div>
                     ` : ''}
