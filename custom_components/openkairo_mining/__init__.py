@@ -163,24 +163,27 @@ async def _mining_loop(hass):
 
                 # Standby-Watchdog (for all modes)
                 if miner.get("standby_watchdog_enabled"):
-                    power_sensor = miner.get("power_consumption_sensor")
+                    watchdog_type = miner.get("watchdog_type", "power")
+                    # Wähle das Ziel-Objekt basierend auf dem Typ
+                    target_entity = miner.get("power_entity") if watchdog_type == "limit" else miner.get("power_consumption_sensor")
                     standby_switch = miner.get("standby_switch")
-                    if power_sensor and standby_switch:
-                        power_state = hass.states.get(power_sensor)
+                    
+                    if target_entity and standby_switch:
+                        target_state = hass.states.get(target_entity)
                         standby_switch_state = hass.states.get(standby_switch)
                         
-                        if power_state and power_state.state not in ["unknown", "unavailable"] and standby_switch_state and standby_switch_state.state == "on":
+                        if target_state and target_state.state not in ["unknown", "unavailable"] and standby_switch_state and standby_switch_state.state == "on":
                             try:
-                                power_value = float(power_state.state)
-                                standby_power = float(miner.get("standby_power", 100))
+                                current_value = float(target_state.state)
+                                standby_threshold = float(miner.get("standby_power", 100))
                                 standby_delay_mins = float(miner.get("standby_delay", 10))
                                 standby_delay_secs = standby_delay_mins * 60
                                 
-                                if power_value < standby_power:
+                                if current_value < standby_threshold:
                                     if state.get("standby_since") is None:
                                         state["standby_since"] = current_time
                                     elif current_time - state["standby_since"] >= standby_delay_secs:
-                                        _LOGGER.warning(f"[{miner_name}] Watchdog triggered! Power {power_value}W < {standby_power}W for >={standby_delay_mins} min. Turning OFF {standby_switch}.")
+                                        _LOGGER.warning(f"[{miner_name}] Watchdog triggered ({watchdog_type})! Value {current_value} < {standby_threshold} for >={standby_delay_mins} min. Turning OFF {standby_switch}.")
                                         await hass.services.async_call("switch", "turn_off", {"entity_id": standby_switch}, blocking=False)
                                         state["standby_since"] = None
                                 else:

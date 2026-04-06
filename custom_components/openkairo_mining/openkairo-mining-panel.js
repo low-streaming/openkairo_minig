@@ -553,8 +553,8 @@ class OpenKairoMiningPanel extends LitElement {
       soft_start_steps: '100, 500, 1000',
       soft_stop_steps: '1000, 500, 100',
       soft_interval: 60,
-      soft_target_power: 1200,
-      switch_2: ''
+      switch_2: '',
+      watchdog_type: 'power'
     };
   }
 
@@ -959,7 +959,7 @@ class OpenKairoMiningPanel extends LitElement {
                   </div>
                   <input type="range" 
                          min="${powerObj.attributes?.min || 0}" 
-                         max="${powerObj.attributes?.max || 100}" 
+                         max="${((miner.soft_start_enabled || miner.soft_stop_enabled) && miner.soft_target_power) ? miner.soft_target_power : (powerObj.attributes?.max || 100)}" 
                          step="${powerObj.attributes?.step || 1}" 
                          .value="${powerObj.state}" 
                          @change="${(e) => this.setPowerLimit(miner.power_entity, e.target.value)}"
@@ -1014,16 +1014,31 @@ class OpenKairoMiningPanel extends LitElement {
             // Watchdog Timer Calculation
             let watchdogWarning = '';
             let watchdogProgress = 0;
-            if (this.hass && miner.power_consumption_sensor && this.hass.states[miner.power_consumption_sensor] && stState === 'on') {
-              const pwrStateObj = this.hass.states[miner.power_consumption_sensor];
-              const currentPower = parseFloat(pwrStateObj.state) || 0;
+            const wType = miner.watchdog_type || 'power';
+            
+            let currentWatchValue = 0;
+            let hasWatchData = false;
+            let watchObj = null;
+
+            if (wType === 'limit' && miner.power_entity && this.hass && this.hass.states[miner.power_entity]) {
+                watchObj = this.hass.states[miner.power_entity];
+                currentWatchValue = parseFloat(watchObj.state) || 0;
+                hasWatchData = true;
+            } else if (miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]) {
+                watchObj = this.hass.states[miner.power_consumption_sensor];
+                currentWatchValue = parseFloat(watchObj.state) || 0;
+                hasWatchData = true;
+            }
+
+            if (hasWatchData && stState === 'on' && watchObj) {
               const threshold = miner.standby_power || 100;
               const delayMins = miner.standby_delay || 10;
 
-              if (currentPower < threshold) {
-                const lastChanged = new Date(pwrStateObj.last_changed).getTime();
+              if (currentWatchValue < threshold) {
+                const lastChanged = new Date(watchObj.last_changed).getTime();
                 const nowMillis = new Date().getTime();
                 const elapsedMins = (nowMillis - lastChanged) / 60000;
+                
                 if (elapsedMins > 0) {
                   const remainingMins = Math.max(0, delayMins - elapsedMins);
                   watchdogProgress = Math.min(100, (elapsedMins / delayMins) * 100);
@@ -1168,7 +1183,18 @@ class OpenKairoMiningPanel extends LitElement {
         <div class="form-group">
           <label>Miner Bild (Optional)</label>
           <input type="file" accept="image/*" @change="${this.handleImageUpload}" style="padding: 10px;">
-          ${this.editForm.image ? html`<div style="margin-top: 10px; max-width: 200px; border-radius: 8px; overflow: hidden; border: 1px solid #444;"><img src="${this.editForm.image}" style="width: 100%; display: block;"></div>` : ''}
+          ${this.editForm.image ? html`
+            <div style="margin-top: 10px; position: relative; max-width: 200px;">
+              <div style="border-radius: 8px; overflow: hidden; border: 1px solid #444;">
+                <img src="${this.editForm.image}" style="width: 100%; display: block;">
+              </div>
+              <button class="btn-icon delete" 
+                      style="position: absolute; top: -10px; right: -10px; background: #e74c3c; border-color: #e74c3c; padding: 5px; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; z-index: 10;" 
+                      @click="${() => { this.editForm = { ...this.editForm, image: '' }; this.requestUpdate(); }}" 
+                      title="Bild löschen">
+                🗑️
+              </button>
+            </div>` : ''}
           <small>Lade ein Foto deines Miners hoch (wird lokal im Browser/Dashboard gespeichert).</small>
         </div>
 
@@ -1371,6 +1397,16 @@ class OpenKairoMiningPanel extends LitElement {
                 <openkairo-entity-picker name="standby_switch" placeholder="-- Steckdose suchen --" .value="${this.editForm.standby_switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
                 <small>HINWEIS: Der Plug wird automatisch wieder hochgefahren, sobald die PV- oder SOC-Einschaltregeln erfüllt sind.</small>
             </div>
+            
+            <div class="form-group mt-3">
+                <label>Überwachungs-Ziel (Was soll geprüft werden?)</label>
+                <select class="btc-select" name="watchdog_type" @change="${this.handleFormInput}">
+                  <option value="power" ?selected="${this.editForm.watchdog_type === 'power'}">Tatsächlicher Verbrauch (Watt-Sensor)</option>
+                  <option value="limit" ?selected="${this.editForm.watchdog_type === 'limit'}">Eingestelltes Limit (Power-Entität)</option>
+                </select>
+                <small>Wähle "Limit", wenn dein Miner-Verbrauch stark vom eingestellten Wert abweicht.</small>
+            </div>
+
             <div class="form-row">
                 <div class="form-group flex-1">
                     <label>Abschalten wenn Strom &lt; (Watt)</label>
