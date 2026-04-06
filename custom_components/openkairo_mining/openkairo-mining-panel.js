@@ -586,19 +586,21 @@ class OpenKairoMiningPanel extends LitElement {
   }
 
   toggleMiner(miner) {
-    if (!this.hass || !miner.switch) return;
-    const switches = [miner.switch];
-    if (miner.switch_2) switches.push(miner.switch_2);
-    this.hass.callService("switch", "toggle", { entity_id: switches });
+    if (!this.hass) return;
+    const entityId = typeof miner === 'string' ? miner : miner.switch;
+    if (!entityId) return;
+    this.hass.callService("switch", "toggle", { entity_id: entityId });
   }
 
   callMinerService(miner, serviceName, serviceData = {}) {
-    if (!this.hass || !miner.switch) {
+    if (!this.hass || (!miner.switch && !miner.switch_2)) {
       alert("Es muss ein Schalter hinterlegt sein, um den Miner zu steuern.");
       return;
     }
 
-    const deviceId = this.hass.states[miner.switch]?.attributes?.device_id;
+    const targetSwitch = miner.switch || miner.switch_2;
+    const stateObj = this.hass.states[targetSwitch];
+    const deviceId = stateObj?.attributes?.device_id;
 
     if (!deviceId) {
       alert("Konnte die zugehörige Hass-Miner Device-ID nicht finden.");
@@ -707,11 +709,28 @@ class OpenKairoMiningPanel extends LitElement {
       </div>
 
       <div class="content">
-        ${this.activeTab === 'dashboard' ? this.renderDashboard() : ''}
-        ${this.activeTab === 'statistics' ? this.renderStatistics() : ''}
-        ${this.activeTab === 'energy' ? this.renderEnergyStats() : ''}
-        ${this.activeTab === 'settings' ? this.renderSettings() : ''}
-        ${this.activeTab === 'info' ? this.renderInfo() : ''}
+        ${(() => {
+          try {
+            if (this.activeTab === 'dashboard') return this.renderDashboard();
+            if (this.activeTab === 'statistics') return this.renderStatistics();
+            if (this.activeTab === 'energy') return this.renderEnergyStats();
+            if (this.activeTab === 'settings') return this.renderSettings();
+            if (this.activeTab === 'info') return this.renderInfo();
+            return '';
+          } catch (e) {
+            console.error("Dashboard Render Error:", e);
+            return html`
+              <div class="card" style="border-color: #e74c3c; background: rgba(231, 76, 60, 0.1);">
+                <h2 style="color: #e74c3c;">⚠️ Anzeige-Fehler</h2>
+                <p>Ein Fehler ist beim Erstellen dieser Ansicht aufgetreten. Dies passiert oft, wenn Home Assistant Sensoren fehlen oder ungültige Daten liefern.</p>
+                <div class="tech-box" style="font-family: monospace; font-size: 0.85em; background: #000;">
+                  ${e.message}
+                </div>
+                <button class="btn-primary" style="margin-top: 15px;" @click="${() => window.location.reload()}">Dashboard neu laden</button>
+              </div>
+            `;
+          }
+        })()}
       </div>
 
       <div class="footer">
@@ -795,315 +814,250 @@ class OpenKairoMiningPanel extends LitElement {
     return html`
       <div class="miners-grid ${this.config.miners.length === 1 ? 'single-miner' : ''}">
         ${this.config.miners.map(miner => {
-      let switchState = 'Unbekannt';
-      if (this.hass && miner.switch && this.hass.states[miner.switch]) {
-        switchState = this.hass.states[miner.switch].state;
-      }
-
-      let pvValue = 'N/A';
-      if (miner.mode === 'pv' && this.hass && miner.pv_sensor && this.hass.states[miner.pv_sensor]) {
-        pvValue = this.hass.states[miner.pv_sensor].state + ' W';
-      }
-
-      let batteryValue = '';
-      if (miner.mode === 'pv' && miner.allow_battery && this.hass && miner.battery_sensor && this.hass.states[miner.battery_sensor]) {
-        batteryValue = this.hass.states[miner.battery_sensor].state + ' %';
-      }
-
-
-
-      let hashrateValue = '';
-      if (miner.hashrate_sensor && this.hass && this.hass.states[miner.hashrate_sensor]) {
-        const stateObj = this.hass.states[miner.hashrate_sensor];
-        hashrateValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || 'TH/s');
-      }
-
-      let tempValue = '';
-      if (miner.temp_sensor && this.hass && this.hass.states[miner.temp_sensor]) {
-        const stateObj = this.hass.states[miner.temp_sensor];
-        tempValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || '°C');
-      }
-
-      let powerConsumptionValue = '';
-      if (miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]) {
-        const stateObj = this.hass.states[miner.power_consumption_sensor];
-        powerConsumptionValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || 'W');
-      }
-
-      let batterySOCValue = '';
-      if (miner.battery_sensor && this.hass && this.hass.states[miner.battery_sensor]) {
-        const stateObj = this.hass.states[miner.battery_sensor];
-        batterySOCValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || '%');
-      }
-
-      // Profitabilitäts-Berechnung
-      let dailyRevenue = 0;
-      let dailyCosts = 0;
-      let profit = 0;
-      let hasProfitData = false;
-      let fiatSymbol = '€';
-      let currentCoinPrice = 0;
-
-      if (miner.coin_price_source === 'api' && this.btcPriceEur) {
-        currentCoinPrice = this.btcPriceEur;
-        fiatSymbol = '€';
-      } else if ((!miner.coin_price_source || miner.coin_price_source === 'sensor') && miner.coin_price_sensor && this.hass && this.hass.states[miner.coin_price_sensor]) {
-        const priceState = this.hass.states[miner.coin_price_sensor];
-        currentCoinPrice = parseFloat(priceState.state) || 0;
-        if (priceState.attributes?.unit_of_measurement) {
-          fiatSymbol = priceState.attributes.unit_of_measurement.replace('/BTC', '').replace('/ETH', '').replace('/KAS', '').trim();
-        }
-      }
-
-      if (miner.calc_method === 'btc_auto' && miner.hashrate_sensor && currentCoinPrice > 0 && this.hass && this.hass.states[miner.hashrate_sensor] && this.btcDifficulty) {
-        const hrState = this.hass.states[miner.hashrate_sensor];
-        const hrValue = parseFloat(hrState.state) || 0;
-
-        let hrInTH = hrValue;
-        const unit = (hrState.attributes?.unit_of_measurement || 'TH/s').toUpperCase();
-        if (unit.includes('GH')) hrInTH = hrValue / 1000;
-        if (unit.includes('PH')) hrInTH = hrValue * 1000;
-
-        // BTC Ertrag pro Tag
-        const btcPerDay = (hrInTH * 1e12 / (this.btcDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
-        dailyRevenue = btcPerDay * currentCoinPrice;
-        hasProfitData = true;
-
-      } else if ((!miner.calc_method || miner.calc_method === 'sensor') && miner.crypto_revenue_sensor && currentCoinPrice > 0 && this.hass && this.hass.states[miner.crypto_revenue_sensor]) {
-        const cryptoState = this.hass.states[miner.crypto_revenue_sensor];
-        const cryptoVal = parseFloat(cryptoState.state) || 0;
-        dailyRevenue = cryptoVal * currentCoinPrice;
-        hasProfitData = true;
-      }
-
-      let electricityPrice = 0;
-      let hasPowerData = false;
-
-      if (miner.mode === 'pv') {
-        electricityPrice = 0;
-        hasPowerData = true;
-      } else if (miner.electricity_price_source === 'manual') {
-        electricityPrice = parseFloat(String(miner.electricity_price_manual).replace(',', '.')) || 0;
-        hasPowerData = true;
-      } else if ((!miner.electricity_price_source || miner.electricity_price_source === 'sensor') && miner.electricity_price_sensor && this.hass && this.hass.states[miner.electricity_price_sensor]) {
-        const eleState = this.hass.states[miner.electricity_price_sensor];
-        electricityPrice = parseFloat(eleState.state) || 0;
-        const priceUnit = eleState.attributes?.unit_of_measurement || '';
-        if (priceUnit.toLowerCase().includes('cent') || priceUnit === 'ct' || priceUnit === '¢' || electricityPrice > 5) {
-          electricityPrice = electricityPrice / 100; // assume >5 means cents if not EUR exactly
-        }
-        if (priceUnit.includes('€') || priceUnit.includes('EUR')) { fiatSymbol = '€'; }
-        if (priceUnit.includes('$') || priceUnit.includes('USD')) { fiatSymbol = '$'; }
-        hasPowerData = true;
-      }
-
-      if (hasProfitData && hasPowerData && miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]) {
-        const watts = parseFloat(this.hass.states[miner.power_consumption_sensor].state) || 0;
-        dailyCosts = (watts / 1000) * 24 * electricityPrice;
-      } else {
-        hasProfitData = false;
-      }
-
-      profit = dailyRevenue - dailyCosts;
-      const profitColor = profit > 0 ? '#2ecc71' : (profit < 0 ? '#e74c3c' : '#aaa');
-      const dailyRevenueStr = dailyRevenue > 0 ? dailyRevenue.toFixed(2) : '0.00';
-      const dailyCostsStr = miner.mode === 'pv' ? `0.00 (PV)` : (dailyCosts > 0 ? `-${dailyCosts.toFixed(2)}` : '0.00');
-      const profitStr = hasProfitData ? profit.toFixed(2) : '';
-
-      let powerObj = null;
-      if (miner.power_entity && this.hass && this.hass.states[miner.power_entity]) {
-        powerObj = this.hass.states[miner.power_entity];
-      }
-
-      const friendlySwitchName = this.hass && this.hass.states[miner.switch] && this.hass.states[miner.switch].attributes?.friendly_name
-        ? this.hass.states[miner.switch].attributes.friendly_name
-        : miner.switch;
-      
-      const friendlySwitchName2 = miner.switch_2 && this.hass && this.hass.states[miner.switch_2] && this.hass.states[miner.switch_2].attributes?.friendly_name
-        ? this.hass.states[miner.switch_2].attributes.friendly_name
-        : miner.switch_2;
-
-      let stateObj = this.states ? this.states[miner.id] : null;
-
-      return html`
-            <div class="miner-card">
-              ${miner.image ? html`<div class="miner-image" style="background-image: url('${miner.image}')"></div>` : html`<div class="miner-image placeholder">₿</div>`}
-              <div class="miner-header">
-                <h3>${miner.name}</h3>
-                <span class="prio-badge">Prio: ${miner.priority || '-'}</span>
-              </div>
-              
-              <div class="miner-status">
-                <span class="status-badge ${switchState === 'on' ? 'on' : switchState === 'off' ? 'off' : ''} ${stateObj && stateObj.ramping ? 'pulse-orange' : ''}">
-                  ${stateObj && stateObj.ramping === 'up' ? 'RAMPING UP ⚡' : stateObj && stateObj.ramping === 'down' ? 'RAMPING DOWN 💤' : (switchState === 'on' ? 'MINING 🚀' : switchState === 'off' ? 'STANDBY 💤' : switchState)}
-                </span>
-                <button class="btn-power ${switchState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner)}" title="Manuell ein/ausschalten">
-                  ⏻
-                </button>
-              </div>
-              
-              ${(hashrateValue || tempValue || powerConsumptionValue || batterySOCValue) ? html`
-              <div class="api-stats">
-                  ${hashrateValue ? html`<div class="stat"><span class="lbl">Hashrate:</span> <span class="val">${hashrateValue}</span></div>` : ''}
-                  ${tempValue ? html`<div class="stat"><span class="lbl">Temp:</span> <span class="val">${tempValue}</span></div>` : ''}
-                  ${powerConsumptionValue ? html`<div class="stat"><span class="lbl">Verbrauch:</span> <span class="val">${powerConsumptionValue}</span></div>` : ''}
-                  ${batterySOCValue ? html`<div class="stat"><span class="lbl">SOC:</span> <span class="val">${batterySOCValue}</span></div>` : ''}
-              </div>
-              ` : ''}
-              
-              ${powerObj ? html`
-              <div class="power-limit-box" style="margin-top: 15px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                      <span style="font-size: 0.85em; color: #888;">Power Limit (S9/ASIC)</span>
-                      <strong style="color: #F7931A;">${powerObj.state} ${powerObj.attributes?.unit_of_measurement || 'W'}</strong>
-                  </div>
-                  <input type="range" 
-                         min="${powerObj.attributes?.min || 0}" 
-                         max="${((miner.soft_start_enabled || miner.soft_stop_enabled) && miner.soft_target_power) ? miner.soft_target_power : (powerObj.attributes?.max || 100)}" 
-                         step="${powerObj.attributes?.step || 1}" 
-                         .value="${powerObj.state}" 
-                         @change="${(e) => this.setPowerLimit(miner.power_entity, e.target.value)}"
-                         style="width: 100%; accent-color: #F7931A; cursor: pointer;">
-              </div>
-              ` : ''}
-              
-              
-              <div class="miner-details">
-                <p><b>Modus:</b> <span class="accent-text">${modeMap[miner.mode] || 'Unbekannt'}</span></p>
-                <p><b>Dose:</b> ${friendlySwitchName || 'Nicht gesetzt'} ${friendlySwitchName2 ? html` + ${friendlySwitchName2}` : ''}</p>
-                
-                ${miner.mode === 'pv' ? html`
-                  <div class="tech-box">
-                    <p><b>Aktueller PV-Wert:</b> <span class="highlight-val">${pvValue}</span></p>
-                    <div class="small-text mt-1" style="margin-bottom: 8px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
-                        Regeln: An &ge; <input type="number" .value="${miner.pv_on}" @change="${(e) => this.quickUpdateMiner(miner.id, 'pv_on', e.target.value)}" style="width: 70px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #F7931A; border-radius: 4px; font-weight: bold;"> W 
-                        | Aus &le; <input type="number" .value="${miner.pv_off}" @change="${(e) => this.quickUpdateMiner(miner.id, 'pv_off', e.target.value)}" style="width: 70px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #F7931A; border-radius: 4px; font-weight: bold;"> W
-                    </div>
-                    ${miner.allow_battery ? html`
-                      <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px;">
-                          <p><b>Batterie (SOC):</b> <span class="highlight-val">${batteryValue || 'N/A'}</span></p>
-                          <p class="small-text mt-1">🔋 Unterstützung erlaubt bis min. ${miner.battery_min_soc}%</p>
-                      </div>
-                    ` : ''}
-                    ${miner.forecast_sensor && this.hass && this.hass.states[miner.forecast_sensor] ? html`
-                      <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px;">
-                          <p><b>Prognose heute:</b> <span class="highlight-val">${this.hass.states[miner.forecast_sensor].state} ${this.hass.states[miner.forecast_sensor].attributes?.unit_of_measurement || 'kWh'}</span></p>
-                          <p class="small-text mt-1">🌤️ Limit: Miner startet nur ab ${miner.forecast_min || 0} kWh</p>
-                      </div>
-                    ` : ''}
-                  </div>
-                ` : ''}
-                
-                ${miner.mode === 'soc' ? html`
-                  <div class="tech-box">
-                    <p><b>Aktueller SOC:</b> <span class="highlight-val">${batterySOCValue || 'N/A'}</span></p>
-                    <div class="small-text mt-1" style="margin-bottom: 8px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
-                        Regeln: An &ge; <input type="number" .value="${miner.soc_on !== undefined ? miner.soc_on : 90}" @change="${(e) => this.quickUpdateMiner(miner.id, 'soc_on', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #F7931A; border-radius: 4px; font-weight: bold;"> % 
-                        | Aus &le; <input type="number" .value="${miner.soc_off !== undefined ? miner.soc_off : 30}" @change="${(e) => this.quickUpdateMiner(miner.id, 'soc_off', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #F7931A; border-radius: 4px; font-weight: bold;"> %
-                    </div>
-                  </div>
-                ` : ''}
-
-                ${miner.standby_watchdog_enabled ? html`
-                  ${(() => {
-            let stState = 'Unbekannt';
-            if (this.hass && miner.standby_switch && this.hass.states[miner.standby_switch]) {
-              stState = this.hass.states[miner.standby_switch].state;
+          try {
+            let switchState = 'Unbekannt';
+            if (this.hass && miner.switch && this.hass.states[miner.switch]) {
+              switchState = this.hass.states[miner.switch].state;
             }
 
-            // Watchdog Timer Calculation
-            let watchdogWarning = '';
-            let watchdogProgress = 0;
-            const wType = miner.watchdog_type || 'power';
-            
-            let currentWatchValue = 0;
-            let hasWatchData = false;
-            let watchObj = null;
-
-            if (wType === 'limit' && miner.power_entity && this.hass && this.hass.states[miner.power_entity]) {
-                watchObj = this.hass.states[miner.power_entity];
-                currentWatchValue = parseFloat(watchObj.state) || 0;
-                hasWatchData = true;
-            } else if (miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]) {
-                watchObj = this.hass.states[miner.power_consumption_sensor];
-                currentWatchValue = parseFloat(watchObj.state) || 0;
-                hasWatchData = true;
+            let pvValue = 'N/A';
+            if (miner.mode === 'pv' && this.hass && miner.pv_sensor && this.hass.states[miner.pv_sensor]) {
+              pvValue = this.hass.states[miner.pv_sensor].state + ' W';
             }
 
-            if (hasWatchData && stState === 'on' && watchObj) {
-              const threshold = miner.standby_power || 100;
-              const delayMins = miner.standby_delay || 10;
+            let batteryValue = '';
+            if (miner.mode === 'pv' && miner.allow_battery && this.hass && miner.battery_sensor && this.hass.states[miner.battery_sensor]) {
+              batteryValue = this.hass.states[miner.battery_sensor].state + ' %';
+            }
 
-              if (currentWatchValue < threshold) {
-                const lastChanged = new Date(watchObj.last_changed).getTime();
-                const nowMillis = new Date().getTime();
-                const elapsedMins = (nowMillis - lastChanged) / 60000;
-                
-                if (elapsedMins > 0) {
-                  const remainingMins = Math.max(0, delayMins - elapsedMins);
-                  watchdogProgress = Math.min(100, (elapsedMins / delayMins) * 100);
+            let hashrateValue = '';
+            if (miner.hashrate_sensor && this.hass && this.hass.states[miner.hashrate_sensor]) {
+              const stateObj = this.hass.states[miner.hashrate_sensor];
+              hashrateValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || 'TH/s');
+            }
 
-                  if (remainingMins > 0) {
-                    watchdogWarning = `⏳ Abschaltung in ${Math.ceil(remainingMins)} Min.`;
-                  } else {
-                    watchdogWarning = `⚠️ Abschaltung wird ausgelöst...`;
-                  }
-                }
+            let tempValue = '';
+            if (miner.temp_sensor && this.hass && this.hass.states[miner.temp_sensor]) {
+              const stateObj = this.hass.states[miner.temp_sensor];
+              tempValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || '°C');
+            }
+
+            let powerConsumptionValue = '';
+            if (miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]) {
+              const stateObj = this.hass.states[miner.power_consumption_sensor];
+              powerConsumptionValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || 'W');
+            }
+
+            let batterySOCValue = '';
+            if (miner.battery_sensor && this.hass && this.hass.states[miner.battery_sensor]) {
+              const stateObj = this.hass.states[miner.battery_sensor];
+              batterySOCValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || '%');
+            }
+
+            // Profitabilitäts-Berechnung
+            let dailyRevenue = 0;
+            let dailyCosts = 0;
+            let profit = 0;
+            let hasProfitData = false;
+            let fiatSymbol = '€';
+            let currentCoinPrice = 0;
+
+            if (miner.coin_price_source === 'api' && this.btcPriceEur) {
+              currentCoinPrice = this.btcPriceEur;
+              fiatSymbol = '€';
+            } else if ((!miner.coin_price_source || miner.coin_price_source === 'sensor') && miner.coin_price_sensor && this.hass && this.hass.states[miner.coin_price_sensor]) {
+              const priceState = this.hass.states[miner.coin_price_sensor];
+              currentCoinPrice = parseFloat(priceState.state) || 0;
+              if (priceState.attributes?.unit_of_measurement) {
+                fiatSymbol = priceState.attributes.unit_of_measurement.replace('/BTC', '').replace('/ETH', '').replace('/KAS', '').trim();
               }
             }
 
+            if (miner.calc_method === 'btc_auto' && miner.hashrate_sensor && currentCoinPrice > 0 && this.hass && this.hass.states[miner.hashrate_sensor] && this.btcDifficulty) {
+              const hrState = this.hass.states[miner.hashrate_sensor];
+              const hrValue = parseFloat(hrState.state) || 0;
+
+              let hrInTH = hrValue;
+              const unit = (hrState.attributes?.unit_of_measurement || 'TH/s').toUpperCase();
+              if (unit.includes('GH')) hrInTH = hrValue / 1000;
+              if (unit.includes('PH')) hrInTH = hrValue * 1000;
+
+              const btcPerDay = (hrInTH * 1e12 / (this.btcDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
+              dailyRevenue = btcPerDay * currentCoinPrice;
+              hasProfitData = true;
+
+            } else if ((!miner.calc_method || miner.calc_method === 'sensor') && miner.crypto_revenue_sensor && currentCoinPrice > 0 && this.hass && this.hass.states[miner.crypto_revenue_sensor]) {
+              const cryptoState = this.hass.states[miner.crypto_revenue_sensor];
+              const cryptoVal = parseFloat(cryptoState.state) || 0;
+              dailyRevenue = cryptoVal * currentCoinPrice;
+              hasProfitData = true;
+            }
+
+            let electricityPrice = 0;
+            let hasPowerData = false;
+
+            if (miner.mode === 'pv') {
+              electricityPrice = 0;
+              hasPowerData = true;
+            } else if (miner.electricity_price_source === 'manual') {
+              electricityPrice = parseFloat(String(miner.electricity_price_manual).replace(',', '.')) || 0;
+              hasPowerData = true;
+            } else if ((!miner.electricity_price_source || miner.electricity_price_source === 'sensor') && miner.electricity_price_sensor && this.hass && this.hass.states[miner.electricity_price_sensor]) {
+              const eleState = this.hass.states[miner.electricity_price_sensor];
+              electricityPrice = parseFloat(eleState.state) || 0;
+              const priceUnit = eleState.attributes?.unit_of_measurement || '';
+              if (priceUnit.toLowerCase().includes('cent') || priceUnit === 'ct' || priceUnit === '¢' || electricityPrice > 5) {
+                electricityPrice = electricityPrice / 100;
+              }
+              if (priceUnit.includes('€') || priceUnit.includes('EUR')) { fiatSymbol = '€'; }
+              if (priceUnit.includes('$') || priceUnit.includes('USD')) { fiatSymbol = '$'; }
+              hasPowerData = true;
+            }
+
+            if (hasProfitData && hasPowerData && miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]) {
+              const watts = parseFloat(this.hass.states[miner.power_consumption_sensor].state) || 0;
+              dailyCosts = (watts / 1000) * 24 * electricityPrice;
+            } else {
+              hasProfitData = false;
+            }
+
+            profit = dailyRevenue - dailyCosts;
+            const profitColor = profit > 0 ? '#2ecc71' : (profit < 0 ? '#e74c3c' : '#aaa');
+            const profitStr = hasProfitData ? (isFinite(profit) ? profit.toFixed(2) : '0.00') : '';
+
+            let powerObj = null;
+            if (miner.power_entity && this.hass && this.hass.states[miner.power_entity]) {
+              powerObj = this.hass.states[miner.power_entity];
+            }
+
+            const friendlySwitchName = this.hass && this.hass.states[miner.switch] && this.hass.states[miner.switch].attributes?.friendly_name
+              ? this.hass.states[miner.switch].attributes.friendly_name
+              : miner.switch;
+            
+            const friendlySwitchName2 = miner.switch_2 && this.hass && this.hass.states[miner.switch_2] && this.hass.states[miner.switch_2].attributes?.friendly_name
+              ? this.hass.states[miner.switch_2].attributes.friendly_name
+              : miner.switch_2;
+
+            let stateObj = this.states ? this.states[miner.id] : null;
+
             return html`
-                  <div class="tech-box" style="margin-top: 15px; border-color: rgba(231, 76, 60, 0.4); background: rgba(231, 76, 60, 0.05); position: relative; overflow: hidden;">
-                    ${watchdogWarning ? html`
-                        <div style="position: absolute; top: 0; left: 0; height: 100%; width: ${watchdogProgress}%; background: rgba(231, 76, 60, 0.1); z-index: 0; transition: width 5s linear;"></div>
-                    ` : ''}
-                    <div style="position: relative; z-index: 1;">
-                      <div style="display: flex; justify-content: space-between; align-items: center;">
-                          <label style="margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                              <input type="checkbox" .checked="${miner.standby_watchdog_enabled}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_watchdog_enabled', e.target.checked)}" style="width: 16px; height: 16px; margin: 0; accent-color: #e74c3c;">
-                              <b>🛡️ Watchdog:</b> <span class="highlight-val" style="color: ${stState === 'on' ? '#2ecc71' : '#e74c3c'};">${stState === 'on' ? 'ON' : stState === 'off' ? 'OFF' : stState}</span>
-                          </label>
-                          <button class="btn-power ${stState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner.standby_switch)}" title="Watchdog Plug manuell schalten" style="font-size: 1.2em; padding: 4px 12px; min-height: 36px;">
-                            ${watchdogWarning ? html`<span style="color: #e74c3c; font-size: 0.85em; margin-right: 10px; animation: pulse 2s infinite;">${watchdogWarning}</span>` : ''}
-                            ⏻ Plug
-                          </button>
+              <div class="miner-card">
+                ${miner.image ? html`<div class="miner-image" style="background-image: url('${miner.image}')"></div>` : html`<div class="miner-image placeholder">₿</div>`}
+                <div class="miner-header">
+                  <h3>${miner.name}</h3>
+                  <span class="prio-badge">Prio: ${miner.priority || '-'}</span>
+                </div>
+                
+                <div class="miner-status">
+                  <span class="status-badge ${switchState === 'on' ? 'on' : switchState === 'off' ? 'off' : ''} ${stateObj && stateObj.ramping ? 'pulse-orange' : ''}">
+                    ${stateObj && stateObj.ramping === 'up' ? 'RAMPING UP ⚡' : stateObj && stateObj.ramping === 'down' ? 'RAMPING DOWN 💤' : (switchState === 'on' ? 'MINING 🚀' : switchState === 'off' ? 'STANDBY 💤' : switchState)}
+                  </span>
+                  <button class="btn-power ${switchState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner)}" title="Manuell ein/ausschalten">
+                    ⏻
+                  </button>
+                </div>
+                
+                ${(hashrateValue || tempValue || powerConsumptionValue || batterySOCValue) ? html`
+                  <div class="api-stats">
+                    ${hashrateValue ? html`<div class="stat"><span class="lbl">Hashrate:</span> <span class="val">${hashrateValue}</span></div>` : ''}
+                    ${tempValue ? html`<div class="stat"><span class="lbl">Temp:</span> <span class="val">${tempValue}</span></div>` : ''}
+                    ${powerConsumptionValue ? html`<div class="stat"><span class="lbl">Verbrauch:</span> <span class="val">${powerConsumptionValue}</span></div>` : ''}
+                    ${batterySOCValue ? html`<div class="stat"><span class="lbl">SOC:</span> <span class="val">${batterySOCValue}</span></div>` : ''}
+                  </div>
+                ` : ''}
+                
+                ${powerObj ? html`
+                  <div class="power-limit-box" style="margin-top: 15px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                      <span style="font-size: 0.85em; color: #888;">Power Limit (S9/ASIC)</span>
+                      <strong style="color: #F7931A;">${powerObj.state} ${powerObj.attributes?.unit_of_measurement || 'W'}</strong>
+                    </div>
+                    <input type="range" 
+                           min="${powerObj.attributes?.min || 0}" 
+                           max="${((miner.soft_start_enabled || miner.soft_stop_enabled) && miner.soft_target_power) ? miner.soft_target_power : (powerObj.attributes?.max || 100)}" 
+                           step="${powerObj.attributes?.step || 1}" 
+                           .value="${powerObj.state}" 
+                           @change="${(e) => this.setPowerLimit(miner.power_entity, e.target.value)}"
+                           style="width: 100%; accent-color: #F7931A; cursor: pointer;">
+                  </div>
+                ` : ''}
+                
+                <div class="miner-details">
+                  <p><b>Modus:</b> <span class="accent-text">${modeMap[miner.mode] || 'Unbekannt'}</span></p>
+                  <p><b>Dose:</b> ${friendlySwitchName || 'Nicht gesetzt'} ${friendlySwitchName2 ? html` + ${friendlySwitchName2}` : ''}</p>
+                  
+                  ${miner.mode === 'pv' ? html`
+                    <div class="tech-box">
+                      <p><b>Aktueller PV-Wert:</b> <span class="highlight-val">${pvValue}</span></p>
+                      <div class="small-text mt-1" style="margin-bottom: 8px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
+                        Regeln: An &ge; <input type="number" .value="${miner.pv_on}" @change="${(e) => this.quickUpdateMiner(miner.id, 'pv_on', e.target.value)}" style="width: 70px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #F7931A; border-radius: 4px; font-weight: bold;"> W 
+                        | Aus &le; <input type="number" .value="${miner.pv_off}" @change="${(e) => this.quickUpdateMiner(miner.id, 'pv_off', e.target.value)}" style="width: 70px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #F7931A; border-radius: 4px; font-weight: bold;"> W
                       </div>
-                      <div class="small-text mt-1" style="margin-top: 10px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
-                          Off wenn &lt; <input type="number" .value="${miner.standby_power || 100}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_power', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #e74c3c; border-radius: 4px; font-weight: bold;"> W 
-                          für &ge; <input type="number" .value="${miner.standby_delay || 10}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_delay', e.target.value)}" style="width: 50px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #e74c3c; border-radius: 4px; font-weight: bold;"> Min.
+                      ${miner.allow_battery ? html`
+                        <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px;">
+                          <p><b>Batterie (SOC):</b> <span class="highlight-val">${batteryValue || 'N/A'}</span></p>
+                          <p class="small-text mt-1">🔋 Unterstützung erlaubt bis min. ${miner.battery_min_soc}%</p>
+                        </div>
+                      ` : ''}
+                    </div>
+                  ` : ''}
+                  
+                  ${miner.mode === 'soc' ? html`
+                    <div class="tech-box">
+                      <p><b>Aktueller SOC:</b> <span class="highlight-val">${batterySOCValue || 'N/A'}</span></p>
+                      <div class="small-text mt-1" style="margin-bottom: 8px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
+                        Regeln: An &ge; <input type="number" .value="${miner.soc_on !== undefined ? miner.soc_on : 90}" @change="${(e) => this.quickUpdateMiner(miner.id, 'soc_on', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #F7931A; border-radius: 4px; font-weight: bold;"> % 
+                        | Aus &le; <input type="number" .value="${miner.soc_off !== undefined ? miner.soc_off : 30}" @change="${(e) => this.quickUpdateMiner(miner.id, 'soc_off', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #F7931A; border-radius: 4px; font-weight: bold;"> %
                       </div>
                     </div>
-                  </div>`})()}
-                ` : html`
-                  <div class="tech-box" style="margin-top: 15px; border-color: rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.2);">
+                  ` : ''}
+
+                  ${miner.standby_watchdog_enabled ? html`
+                    <div class="tech-box" style="margin-top: 15px; border-color: rgba(231, 76, 60, 0.4); background: rgba(231, 76, 60, 0.05); position: relative; overflow: hidden;">
+                      <div style="position: relative; z-index: 1;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                          <label style="margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" .checked="${miner.standby_watchdog_enabled}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_watchdog_enabled', e.target.checked)}" style="width: 16px; height: 16px; margin: 0; accent-color: #e74c3c;">
+                            <b>🛡️ Watchdog</b>
+                          </label>
+                        </div>
+                        <div class="small-text mt-1" style="margin-top: 10px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
+                          Off wenn &lt; <input type="number" .value="${miner.standby_power || 100}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_power', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #e74c3c; border-radius: 4px; font-weight: bold;"> W 
+                          für &ge; <input type="number" .value="${miner.standby_delay || 10}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_delay', e.target.value)}" style="width: 50px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #e74c3c; border-radius: 4px; font-weight: bold;"> Min.
+                        </div>
+                      </div>
+                    </div>
+                  ` : html`
+                    <div class="tech-box" style="margin-top: 15px; border-color: rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.2);">
                       <label style="margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; color: #888;">
-                          <input type="checkbox" .checked="${miner.standby_watchdog_enabled}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_watchdog_enabled', e.target.checked)}" style="width: 16px; height: 16px; margin: 0; accent-color: #e74c3c;">
-                          <b>🛡️ Watchdog aktivieren</b>
+                        <input type="checkbox" .checked="${miner.standby_watchdog_enabled}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_watchdog_enabled', e.target.checked)}" style="width: 16px; height: 16px; margin: 0; accent-color: #e74c3c;">
+                        <b>🛡️ Watchdog aktivieren</b>
                       </label>
+                    </div>
+                  `}
+                </div>
+
+                ${(hashrateValue || tempValue) ? html`
+                  <div class="miner-controls" style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
+                    <p style="margin: 0 0 10px 0; font-size: 0.8em; color: #888; text-transform: uppercase;">⚡ Steuerung</p>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                      <button class="btn-control mode-low" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'low' })}">LOW</button>
+                      <button class="btn-control mode-normal" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'normal' })}">NORM</button>
+                      <button class="btn-control mode-high" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'high' })}">HIGH</button>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                      <button class="btn-control action" @click="${() => this.callMinerService(miner, 'restart_backend')}">🔄 Restart</button>
+                      <button class="btn-control action warn" @click="${() => this.callMinerService(miner, 'reboot')}">⚡ Reboot</button>
+                    </div>
                   </div>
-                `}
-
+                ` : ''}
               </div>
-
-
-
-              ${(hashrateValue || tempValue) ? html`
-              <div class="miner-controls" style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
-                <p style="margin: 0 0 10px 0; font-size: 0.8em; color: #888; text-transform: uppercase;">⚡ Hass-Miner Steuerung <span style="font-size: 0.8em; color: #666; text-transform: none;">(Nicht für S9)</span></p>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <button class="btn-control mode-low" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'low' })}" title="Low Power Modus">LOW</button>
-                    <button class="btn-control mode-normal" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'normal' })}" title="Normaler Modus">NORM</button>
-                    <button class="btn-control mode-high" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'high' })}" title="High Power Modus">HIGH</button>
-                </div>
-                <div style="display: flex; gap: 8px; margin-top: 8px;">
-                     <button class="btn-control action" @click="${() => this.callMinerService(miner, 'restart_backend')}" title="Restart Mining">🔄 Restart</button>
-                     <button class="btn-control action warn" @click="${() => this.callMinerService(miner, 'reboot')}" title="Reboot Miner">⚡ Reboot</button>
-                </div>
-              </div>
-              ` : ''}
-            </div>
-          `;
-    })}
+            `;
+          } catch (e) {
+            console.error("Error rendering miner card:", miner.id, e);
+            return html`<div class="card" style="border: 1px solid #e74c3c; background: rgba(231, 76, 60, 0.05); padding: 15px;">⚠️ Fehler bei <b>${miner.name}</b></div>`;
+          }
+        })}
       </div>
     `;
   }
@@ -1445,217 +1399,166 @@ class OpenKairoMiningPanel extends LitElement {
         
         <div class="dashboard-grid" style="margin-top: 25px;">
            ${this.config.miners && this.config.miners.length > 0 ? this.config.miners.map(miner => {
-      const isPV = miner.mode === 'pv';
-      const refPrice = this.config.ref_price || 0.30;
+             try {
+                const isPV = miner.mode === 'pv';
+                const refPrice = this.config.ref_price || 0.30;
 
-      let powerKW = 0;
-      let hashrateTH = 0;
+                let powerKW = 0;
+                let hashrateTH = 0;
 
-      const simModel = this.simulatorModels[miner.id] || 'sensor';
-      const manualInput = this.manualInputs[miner.id] || { hashrate: 100, power: 3000 };
+                const simModel = this.simulatorModels[miner.id] || 'sensor';
+                const manualInput = this.manualInputs[miner.id] || { hashrate: 100, power: 3000 };
 
-      if (simModel === 'manual') {
-        powerKW = (manualInput.power || 0) / 1000;
-        hashrateTH = manualInput.hashrate || 0;
-      } else if (simModel === 'S9') {
-        powerKW = 1.372;
-        hashrateTH = 14;
-      } else if (simModel === 'S19') {
-        powerKW = 3.250;
-        hashrateTH = 90;
-      } else if (simModel === 'S19Pro') {
-        powerKW = 3.250;
-        hashrateTH = 110;
-      } else if (simModel === 'S19XP') {
-        powerKW = 3.010;
-        hashrateTH = 140;
-      } else if (simModel === 'S21') {
-        powerKW = 3.500;
-        hashrateTH = 200;
-      } else if (simModel === 'Avalon') {
-        powerKW = 3.300;
-        hashrateTH = 110;
-      } else if (simModel === 'AvalonQ') {
-        powerKW = 1.674;
-        hashrateTH = 90;
-      } else if (simModel === 'AvalonNano3') {
-        powerKW = 0.140;
-        hashrateTH = 4;
-      } else if (simModel === 'AvalonNano3s') {
-        powerKW = 0.140;
-        hashrateTH = 6;
-      } else if (simModel === 'M30S') {
-        powerKW = 3.472;
-        hashrateTH = 112;
-      } else if (simModel === 'M50') {
-        powerKW = 3.306;
-        hashrateTH = 114;
-      } else if (simModel === 'Bitaxe') {
-        powerKW = 0.015;
-        hashrateTH = 0.5;
-      } else {
-        // Sensor fallback
-        if (this.hass && miner.power_consumption_sensor && this.hass.states[miner.power_consumption_sensor]) {
-          powerKW = (parseFloat(this.hass.states[miner.power_consumption_sensor].state) || 0) / 1000;
-        }
-        if (this.hass && miner.hashrate_sensor && this.hass.states[miner.hashrate_sensor]) {
-          hashrateTH = parseFloat(this.hass.states[miner.hashrate_sensor].state) || 0;
-        }
-      }
+                if (simModel === 'manual') {
+                  powerKW = (manualInput.power || 0) / 1000;
+                  hashrateTH = manualInput.hashrate || 0;
+                } else if (simModel === 'S9') {
+                  powerKW = 1.372;
+                  hashrateTH = 14;
+                } else if (simModel === 'S19') {
+                  powerKW = 3.250;
+                  hashrateTH = 90;
+                } else if (simModel === 'S19Pro') {
+                  powerKW = 3.250;
+                  hashrateTH = 110;
+                } else if (simModel === 'S19XP') {
+                  powerKW = 3.010;
+                  hashrateTH = 140;
+                } else if (simModel === 'S21') {
+                  powerKW = 3.500;
+                  hashrateTH = 200;
+                } else if (simModel === 'Avalon') {
+                  powerKW = 3.300;
+                  hashrateTH = 110;
+                } else if (simModel === 'AvalonQ') {
+                  powerKW = 1.674;
+                  hashrateTH = 90;
+                } else if (simModel === 'AvalonNano3') {
+                  powerKW = 0.140;
+                  hashrateTH = 4;
+                } else if (simModel === 'AvalonNano3s') {
+                  powerKW = 0.140;
+                  hashrateTH = 6;
+                } else if (simModel === 'M30S') {
+                  powerKW = 3.472;
+                  hashrateTH = 112;
+                } else if (simModel === 'M50') {
+                  powerKW = 3.306;
+                  hashrateTH = 114;
+                } else if (simModel === 'Bitaxe') {
+                  powerKW = 0.015;
+                  hashrateTH = 0.5;
+                } else {
+                  if (this.hass && miner.power_consumption_sensor && this.hass.states[miner.power_consumption_sensor]) {
+                    powerKW = (parseFloat(this.hass.states[miner.power_consumption_sensor].state) || 0) / 1000;
+                  }
+                  if (this.hass && miner.hashrate_sensor && this.hass.states[miner.hashrate_sensor]) {
+                    hashrateTH = parseFloat(this.hass.states[miner.hashrate_sensor].state) || 0;
+                  }
+                }
 
-      const hourlySaving = isPV ? (powerKW * refPrice) : 0;
-      const dailySavingPotential = hourlySaving * 24;
+                const hourlySaving = isPV ? (powerKW * refPrice) : 0;
+                const dailySavingPotential = hourlySaving * 24;
 
-      let btcHourlyRevenue = 0;
-      let dailyRevenue = 0;
-      let monthlyRevenue = 0;
-      if (this.btcDifficulty && this.btcPriceEur && hashrateTH > 0) {
-        const btcPerDay = (hashrateTH * 1e12 / (this.btcDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
-        dailyRevenue = btcPerDay * this.btcPriceEur;
-        btcHourlyRevenue = dailyRevenue / 24;
-        monthlyRevenue = dailyRevenue * 30.416; // Ø Tage im Monat
-      }
+                let btcHourlyRevenue = 0;
+                let dailyRevenue = 0;
+                let monthlyRevenue = 0;
+                if (this.btcDifficulty && this.btcPriceEur && hashrateTH > 0) {
+                  const btcPerDay = (hashrateTH * 1e12 / (this.btcDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
+                  dailyRevenue = btcPerDay * this.btcPriceEur;
+                  btcHourlyRevenue = dailyRevenue / 24;
+                  monthlyRevenue = dailyRevenue * 30.416;
+                }
 
-      // Rentabilität pro kWh
-      const revenuePerKwh = powerKW > 0 ? (btcHourlyRevenue / powerKW) : 0;
-      const profitPerKwh = revenuePerKwh - refPrice;
-      const isProfitable = profitPerKwh > 0;
+                const revenuePerKwh = powerKW > 0 ? (btcHourlyRevenue / powerKW) : 0;
+                const profitPerKwh = revenuePerKwh - refPrice;
+                const isProfitable = profitPerKwh > 0;
 
-      return html`
-               <div class="miner-card">
-                 <div class="miner-header" style="flex-wrap: wrap; gap: 10px;">
-                   <h3>${miner.name}</h3>
-                   <span class="prio-badge ${isPV ? 'on' : ''}">${isPV ? 'PV-Modus aktiv' : 'Manuell'}</span>
-                 </div>
-
-                 <div style="margin-top: 10px; margin-bottom: 15px;">
-                     <select @change="${(e) => { this.simulatorModels = { ...this.simulatorModels, [miner.id]: e.target.value }; this.requestUpdate(); }}" 
-                             style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; border-radius: 6px; cursor: pointer;">
-                         <option value="sensor" ?selected="${simModel === 'sensor'}">Eigene Sensoren verwenden</option>
-                         <option value="manual" ?selected="${simModel === 'manual'}">Eigene manuelle Eingabe</option>
-                         <option value="Bitaxe" ?selected="${simModel === 'Bitaxe'}">Bitaxe (0.5 TH/s | 15W)</option>
-                         <option value="S9" ?selected="${simModel === 'S9'}">Antminer S9 (14 TH/s | 1372W)</option>
-                         <option value="S19" ?selected="${simModel === 'S19'}">Antminer S19 (90 TH/s | 3250W)</option>
-                         <option value="S19Pro" ?selected="${simModel === 'S19Pro'}">Antminer S19 Pro (110 TH/s | 3250W)</option>
-                         <option value="S19XP" ?selected="${simModel === 'S19XP'}">Antminer S19 XP (140 TH/s | 3010W)</option>
-                         <option value="S21" ?selected="${simModel === 'S21'}">Antminer S21 (200 TH/s | 3500W)</option>
-                         <option value="M30S" ?selected="${simModel === 'M30S'}">Whatsminer M30S++ (112 TH/s | 3472W)</option>
-                         <option value="M50" ?selected="${simModel === 'M50'}">Whatsminer M50 (114 TH/s | 3306W)</option>
-                         <option value="Avalon" ?selected="${simModel === 'Avalon'}">Avalon A1346 (110 TH/s | 3300W)</option>
-                         <option value="AvalonQ" ?selected="${simModel === 'AvalonQ'}">Avalon Q (90 TH/s | 1674W)</option>
-                         <option value="AvalonNano3" ?selected="${simModel === 'AvalonNano'}">Avalon Nano 3 (4 TH/s | 140W)</option>
-                         <option value="AvalonNano3s" ?selected="${simModel === 'AvalonNano3s'}">Avalon Nano 3S (6 TH/s | 140W)</option>
-                     </select>
-                 </div>
-                 
-                 ${simModel === 'manual' ? html`
-                    <div style="display: flex; gap: 10px; margin-top: -5px; margin-bottom: 15px;">
-                      <div style="flex: 1;">
-                        <label style="color: #888; font-size: 0.8em; display: block; margin-bottom: 4px;">Hashrate (TH/s)</label>
-                        <input type="number" step="0.1" .value="${manualInput.hashrate}" @input="${(e) => { this.manualInputs = { ...this.manualInputs, [miner.id]: { ...manualInput, hashrate: parseFloat(e.target.value) || 0 } }; this.requestUpdate(); }}" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;">
-                      </div>
-                      <div style="flex: 1;">
-                        <label style="color: #888; font-size: 0.8em; display: block; margin-bottom: 4px;">Stromverbrauch (Watt)</label>
-                        <input type="number" step="10" .value="${manualInput.power}" @input="${(e) => { this.manualInputs = { ...this.manualInputs, [miner.id]: { ...manualInput, power: parseFloat(e.target.value) || 0 } }; this.requestUpdate(); }}" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;">
-                      </div>
+                return html`
+                  <div class="miner-card">
+                    <div class="miner-header" style="flex-wrap: wrap; gap: 10px;">
+                      <h3>${miner.name}</h3>
+                      <span class="prio-badge ${isPV ? 'on' : ''}">${isPV ? 'PV-Modus aktiv' : 'Manuell'}</span>
                     </div>
-                  ` : ''}
-                  
-                 <div class="tech-box" style="background: rgba(0,0,0,0.3); border-color: rgba(247, 147, 26, 0.4); box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="color: #888;">⛏️ Mining Ertrag:</span>
-                        <strong style="color: #F7931A; font-size: 1.1em;">${revenuePerKwh.toFixed(4)} € / kWh</strong>
+
+                    <div style="margin-top: 10px; margin-bottom: 15px;">
+                        <select @change="${(e) => { this.simulatorModels = { ...this.simulatorModels, [miner.id]: e.target.value }; this.requestUpdate(); }}" 
+                                style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; border-radius: 6px; cursor: pointer;">
+                            <option value="sensor" ?selected="${simModel === 'sensor'}">Eigene Sensoren verwenden</option>
+                            <option value="manual" ?selected="${simModel === 'manual'}">Eigene manuelle Eingabe</option>
+                            <option value="Bitaxe" ?selected="${simModel === 'Bitaxe'}">Bitaxe (0.5 TH/s | 15W)</option>
+                            <option value="S9" ?selected="${simModel === 'S9'}">Antminer S9 (14 TH/s | 1372W)</option>
+                            <option value="S19" ?selected="${simModel === 'S19'}">Antminer S19 (90 TH/s | 3250W)</option>
+                            <option value="S19Pro" ?selected="${simModel === 'S19Pro'}">Antminer S19 Pro (110 TH/s | 3250W)</option>
+                            <option value="S19XP" ?selected="${simModel === 'S19XP'}">Antminer S19 XP (140 TH/s | 3010W)</option>
+                            <option value="S21" ?selected="${simModel === 'S21'}">Antminer S21 (200 TH/s | 3500W)</option>
+                            <option value="M30S" ?selected="${simModel === 'M30S'}">Whatsminer M30S++ (112 TH/s | 3472W)</option>
+                            <option value="M50" ?selected="${simModel === 'M50'}">Whatsminer M50 (114 TH/s | 3306W)</option>
+                            <option value="Avalon" ?selected="${simModel === 'Avalon'}">Avalon A1346 (110 TH/s | 3300W)</option>
+                            <option value="AvalonQ" ?selected="${simModel === 'AvalonQ'}">Avalon Q (90 TH/s | 1674W)</option>
+                            <option value="AvalonNano3" ?selected="${simModel === 'AvalonNano3'}">Avalon Nano 3 (4 TH/s | 140W)</option>
+                            <option value="AvalonNano3s" ?selected="${simModel === 'AvalonNano3s'}">Avalon Nano 3S (6 TH/s | 140W)</option>
+                        </select>
                     </div>
                     
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed rgba(255,255,255,0.1);">
-                        <span style="color: #888;">⚖️ Break-Even (Strompreis):</span>
-                        <strong style="color: #fff; font-size: 1.1em;">${revenuePerKwh.toFixed(4)} € / kWh</strong>
-                    </div>
+                    ${simModel === 'manual' ? html`
+                        <div style="display: flex; gap: 10px; margin-top: -5px; margin-bottom: 15px;">
+                          <div style="flex: 1;">
+                            <label style="color: #888; font-size: 0.8em; display: block; margin-bottom: 4px;">Hashrate (TH/s)</label>
+                            <input type="number" step="0.1" .value="${manualInput.hashrate}" @input="${(e) => { this.manualInputs = { ...this.manualInputs, [miner.id]: { ...manualInput, hashrate: parseFloat(e.target.value) || 0 } }; this.requestUpdate(); }}" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;">
+                          </div>
+                          <div style="flex: 1;">
+                            <label style="color: #888; font-size: 0.8em; display: block; margin-bottom: 4px;">Stromverbrauch (Watt)</label>
+                            <input type="number" step="10" .value="${manualInput.power}" @input="${(e) => { this.manualInputs = { ...this.manualInputs, [miner.id]: { ...manualInput, power: parseFloat(e.target.value) || 0 } }; this.requestUpdate(); }}" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;">
+                          </div>
+                        </div>
+                      ` : ''}
+                      
+                     <div class="tech-box" style="background: rgba(0,0,0,0.3); border-color: rgba(247, 147, 26, 0.4); box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="color: #888;">⛏️ Mining Ertrag:</span>
+                            <strong style="color: #F7931A; font-size: 1.1em;">${revenuePerKwh.toFixed(4)} € / kWh</strong>
+                        </div>
+                        
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed rgba(255,255,255,0.1);">
+                            <span style="color: #888;">⚖️ Break-Even:</span>
+                            <strong style="color: #fff; font-size: 1.1em;">${revenuePerKwh.toFixed(4)} € / kWh</strong>
+                        </div>
 
-                    <div style="display: flex; justify-content: space-between; margin-top: 12px; margin-bottom: 4px;">
-                        <span style="color: #fff; font-weight: bold;">☀️ Profit (PV / 0 € Kosten):</span>
-                        <strong style="color: #2ecc71; font-size: 1.25em; text-shadow: 0 0 10px rgba(46, 204, 113, 0.2);">
-                            +${revenuePerKwh.toFixed(4)} € / kWh
-                        </strong>
-                    </div>
-                 </div>
-
-                 ${(dailyRevenue > 0) ? html`
-                 <div class="tech-box" style="background: rgba(46, 204, 113, 0.05); border-color: rgba(46, 204, 113, 0.2); margin-top: 15px;">
-                     <h4 style="margin: 0 0 10px 0; color: #2ecc71; font-size: 0.95em; text-transform: uppercase;">📈 Ertrag bei 24/7 Betrieb</h4>
-                     <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                         <span style="color: #888;">Pro Tag:</span>
-                         <strong style="color: #2ecc71;">+${dailyRevenue.toFixed(2)} €</strong>
+                        <div style="display: flex; justify-content: space-between; margin-top: 12px; margin-bottom: 4px;">
+                            <span style="color: #fff; font-weight: bold;">☀️ Profit (PV):</span>
+                            <strong style="color: #2ecc71; font-size: 1.25em; text-shadow: 0 0 10px rgba(46, 204, 113, 0.2);">
+                                +${revenuePerKwh.toFixed(4)} € / kWh
+                            </strong>
+                        </div>
                      </div>
-                     <div style="display: flex; justify-content: space-between;">
-                         <span style="color: #888;">Pro Monat:</span>
-                         <strong style="color: #2ecc71; font-size: 1.2em;">+${monthlyRevenue.toFixed(2)} €</strong>
+
+                     ${(dailyRevenue > 0) ? html`
+                     <div class="tech-box" style="background: rgba(46, 204, 113, 0.05); border-color: rgba(46, 204, 113, 0.2); margin-top: 15px;">
+                         <h4 style="margin: 0 0 10px 0; color: #2ecc71; font-size: 0.95em; text-transform: uppercase;">📈 Ertrag 24/7</h4>
+                         <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                             <span style="color: #888;">Tag:</span>
+                             <strong style="color: #2ecc71;">+${dailyRevenue.toFixed(2)} €</strong>
+                         </div>
+                         <div style="display: flex; justify-content: space-between;">
+                             <span style="color: #888;">Monat:</span>
+                             <strong style="color: #2ecc71; font-size: 1.2em;">+${monthlyRevenue.toFixed(2)} €</strong>
+                         </div>
                      </div>
-                 </div>
-                 ` : ''}
-                 
-                 ${(() => {
-          if (miner.switch && !this.switchHistoryData[miner.switch] && !this.fetchingSwitchHistory[miner.switch]) {
-            this.fetchingSwitchHistory[miner.switch] = true;
-            this.fetchSwitchHistory(miner.switch);
-          }
-
-          const { todayMinutes, weekMinutes } = miner.switch ? this.calculateRuntime(miner.switch) : { todayMinutes: 0, weekMinutes: 0 };
-          const todayErtrag = (todayMinutes / 60) * btcHourlyRevenue;
-          const weekErtrag = (weekMinutes / 60) * btcHourlyRevenue;
-
-          const formatTime = (totalMins) => {
-            const h = Math.floor(totalMins / 60);
-            const m = Math.floor(totalMins % 60);
-            return `${h}h ${m}m`;
-          };
-
-          if (!miner.switch) return '';
-          return html`
-                   <div class="tech-box" style="background: rgba(52, 152, 219, 0.05); border-color: rgba(52, 152, 219, 0.2); margin-top: 15px;">
-                       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                           <h4 style="margin: 0; color: #3498db; font-size: 0.95em; text-transform: uppercase;">🕒 Echte Historie (Live)</h4>
-                           <button @click="${() => { this.fetchingSwitchHistory[miner.switch] = false; this.requestUpdate(); }}" style="background: none; border: 1px solid rgba(52, 152, 219, 0.5); color: #3498db; border-radius: 4px; padding: 3px 8px; font-size: 0.8em; cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                               <span style="font-size: 1.2em;">🔄</span> Update
-                           </button>
-                       </div>
-                       
-                       ${this.fetchingSwitchHistory[miner.switch] && !this.switchHistoryData[miner.switch] ? html`
-                           <span style="color: #888;">Lade Historie aus der Datenbank...</span>
-                       ` : html`
-                           <div style="display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 5px;">
-                               <span style="color: #888;">Heute (${formatTime(todayMinutes)}):</span>
-                               <strong style="color: #3498db;">+${todayErtrag.toFixed(2)} €</strong>
-                           </div>
-                           <div style="display: flex; justify-content: space-between;">
-                               <span style="color: #888;">Letzte 7 Tage (${formatTime(weekMinutes)}):</span>
-                               <strong style="color: #3498db; font-size: 1.1em;">+${weekErtrag.toFixed(2)} €</strong>
-                           </div>
-                       `}
-                   </div>
-                   `;
-        })()}
-
-                 <div style="margin-top: 15px; font-size: 0.85em; color: #666; line-height: 1.4;">
-                    * <b>Break-Even</b> ist dein theoretischer Höchst-Strompreis, bei dem der Miner noch genau kostendeckend läuft.<br>
-                    * Betreibst du den Miner bei reinem <b>PV-Überschuss</b> (Kosten = 0 €), erhältst du den vollen Bitcoin-Ertrag gutgeschrieben. <br>
-                    * <b>Echte Historie</b> wertet die "An"-Zeit des Schalters live aus und schätzt den Euro-Ertrag. <i>Hinweis: Da Miner beim Starten eine Aufwärmphase benötigen, ist dies eine Näherung. Falls die Historie leer bleibt, prüfe, ob Home Assistant (Recorder) deinen Schalter aufzeichnet.</i>
-                 </div>
-                 
-                 ${(simModel === 'sensor' && (!miner.power_consumption_sensor || !miner.hashrate_sensor)) ? html`
-                   <div style="margin-top: 10px; color: #e67e22; font-size: 0.8em; border: 1px dashed #e67e22; padding: 8px; border-radius: 4px;">
-                     ⚠️ Verbrauch- oder Hashratesensor fehlen. Wähle ein Modell oben aus oder trage die Sensoren ein.
-                   </div>
-                 ` : ''}
-               </div>
-             `;
-    }) : html`<p>Keine Miner konfiguriert.</p>`}
+                     ` : ''}
+                  </div>
+                `;
+             } catch (e) {
+               console.error("Error rendering energy card:", miner.id, e);
+               return html`<div class="card" style="border: 1px solid #e74c3c; background: rgba(231, 76, 60, 0.05); padding: 15px;">⚠️ Fehler</div>`;
+             }
+           }) : html`<p>Keine Miner konfiguriert.</p>`}
         </div>
 
         <div class="tech-box" style="margin-top: 30px; border-color: rgba(247, 147, 26, 0.2);">
-           <h3 style="color: #F7931A; margin-top: 0;">💡 Live Bitcoin Infos</h3>
-           <p style="color: #bbb; font-size: 0.9em; line-height: 1.5;">
-              Die Berechnung nutzt die aktuelle Bitcoin Difficulty (<b>${formatDifficulty(this.btcDifficulty)}</b>) und den stetigen Live-Preis (<b>${this.btcPriceEur ? this.btcPriceEur.toLocaleString("de-DE", { style: "currency", currency: "EUR" }) : '-'}</b>). Basis-Daten nach dem <a href="https://www.asicminervalue.com/de" target="_blank" style="color:#F7931A; text-decoration: none; border-bottom: 1px dotted #F7931A;">ASIC Miner Value</a> Standard.
+           <h3 style="color: #F7931A; margin-top: 0;">💡 Bitcoin Infos</h3>
+           <p style="color: #bbb; font-size: 0.9em;">
+              Difficulty: <b>${formatDifficulty(this.btcDifficulty)}</b> | Preis: <b>${this.btcPriceEur ? this.btcPriceEur.toLocaleString("de-DE", { style: "currency", currency: "EUR" }) : '-'}</b>
            </p>
         </div>
       </div>
