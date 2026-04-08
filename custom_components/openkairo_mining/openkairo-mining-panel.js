@@ -693,6 +693,16 @@ class OpenKairoMiningPanel extends LitElement {
       });
   }
 
+  _getPowerMarkers(miner) {
+    const startSteps = (miner.soft_start_steps || '').split(',').map(s => parseFloat(s.trim()));
+    const stopSteps = (miner.soft_stop_steps || '').split(',').map(s => parseFloat(s.trim()));
+    const allSteps = [...new Set([...startSteps, ...stopSteps])]
+      .filter(v => !isNaN(v))
+      .sort((a, b) => a - b);
+    return allSteps;
+  }
+
+
   render() {
     return html`
       <div class="header">
@@ -972,15 +982,32 @@ class OpenKairoMiningPanel extends LitElement {
                       <span style="font-size: 0.85em; color: #888;">Power Limit (S9/ASIC)</span>
                       <strong style="color: #F7931A;">${powerObj.state} ${powerObj.attributes?.unit_of_measurement || 'W'}</strong>
                     </div>
-                    <input type="range" 
-                           min="${powerObj.attributes?.min || 0}" 
-                           max="${((miner.soft_start_enabled || miner.soft_stop_enabled) && miner.soft_target_power) ? miner.soft_target_power : (powerObj.attributes?.max || 100)}" 
-                           step="${powerObj.attributes?.step || 1}" 
-                           .value="${powerObj.state}" 
-                           @change="${(e) => this.setPowerLimit(miner.power_entity, e.target.value)}"
-                           style="width: 100%; accent-color: #F7931A; cursor: pointer;">
+                    <div class="slider-container">
+                      ${(() => {
+                        const min = powerObj.attributes?.min || 0;
+                        const max = ((miner.soft_start_enabled || miner.soft_stop_enabled) && miner.soft_target_power) ? miner.soft_target_power : (powerObj.attributes?.max || 100);
+                        const markers = this._getPowerMarkers(miner);
+                        return html`
+                          <div class="slider-markers">
+                            ${markers.map(val => {
+                              if (val < min || val > max) return '';
+                              const percent = ((val - min) / (max - min)) * 100;
+                              return html`<div class="slider-marker" style="left: ${percent}%;" title="${val} W"></div>`;
+                            })}
+                          </div>
+                        `;
+                      })()}
+                      <input type="range" 
+                             min="${powerObj.attributes?.min || 0}" 
+                             max="${((miner.soft_start_enabled || miner.soft_stop_enabled) && miner.soft_target_power) ? miner.soft_target_power : (powerObj.attributes?.max || 100)}" 
+                             step="${powerObj.attributes?.step || 1}" 
+                             .value="${powerObj.state}" 
+                             @change="${(e) => this.setPowerLimit(miner.power_entity, e.target.value)}"
+                             style="width: 100%; accent-color: #F7931A; cursor: pointer; position: relative; z-index: 2; background: transparent;">
+                    </div>
                   </div>
                 ` : ''}
+
                 
                 <div class="miner-details">
                   <p><b>Modus:</b> <span class="accent-text">${modeMap[miner.mode] || 'Unbekannt'}</span></p>
@@ -1947,6 +1974,31 @@ class OpenKairoMiningPanel extends LitElement {
       }
       .highlight-val { font-size: 1.2em; font-weight: bold; color: #fff; font-family: monospace; }
       
+      .slider-container {
+        position: relative;
+        padding: 10px 0;
+        margin-top: 5px;
+      }
+      .slider-markers {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 14px;
+        transform: translateY(-50%);
+        z-index: 1;
+        pointer-events: none;
+      }
+      .slider-marker {
+        position: absolute;
+        width: 3px;
+        height: 100%;
+        background: #e74c3c;
+        transform: translateX(-50%);
+        border-radius: 2px;
+        box-shadow: 0 0 5px rgba(231, 76, 60, 0.5);
+      }
+
       /* List in Settings */
       .btn-primary { 
         background: #F7931A; color: #000; border: none; padding: 14px 20px; border-radius: 8px; 
