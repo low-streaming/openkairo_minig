@@ -286,8 +286,10 @@ class OpenKairoMiningPanel extends LitElement {
       activeTab: { type: String },
       editingMinerId: { type: String },
       editForm: { type: Object },
-      simulatorModels: { type: Object }
+      simulatorModels: { type: Object },
+      mempool: { type: Object }
     };
+
   }
 
   constructor() {
@@ -298,6 +300,8 @@ class OpenKairoMiningPanel extends LitElement {
     this.editForm = {};
     this.btcDifficulty = null;
     this.historyData = {};
+    this.mempool = { fees: null, height: null, halving: null };
+
     this.fetchingHistory = {};
     this.simulatorModels = {};
     this.switchHistoryData = {};
@@ -476,10 +480,13 @@ class OpenKairoMiningPanel extends LitElement {
         if (data.config && data.config.miners) {
           this.config = data.config;
           this.states = data.states || {};
+          this.mempool = data.mempool || { fees: null, height: null, halving: null };
         } else {
           this.config = { miners: [] };
           this.states = {};
+          this.mempool = { fees: null, height: null, halving: null };
         }
+
       }
     } catch (error) {
       console.error("Error loading config", error);
@@ -711,6 +718,9 @@ class OpenKairoMiningPanel extends LitElement {
         <h1>₿ OpenKairo Mining ⚡ <span style="font-size: 0.5em; vertical-align: middle; background: #F7931A; border-radius: 4px; padding: 2px 6px; color: #fff; margin-left: 8px;">v1.2</span></h1>
         <p class="subtitle">Intelligente Miner-Steuerung</p>
       </div>
+
+      ${this._renderTicker()}
+
 
       <div class="tabs">
         <div class="tab ${this.activeTab === 'dashboard' ? 'active' : ''}" @click="${() => { this.activeTab = 'dashboard'; this.editingMinerId = null; }}">Dashboard</div>
@@ -2139,8 +2149,96 @@ class OpenKairoMiningPanel extends LitElement {
         color: #F7931A;
         text-shadow: 0 0 15px rgba(247, 147, 26, 0.6);
       }
+
+      /* Bitcoin Ticker Styles */
+      .ticker-container {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        background: rgba(247, 147, 26, 0.1);
+        border: 1px solid rgba(247, 147, 26, 0.3);
+        border-radius: 8px;
+        padding: 8px 15px;
+        margin: 0 20px 20px 20px;
+        color: #ddd;
+        font-size: 0.9em;
+        overflow-x: auto;
+        white-space: nowrap;
+        gap: 20px;
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+      }
+      .ticker-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .ticker-label {
+        color: #888;
+        font-size: 0.85em;
+        text-transform: uppercase;
+        font-weight: bold;
+      }
+      .ticker-val {
+        color: #F7931A;
+        font-family: monospace;
+        font-weight: bold;
+      }
+      .ticker-divider {
+        color: rgba(255,255,255,0.1);
+      }
+
+      /* Mobile Optimierungen - ÜBERSCHREIBEN ODER ERGÄNZEN BESTEHENDER STYLES */
+      @media (max-width: 768px) {
+        .header h1 { font-size: 1.5em; text-align: center; }
+        .subtitle { text-align: center; }
+        .tabs { margin: 0 5px 15px 5px; gap: 5px; flex-wrap: wrap; }
+        .tab { padding: 8px 12px; font-size: 0.85em; flex: 1 1 30%; text-align: center; border-radius: 4px; }
+        .ticker-container { margin: 0 10px 15px 10px; padding: 6px 10px; font-size: 0.8em; gap: 12px; justify-content: flex-start; }
+        .miner-card { padding: 15px; margin-bottom: 15px; border-radius: 10px; }
+        .miner-header h2 { font-size: 1.1em; }
+        .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+        .stat-card { padding: 12px !important; }
+        .stat-val { font-size: 1.2em !important; }
+        .stat-label { font-size: 0.75em !important; }
+        .miner-details { grid-template-columns: 1fr; gap: 10px; }
+        .power-limit-box { padding: 12px; }
+        .form-row { flex-direction: column; gap: 0; }
+        .footer { font-size: 0.8em; padding: 20px 10px; }
+      }
     `;
   }
+
+  _renderTicker() {
+    if (!this.mempool || !this.mempool.fees) return html`<div style="margin-bottom: 20px;"></div>`;
+    
+    const fees = this.mempool.fees;
+    const height = this.mempool.height;
+    const halving = this.mempool.halving;
+
+    return html`
+      <div class="ticker-container" id="btc-ticker">
+        <div class="ticker-item" title="Empfohlene Gebühren (Fast | Medium | Low)">
+          <span class="ticker-label">Fees:</span>
+          <span class="ticker-val">${fees.fastestFee}</span>
+          <span class="ticker-divider">|</span>
+          <span class="ticker-val">${fees.halfHourFee}</span>
+          <span class="ticker-divider">|</span>
+          <span class="ticker-val">${fees.hourFee}</span>
+          <span class="ticker-label" style="text-transform: none; font-weight: normal;">sat/vB</span>
+        </div>
+        <div class="ticker-item">
+          <span class="ticker-label">Height:</span>
+          <span class="ticker-val">${height?.toLocaleString()}</span>
+        </div>
+        <div class="ticker-item" title="Blöcke bis zum nächsten Halving">
+          <span class="ticker-label">Halving in:</span>
+          <span class="ticker-val">${halving?.toLocaleString()}</span>
+          <span class="ticker-label" style="text-transform: none; font-weight: normal;">Blocks</span>
+        </div>
+      </div>
+    `;
+  }
+
 }
 
 customElements.define("openkairo-mining-panel", OpenKairoMiningPanel);

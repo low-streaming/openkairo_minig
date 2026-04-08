@@ -113,8 +113,15 @@ class OpenKairoMiningApiView(HomeAssistantView):
         for mid, s in states.items():
             clean_states[mid] = {k: v for k, v in s.items() if k != "active_ramping_task"}
             
+        mempool = {
+            "fees": hass.data.get(DOMAIN, {}).get("mempool_fees"),
+            "height": hass.data.get(DOMAIN, {}).get("mempool_height"),
+            "halving": hass.data.get(DOMAIN, {}).get("mempool_halving")
+        }
+
         from aiohttp import web
-        return web.json_response({"status": "ok", "config": config, "states": clean_states})
+        return web.json_response({"status": "ok", "config": config, "states": clean_states, "mempool": mempool})
+
 
     async def post(self, request):
         hass = request.app["hass"]
@@ -128,7 +135,14 @@ async def _mining_loop(hass):
     _LOGGER.info("Starting OpenKairo Mining background loop")
     while True:
         try:
+            # Mempool Daten alle 10 Minuten aktualisieren
+            current_time = time.time()
+            last_update = hass.data.get(DOMAIN, {}).get("mempool_last_update", 0)
+            if current_time - last_update > 600:
+                await _update_mempool_data(hass)
+
             config = hass.data.get(DOMAIN, {}).get("config", {})
+
             miners = config.get("miners", [])
             
             # Nach Priorität sortieren (1 = höchste Priorität)
@@ -396,3 +410,32 @@ async def _mining_loop(hass):
             _LOGGER.error(f"Mining loop error: {e}")
         
         await asyncio.sleep(30)
+
+async def _update_mempool_data(hass):
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            # 1. Empfohlene Gebühren
+            async with session.get("https://mempool.space/api/v1/fees/recommended", timeout=10) as resp:
+                if resp.status == 200:
+                    fees = await resp.json()
+                    hass.data[DOMAIN]["mempool_fees"] = fees
+            
+            # 2. Aktuelle Blockhöhe
+            async with session.get("https://mempool.space/api/blocks/tip/height", timeout=10) as resp:
+                if resp.status == 200:
+                    height_text = await resp.text()
+                    try:
+                        h = int(height_text)
+                        hass.data[DOMAIN]["mempool_height"] = h
+                        
+                        # Halving Berechnung (alle 210.000 Blöcke)
+                        next_halving = ((h // 210000) + 1) * 210000
+                        hass.data[DOMAIN]["mempool_halving"] = next_halving - h
+                    except ValueError:
+                        pass
+        
+        hass.data[DOMAIN]["mempool_last_update"] = time.time()
+    except Exception as e:
+        _LOGGER.error(f"Fehler beim Abrufen der Mempool-Daten: {e}")
+
