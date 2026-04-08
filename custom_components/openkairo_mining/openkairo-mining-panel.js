@@ -550,7 +550,9 @@ class OpenKairoMiningPanel extends LitElement {
       standby_delay: 10,
       soft_start_enabled: false,
       soft_stop_enabled: false,
+      soft_continuous_scaling: false,
       soft_start_steps: '100, 500, 1000',
+
       soft_stop_steps: '1000, 500, 100',
       soft_interval: 60,
       switch_2: '',
@@ -1291,7 +1293,18 @@ class OpenKairoMiningPanel extends LitElement {
                     </div>
                 </div>
 
-                ${this.editForm.soft_start_enabled || this.editForm.soft_stop_enabled ? html`
+                <div class="form-row" style="margin-top: -10px; margin-bottom: 20px;">
+                    <div class="form-group flex-1">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;" title="Versucht die Leistung auch nach manueller Änderung automatisch wieder an den PV Überschuss oder Zielwert anzupassen.">
+                            <input type="checkbox" name="soft_continuous_scaling" .checked="${this.editForm.soft_continuous_scaling}" @change="${this.handleFormInput}" style="width: 16px; height: 16px; margin: 0; accent-color: #F7931A;">
+                            <b>Automatische Nachskalierung (Kontinuierlich)</b>
+                        </label>
+                    </div>
+                </div>
+
+
+                ${this.editForm.soft_start_enabled || this.editForm.soft_stop_enabled || this.editForm.soft_continuous_scaling ? html`
+
                     <div class="form-row">
                         <div class="form-group flex-1">
                             <label>Start-Abstufungen (Watt)</label>

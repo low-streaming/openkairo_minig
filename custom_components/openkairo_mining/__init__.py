@@ -343,6 +343,54 @@ async def _mining_loop(hass):
                     state["on_since"] = None
                     state["off_since"] = None
                     state["ramping"] = None
+
+                # Continuous Scaling Logic (Applies to PV, SOC and Manual if enabled)
+                if miner.get("soft_continuous_scaling") and is_on and not state.get("ramping") and miner.get("power_entity"):
+                    power_entity = miner.get("power_entity")
+                    
+                    # Prüfen ob das Intervall bereits vergangen ist
+                    continuous_interval = float(miner.get("soft_interval", 60))
+                    if current_time - state.get("continuous_last_time", 0) >= continuous_interval:
+                        state["continuous_last_time"] = current_time
+                        power_state = hass.states.get(power_entity)
+                        
+                        if power_state and power_state.state not in ["unknown", "unavailable"]:
+                            try:
+                                current_power = float(power_state.state)
+                                target_power = float(miner.get("soft_target_power", 1200))
+
+                                # In PV mode, calculate target based on current surplus steps
+                                if mode == "pv":
+                                    pv_sensor = miner.get("pv_sensor")
+                                    if pv_sensor:
+                                        pv_state = hass.states.get(pv_sensor)
+                                        if pv_state and pv_state.state not in ["unknown", "unavailable"]:
+                                            pv_val = float(pv_state.state)
+                                            steps_str = str(miner.get("soft_start_steps", "100,500,1000"))
+                                            steps = [float(s.strip()) for s in steps_str.split(",") if s.strip()]
+                                            
+                                            # Determine the highest possible step currently covered by PV
+                                            best_step = target_power
+                                            # If PV is less than target, find the highest fitting step
+                                            if pv_val < target_power:
+                                                # Sort steps descending to find the first one that fits
+                                                fitting_steps = [s for s in steps if s <= pv_val]
+                                                if fitting_steps:
+                                                    best_step = max(fitting_steps)
+                                                else:
+                                                    best_step = min(steps) if steps else target_power
+                                            
+                                            target_power = best_step
+
+                                # Check if we need to adjust (with a small 5W tolerance to avoid jitter)
+                                if abs(current_power - target_power) > 5:
+                                    _LOGGER.info(f"[{miner_name}] Continuous Scaling: Adjusting {current_power}W -> {target_power}W (Interval: {continuous_interval}s)")
+                                    await hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": target_power}, blocking=False)
+
+                            except (ValueError, TypeError):
+                                pass
+
+
                 
         except Exception as e:
             _LOGGER.error(f"Mining loop error: {e}")
