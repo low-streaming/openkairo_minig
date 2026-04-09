@@ -894,12 +894,6 @@ class OpenKairoMiningPanel extends LitElement {
             let pvValue = this._formatValue(this.hass?.states[miner.pv_sensor], 'W', 'N/A');
             let batteryValue = this._formatValue(this.hass?.states[miner.battery_sensor], '%', '');
 
-            // --- AUTO-ENTITY MAPPING (PRO) ---
-            // Wir verwenden primär die miner_ip, falls gesetzt, sonst den switch (Fallback).
-            const ipForSlug = miner.miner_ip || (miner.switch && miner.switch.includes('.') ? miner.switch : '');
-            const ipSlug = ipForSlug ? ipForSlug.replace(/\./g, '_') : '';
-            const domain = 'openkairo_mining';
-            
             let hSensor = miner.hashrate_sensor;
             let tSensor = miner.temp_sensor;
             let pSensor = miner.power_consumption_sensor;
