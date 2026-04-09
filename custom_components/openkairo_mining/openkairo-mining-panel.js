@@ -958,12 +958,22 @@ class OpenKairoMiningPanel extends LitElement {
                       stateObj && stateObj.ramping === 'down' ? `HERUNTERFAHREN ${stateObj.ramping_total ? `(${stateObj.ramping_step}/${stateObj.ramping_total})` : ''} 💤` : 
                       (switchState === 'on' ? 'MINING 🚀' : switchState === 'off' ? 'STANDBY 💤' : switchState)}
                   </span>
-                  <button class="btn-power ${switchState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner)}" title="Manuell ein/ausschalten">
+                  <button class="btn-power ${switchState === 'on' ? 'on' : ''}" ?disabled="${stateObj && stateObj.hardware_error}" @click="${() => this.toggleMiner(miner)}" title="Manuell ein/ausschalten">
                     ⏻
                   </button>
                 </div>
                 
-                ${(hashrateValue || tempValue || powerConsumptionValue || batterySOCValue) ? html`
+                ${stateObj && stateObj.hardware_error ? html`
+                    <div style="background: rgba(231, 76, 60, 0.2); border: 1px solid #e74c3c; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
+                       <strong style="color: #e74c3c; display: block; margin-bottom: 5px;">⚠️ HARDWARE NICHT GEFUNDEN</strong>
+                       <p style="font-size: 0.85em; color: #fff; margin: 0;">
+                         Die Entitäten <code style="background: rgba(0,0,0,0.3); padding: 2px 4px;">${stateObj.missing_entities?.join(', ')}</code> wurden in Home Assistant nicht gefunden. 
+                         Bitte prüfe die <strong>Miner-Integration</strong>.
+                       </p>
+                    </div>
+                  ` : ''}
+
+                  ${(hashrateValue || tempValue || powerConsumptionValue || batterySOCValue) ? html`
                   <div class="api-stats">
                     ${hashrateValue !== '-' ? html`<div class="stat"><span class="lbl">Hashrate:</span> <span class="val">${hashrateValue}</span></div>` : ''}
                     ${tempValue !== '-' ? html`<div class="stat"><span class="lbl">Temp:</span> <span class="val">${tempValue}</span></div>` : ''}
@@ -998,8 +1008,9 @@ class OpenKairoMiningPanel extends LitElement {
                              max="${((miner.soft_start_enabled || miner.soft_stop_enabled) && miner.soft_target_power) ? miner.soft_target_power : (powerObj.attributes?.max || 100)}" 
                              step="${powerObj.attributes?.step || 1}" 
                              .value="${powerObj.state}" 
+                             ?disabled="${stateObj && stateObj.hardware_error}"
                              @change="${(e) => this.setPowerLimit(miner.power_entity, e.target.value)}"
-                             style="width: 100%; accent-color: #F7931A; cursor: pointer; position: relative; z-index: 2; background: transparent;">
+                             style="width: 100%; accent-color: #F7931A; cursor: ${stateObj?.hardware_error ? 'not-allowed' : 'pointer'}; position: relative; z-index: 2; background: transparent;">
                     </div>
                   </div>
                 ` : ''}
