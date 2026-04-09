@@ -878,12 +878,12 @@ class OpenKairoMiningPanel extends LitElement {
         ${this.config.miners.map(miner => {
           try {
             const domain = 'openkairo_mining';
-            const ipForSlug = miner.miner_ip || (miner.switch && miner.switch.includes('.') ? miner.switch : '');
-            const ipSlug = ipForSlug ? ipForSlug.replace(/\./g, '_') : '';
+            const _ipForSlug = miner.miner_ip || (miner.switch && miner.switch.includes('.') ? miner.switch : '');
+            const _ipSlug = _ipForSlug ? _ipForSlug.replace(/\./g, '_') : '';
             
             let effectiveSwitch = miner.switch;
-            if (!effectiveSwitch && ipSlug) {
-                effectiveSwitch = `switch.${domain}_${ipSlug}_switch`;
+            if (!effectiveSwitch && _ipSlug) {
+                effectiveSwitch = `switch.${domain}_${_ipSlug}_switch`;
             }
 
             let switchState = 'Unbekannt';
@@ -899,10 +899,10 @@ class OpenKairoMiningPanel extends LitElement {
             let pSensor = miner.power_consumption_sensor;
             let pEntity = miner.power_entity;
 
-            if (!hSensor && ipSlug) hSensor = `sensor.${domain}_${ipSlug}_hashrate`;
-            if (!tSensor && ipSlug) tSensor = `sensor.${domain}_${ipSlug}_temperature`;
-            if (!pSensor && ipSlug) pSensor = `sensor.${domain}_${ipSlug}_power`;
-            if (!pEntity && ipSlug) pEntity = `number.${domain}_${ipSlug}_power_limit`;
+            if (!hSensor && _ipSlug) hSensor = `sensor.${domain}_${_ipSlug}_hashrate`;
+            if (!tSensor && _ipSlug) tSensor = `sensor.${domain}_${_ipSlug}_temperature`;
+            if (!pSensor && _ipSlug) pSensor = `sensor.${domain}_${_ipSlug}_power`;
+            if (!pEntity && _ipSlug) pEntity = `number.${domain}_${_ipSlug}_power_limit`;
 
             let hashrateValue = this._formatValue(this.hass?.states[hSensor], 'TH/s');
             let tempValue = this._formatValue(this.hass?.states[tSensor], '°C');

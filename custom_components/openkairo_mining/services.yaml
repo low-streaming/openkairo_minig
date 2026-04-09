@@ -1,0 +1,39 @@
+reboot:
+  description: "Rebootet den ASIC Miner hardwareseitig."
+  fields:
+    ip_address:
+      description: "IP-Adresse des Miners"
+      example: "192.168.2.6"
+      required: true
+
+restart_backend:
+  description: "Startet das Mining-Backend des ASICs neu."
+  fields:
+    ip_address:
+      description: "IP-Adresse des Miners"
+      example: "192.168.2.6"
+      required: true
+
+set_work_mode:
+  description: "Ändert den Arbeitsmodus des Miners."
+  fields:
+    ip_address:
+      description: "IP-Adresse des Miners"
+      example: "192.168.2.6"
+      required: true
+    mode:
+      description: "Modus (low, normal, high)"
+      example: "normal"
+      required: true
+
+set_power_limit:
+  description: "Setzt das Power Limit des Miners."
+  fields:
+    ip_address:
+      description: "IP-Adresse des Miners"
+      example: "192.168.2.6"
+      required: true
+    limit:
+      description: "Watt (z.B. 1200)"
+      example: 1200
+      required: true
