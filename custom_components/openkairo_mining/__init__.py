@@ -185,6 +185,15 @@ async def _mining_loop(hass):
                 # Auto-Switch Fallback für Hardware-Treiber
                 if not miner_switch and miner_ip:
                     miner_switch = f"switch.{DOMAIN}_{miner_ip.replace('.', '_')}_switch"
+                    
+                # Setup Hardware-Coordinator für diesen Miner, falls IP existiert
+                if miner_ip:
+                    name = miner.get("name", "Unknown Miner")
+                    user = miner.get("miner_user")
+                    password = miner.get("miner_password")
+                    from .coordinator import async_get_miner_coordinator
+                    # Coordinator erstellen / aktualisieren. Er holt automatisch Daten im Hintergrund.
+                    await async_get_miner_coordinator(hass, DOMAIN, miner_ip, name, user, password)
                 
                 if not miner_switch:
                     continue

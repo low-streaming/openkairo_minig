@@ -598,8 +598,8 @@ class OpenKairoMiningPanel extends LitElement {
 
   async callHardwareService(miner, service, option = null) {
     if (!this.hass) return;
-    const ipAddress = miner.miner_ip || (miner.switch && miner.switch.includes('.') ? miner.switch : '');
-    if (!ipAddress || ipAddress.includes('.')) { 
+    const ipAddress = miner.miner_ip || '';
+    if (ipAddress && ipAddress.includes('.')) { 
         // Falls IP-Adresse erkannt (Punkte enthalten)
         const data = { ip_address: ipAddress };
         if (option) data.mode = option;

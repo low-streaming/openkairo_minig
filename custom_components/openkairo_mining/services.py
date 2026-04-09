@@ -17,13 +17,13 @@ async def async_setup_services(hass):
     """Register services for the Miner integration."""
     
     async def handle_reboot(call):
-        device_id = call.data.get("device_id")
-        # Logic to find miner by device_id and call reboot
-        _LOGGER.info(f"Rebooting device {device_id}")
+        ip_address = call.data.get("ip_address")
+        # Logic to find miner by ip_address and call reboot
+        _LOGGER.info(f"Rebooting device {ip_address}")
 
     async def handle_restart_backend(call):
-        device_id = call.data.get("device_id")
-        _LOGGER.info(f"Restarting backend for device {device_id}")
+        ip_address = call.data.get("ip_address")
+        _LOGGER.info(f"Restarting backend for device {ip_address}")
 
     hass.services.async_register(DOMAIN, SERVICE_REBOOT, handle_reboot, schema=SERVICE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_RESTART_BACKEND, handle_restart_backend, schema=SERVICE_SCHEMA)
