@@ -877,9 +877,18 @@ class OpenKairoMiningPanel extends LitElement {
       <div class="miners-grid ${this.config.miners.length === 1 ? 'single-miner' : ''}">
         ${this.config.miners.map(miner => {
           try {
+            const domain = 'openkairo_mining';
+            const ipForSlug = miner.miner_ip || (miner.switch && miner.switch.includes('.') ? miner.switch : '');
+            const ipSlug = ipForSlug ? ipForSlug.replace(/\./g, '_') : '';
+            
+            let effectiveSwitch = miner.switch;
+            if (!effectiveSwitch && ipSlug) {
+                effectiveSwitch = `switch.${domain}_${ipSlug}_switch`;
+            }
+
             let switchState = 'Unbekannt';
-            if (this.hass && miner.switch && this.hass.states[miner.switch]) {
-              switchState = this.hass.states[miner.switch].state;
+            if (this.hass && effectiveSwitch && this.hass.states[effectiveSwitch]) {
+              switchState = this.hass.states[effectiveSwitch].state;
             }
 
             let pvValue = this._formatValue(this.hass?.states[miner.pv_sensor], 'W', 'N/A');

@@ -180,6 +180,11 @@ async def _mining_loop(hass):
                 
                 miner_switch = miner.get("switch")
                 miner_switch_2 = miner.get("switch_2")
+                miner_ip = miner.get("miner_ip")
+                
+                # Auto-Switch Fallback für Hardware-Treiber
+                if not miner_switch and miner_ip:
+                    miner_switch = f"switch.{DOMAIN}_{miner_ip.replace('.', '_')}_switch"
                 
                 if not miner_switch:
                     continue
