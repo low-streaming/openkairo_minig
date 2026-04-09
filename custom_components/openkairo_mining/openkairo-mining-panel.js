@@ -764,13 +764,101 @@ class OpenKairoMiningPanel extends LitElement {
   }
 
 
-  render() {
-    return html`
-      <div class="header">
-        <h1>₿ OpenKairo Mining ⚡ <span style="font-size: 0.5em; vertical-align: middle; background: linear-gradient(135deg, #0bc4e2, #2ecc71); box-shadow: 0 0 10px rgba(11, 196, 226, 0.5); border-radius: 6px; padding: 3px 8px; color: #000; font-weight: 800; margin-left: 8px; text-shadow: none;">v1.3</span></h1>
-        <p class="subtitle">Intelligente Miner-Steuerung</p>
-      </div>
+  _hexToRgb(hex) {
+    if (!hex) return "11, 196, 226";
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `${r}, ${g}, ${b}`;
+  }
 
+  _applyThemeStyles() {
+    const theme = this.config.theme || 'cyberpunk';
+    let colors = {
+      accent1: this.config.color_hashrate || '#0bc4e2',
+      accent2: this.config.color_earnings || '#d62cf6',
+      accent3: this.config.color_efficiency || '#ffcc00',
+      accent4: this.config.color_power || '#00ff88'
+    };
+    
+    let layout = {
+      radius: '16px',
+      font: "'Inter', sans-serif",
+      bg: 'radial-gradient(circle at center 0%, #201a14 0%, #0d0c0b 100%)',
+      glow: '0.15',
+      card_bg: 'rgba(18, 18, 20, 0.4)'
+    };
+
+    if (theme === 'matrix') {
+       colors = { accent1: '#00ff41', accent2: '#008f11', accent3: '#003b00', accent4: '#00ff41' };
+       layout = { radius: '0px', font: "'Courier New', monospace", bg: '#000', glow: '0', card_bg: 'rgba(0, 10, 0, 0.6)' };
+    } else if (theme === 'classic') {
+       colors = { accent1: '#f7931a', accent2: '#ffffff', accent3: '#4d4d4d', accent4: '#f7931a' };
+       layout = { radius: '4px', font: "'Roboto', sans-serif", bg: '#1a1a1a', glow: '0', card_bg: '#252525' };
+    } else if (theme === 'solar') {
+       colors = { accent1: '#ff9d00', accent2: '#ffcc00', accent3: '#ff5e00', accent4: '#ffcc00' };
+       layout = { radius: '24px', font: "'Outfit', sans-serif", bg: 'linear-gradient(135deg, #2d1b0d 0%, #000000 100%)', glow: '0.1', card_bg: 'rgba(45, 30, 20, 0.4)' };
+    }
+
+    return html`
+      <style>
+        :host {
+          --theme-accent-1: ${colors.accent1};
+          --theme-accent-2: ${colors.accent2};
+          --theme-accent-3: ${colors.accent3};
+          --theme-accent-4: ${colors.accent4};
+          --theme-accent-1-rgb: ${this._hexToRgb(colors.accent1)};
+          --theme-accent-2-rgb: ${this._hexToRgb(colors.accent2)};
+          --theme-accent-3-rgb: ${this._hexToRgb(colors.accent3)};
+          --theme-accent-4-rgb: ${this._hexToRgb(colors.accent4)};
+          
+          --theme-radius: ${layout.radius};
+          --theme-font: ${layout.font};
+          --theme-bg-main: ${layout.bg};
+          --theme-glow-op: ${layout.glow};
+          --theme-card-background: ${layout.card_bg};
+        }
+        
+        .dashboard-container {
+            font-family: var(--theme-font) !important;
+        }
+      </style>
+    `;
+  }
+
+  render() {
+    const theme = this.config.theme || 'cyberpunk';
+    const walletSensor = this.config.wallet_btc_sensor;
+    const walletState = (this.hass && walletSensor && this.hass.states[walletSensor]) ? this.hass.states[walletSensor].state : '0.0000';
+    const profileImg = this.config.profile_image || 'https://openkairo.de/wp-content/uploads/2024/01/openkairo-logo-icon.png';
+
+    return html`
+      ${this._applyThemeStyles()}
+      <div class="dashboard-container theme-${theme}">
+        <div class="header" style="display: flex; align-items: center; justify-content: space-between; padding: 25px 35px; margin-bottom: 25px; background: rgba(18, 18, 20, 0.5); border-radius: var(--theme-radius); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.1); backdrop-filter: blur(20px); box-shadow: 0 10px 40px rgba(0,0,0,0.4);">
+        
+        <div class="profile-section" style="display: flex; align-items: center; gap: 20px;">
+          <div class="avatar-container" style="position: relative; width: 64px; height: 64px; flex-shrink: 0;">
+            <div style="width: 100%; height: 100%; border-radius: 50%; border: 2px solid #d62cf6; box-shadow: 0 0 20px rgba(214, 44, 246, 0.4); overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center;">
+              <img src="${profileImg}" style="width: 110%; height: 110%; object-fit: cover;">
+            </div>
+            <div style="position: absolute; bottom: 0; right: 0; width: 14px; height: 14px; background: #0bc4e2; border: 2px solid #000; border-radius: 50%; box-shadow: 0 0 10px #0bc4e2;"></div>
+          </div>
+          <div class="wallet-info">
+            <div style="color: #666; font-size: 0.7em; text-transform: uppercase; letter-spacing: 2px; font-weight: 800; margin-bottom: 4px;">Earned / Balance</div>
+            <div style="color: #fff; font-size: 1.8em; font-weight: 900; font-family: 'Outfit', sans-serif; text-shadow: 0 0 10px rgba(255,255,255,0.1); display: flex; align-items: baseline; gap: 8px;">
+              ${walletState} <span style="font-size: 0.5em; color: #d62cf6; letter-spacing: 1px;">BTC</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="title-section" style="text-align: right;">
+          <h1 style="margin: 0; font-size: 2.4em; color: #0bc4e2; text-shadow: 0 0 25px rgba(11, 196, 226, 0.5); font-weight: 800; letter-spacing: -0.5px; display: flex; align-items: center; justify-content: flex-end; gap: 12px;">
+            <span style="opacity: 0.8;">₿</span> OpenKairo Mining <span style="font-size: 0.4em; background: linear-gradient(135deg, #0bc4e2, #d62cf6); border-radius: 6px; padding: 2px 10px; color: #000; font-weight: 950; text-shadow: none; vertical-align: middle;">v1.3</span>
+          </h1>
+          <p class="subtitle" style="margin: 2px 0 0 0; font-size: 0.85em; color: #556; text-transform: uppercase; letter-spacing: 3px; font-weight: 700;">Intelligente Miner-Steuerung</p>
+        </div>
+      </div>
 
       ${this._renderTicker()}
 
@@ -778,6 +866,7 @@ class OpenKairoMiningPanel extends LitElement {
       <div class="tabs">
         <div class="tab ${this.activeTab === 'dashboard' ? 'active' : ''}" @click="${() => { this.activeTab = 'dashboard'; this.editingMinerId = null; }}">Dashboard</div>
         <div class="tab ${this.activeTab === 'statistics' ? 'active' : ''}" @click="${() => { this.activeTab = 'statistics'; this.editingMinerId = null; }}">Graphen</div>
+        <div class="tab ${this.activeTab === 'design' ? 'active' : ''}" @click="${() => { this.activeTab = 'design'; this.editingMinerId = null; }}">🎨 Design</div>
         ${this.config.show_energy_tab ? html`<div class="tab ${this.activeTab === 'energy' ? 'active' : ''}" @click="${() => { this.activeTab = 'energy'; this.editingMinerId = null; }}">⚡ Rentabilität</div>` : ''}
         <div class="tab ${this.activeTab === 'settings' ? 'active' : ''}" @click="${() => { this.activeTab = 'settings'; this.editingMinerId = null; }}">Einstellungen</div>
         <div class="tab ${this.activeTab === 'info' ? 'active' : ''}" @click="${() => { this.activeTab = 'info'; this.editingMinerId = null; }}">Hilfe</div>
@@ -789,6 +878,7 @@ class OpenKairoMiningPanel extends LitElement {
             if (this.activeTab === 'dashboard') return this.renderDashboard();
             if (this.activeTab === 'statistics') return this.renderStatistics();
             if (this.activeTab === 'energy') return this.renderEnergyStats();
+            if (this.activeTab === 'design') return this.renderDesignSettings();
             if (this.activeTab === 'settings') return this.renderSettings();
             if (this.activeTab === 'info') return this.renderInfo();
             return '';
@@ -841,7 +931,7 @@ class OpenKairoMiningPanel extends LitElement {
         </div>
 
         <div class="tech-box" style="margin-top: 15px;">
-          <h3 style="margin-top:0; color:#2ecc71;">🔋 Batterie SOC-Modus & Watchdog:</h3>
+          <h3 style="margin-top:0; color:#d62cf6;">🔋 Batterie SOC-Modus & Watchdog:</h3>
           <p style="color:#bbb; line-height:1.6; margin-top: 5px;">Zusätzlich zum reinen PV-Überschuss gibt es weitere Steuerungsmöglichkeiten:</p>
           <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
             <li><strong style="color:#ddd;">Batterie SOC-Steuerung:</strong> Ein eigener Modus, bei dem der Miner rein nach dem Füllstand deines Hausakkus gesteuert wird (z.B. An ab 90%, Aus unter 30%).</li>
@@ -895,8 +985,116 @@ class OpenKairoMiningPanel extends LitElement {
       'soc': 'Batterie SOC'
     };
 
+    // --- OVERVIEW AGGREGATION ---
+    let totalHashrateTH = 0;
+    let totalPowerW = 0;
+    let totalDailyRevBTC = 0;
+    let activeMiners = 0;
+    let anyBtcPrice = this.btcPriceEur || 0;
+
+    this.config.miners.forEach(miner => {
+        const domain = 'openkairo_mining';
+        const _ipForSlug = miner.miner_ip || (miner.switch && miner.switch.includes('.') ? miner.switch : '');
+        const _ipSlug = _ipForSlug ? _ipForSlug.replace(/\./g, '_') : '';
+
+        // Switch State
+        let effectiveSwitch = miner.switch;
+        if (!effectiveSwitch && _ipSlug) {
+            effectiveSwitch = `switch.${domain}_${_ipSlug}_switch`;
+        }
+        let switchState = 'off';
+        if (this.hass && effectiveSwitch && this.hass.states[effectiveSwitch]) {
+          switchState = this.hass.states[effectiveSwitch].state;
+        }
+        if (switchState === 'on') activeMiners++;
+
+        // Power
+        let pSensor = miner.power_consumption_sensor || (_ipSlug ? `sensor.${domain}_${_ipSlug}_power` : '');
+        if (this.hass && pSensor && this.hass.states[pSensor]) {
+           const watts = parseFloat(this.hass.states[pSensor].state) || 0;
+           if (watts > 0 && switchState === 'on') totalPowerW += watts;
+        }
+
+        // Hashrate
+        let hSensor = miner.hashrate_sensor || (_ipSlug ? `sensor.${domain}_${_ipSlug}_hashrate` : '');
+        let hrInTH = 0;
+        if (this.hass && hSensor && this.hass.states[hSensor]) {
+           const hrState = this.hass.states[hSensor];
+           const hrValue = parseFloat(hrState.state) || 0;
+           hrInTH = hrValue;
+           const unit = (hrState.attributes?.unit_of_measurement || 'TH/s').toUpperCase();
+           if (unit.includes('GH')) hrInTH = hrValue / 1000;
+           if (unit.includes('PH')) hrInTH = hrValue * 1000;
+           if (hrInTH > 0 && switchState === 'on') totalHashrateTH += hrInTH;
+        }
+
+        // BTC Earnings (Estimated via Braiins standard formula or direct if sensor exists)
+        if (miner.calc_method === 'btc_auto' && hrInTH > 0 && this.btcDifficulty && switchState === 'on') {
+            const btcPerDay = (hrInTH * 1e12 / (this.btcDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
+            totalDailyRevBTC += btcPerDay;
+        } else if (miner.crypto_revenue_sensor && this.hass && this.hass.states[miner.crypto_revenue_sensor] && switchState === 'on') {
+            const rev = parseFloat(this.hass.states[miner.crypto_revenue_sensor].state) || 0;
+            totalDailyRevBTC += rev;
+        }
+    });
+
+    const overviewHtml = html`
+      <div class="overview-section" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        
+        <div class="card" style="margin-bottom: 0; padding: 25px; border-color: rgba(var(--theme-accent-1-rgb, 11, 196, 226), 0.4); box-shadow: 0 10px 30px rgba(var(--theme-accent-1-rgb, 11, 196, 226), 0.1); position: relative; overflow: hidden; height: 100%;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1;">
+            <span style="color: var(--theme-accent-1); font-weight: 800; letter-spacing: 1.5px; font-size: 0.8em; text-transform: uppercase;">Total Hashrate</span>
+            <span style="background: rgba(var(--theme-accent-1-rgb, 11, 196, 226), 0.15); padding: 4px 8px; border-radius: 6px; color: var(--theme-accent-1); font-size: 0.7em; border: 1px solid rgba(var(--theme-accent-1-rgb, 11, 196, 226), 0.3);">Online: ${activeMiners}/${this.config.miners.length}</span>
+          </div>
+          <div style="font-size: 2.3em; font-weight: 800; color: #fff; margin-top: 15px; text-shadow: 0 0 15px rgba(255,255,255,0.2); font-family: monospace; position: relative; z-index: 1;">
+             ${totalHashrateTH > 0 ? totalHashrateTH.toFixed(2) : '0.00'} <span style="font-size: 0.5em; color: #888;">TH/s</span>
+          </div>
+          <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--theme-accent-1); box-shadow: 0 0 10px var(--theme-accent-1);"></div>
+        </div>
+
+        <div class="card" style="margin-bottom: 0; padding: 25px; border-color: rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.4); box-shadow: 0 10px 30px rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.1); position: relative; overflow: hidden; height: 100%;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1;">
+            <span style="color: var(--theme-accent-2); font-weight: 800; letter-spacing: 1.5px; font-size: 0.8em; text-transform: uppercase;">Est. Daily Earnings</span>
+            <span style="background: rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.15); padding: 4px 8px; border-radius: 6px; color: var(--theme-accent-2); font-size: 0.7em; border: 1px solid rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.3);">Pool Est</span>
+          </div>
+          <div style="font-size: 2.3em; font-weight: 800; color: #fff; margin-top: 15px; text-shadow: 0 0 15px rgba(255,255,255,0.2); font-family: monospace; position: relative; z-index: 1;">
+             ${totalDailyRevBTC > 0 ? totalDailyRevBTC.toFixed(6) : '0.000'} <span style="font-size: 0.4em; color: #888;">BTC</span>
+          </div>
+          ${anyBtcPrice > 0 && totalDailyRevBTC > 0 ? html`<div style="color: #888; font-size: 0.85em; margin-top: 5px; font-weight: bold; position: relative; z-index: 1;">≈ ${(totalDailyRevBTC * anyBtcPrice).toFixed(2)} €</div>` : ''}
+          <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--theme-accent-2); box-shadow: 0 0 10px var(--theme-accent-2);"></div>
+        </div>
+
+        <div class="card" style="margin-bottom: 0; padding: 25px; border-color: rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.4); box-shadow: 0 10px 30px rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.05); position: relative; overflow: hidden; height: 100%;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1;">
+            <span style="color: var(--theme-accent-3); font-weight: 800; letter-spacing: 1.5px; font-size: 0.8em; text-transform: uppercase;">Efficiency</span>
+            <span style="background: rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.1); padding: 4px 8px; border-radius: 6px; color: var(--theme-accent-3); font-size: 0.7em; border: 1px solid rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.2);">Avg J/TH</span>
+          </div>
+          <div style="font-size: 2.3em; font-weight: 800; color: #fff; margin-top: 15px; text-shadow: 0 0 15px rgba(255,255,255,0.2); font-family: monospace; position: relative; z-index: 1;">
+             ${(totalHashrateTH > 0 && totalPowerW > 0) ? (totalPowerW / totalHashrateTH).toFixed(1) : '0.0'} <span style="font-size: 0.5em; color: #888;">J/TH</span>
+          </div>
+          <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--theme-accent-3); box-shadow: 0 0 10px var(--theme-accent-3);"></div>
+        </div>
+
+        <div class="card" style="margin-bottom: 0; padding: 25px; border-color: rgba(var(--theme-accent-4-rgb, 0, 255, 136), 0.4); box-shadow: 0 10px 30px rgba(var(--theme-accent-4-rgb, 0, 255, 136), 0.05); position: relative; overflow: hidden; height: 100%;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1;">
+            <span style="color: var(--theme-accent-4); font-weight: 800; letter-spacing: 1.5px; font-size: 0.8em; text-transform: uppercase;">Total Power</span>
+             <span style="background: rgba(var(--theme-accent-4-rgb, 0, 255, 136), 0.1); padding: 4px 8px; border-radius: 6px; color: var(--theme-accent-4); font-size: 0.7em; border: 1px solid rgba(var(--theme-accent-4-rgb, 0, 255, 136), 0.2);">Live</span>
+          </div>
+          <div style="font-size: 2.3em; font-weight: 800; color: #fff; margin-top: 15px; text-shadow: 0 0 15px rgba(255,255,255,0.2); font-family: monospace; position: relative; z-index: 1;">
+             ${totalPowerW > 0 ? (totalPowerW / 1000).toFixed(2) : '0.00'} <span style="font-size: 0.5em; color: #888;">kW</span>
+          </div>
+          <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--theme-accent-4); box-shadow: 0 0 10px var(--theme-accent-4);"></div>
+        </div>
+
+      </div>
+    `;
+
+
+
     return html`
-      <div class="miners-grid ${this.config.miners.length === 1 ? 'single-miner' : ''}">
+      <div class="dashboard-wrapper" style="display: flex; flex-direction: column; width: 100%; gap: 10px;">
+        ${overviewHtml}
+        <div class="miners-grid ${this.config.miners.length === 1 ? 'single-miner' : ''}" style="margin-top: 20px;">
         ${this.config.miners.map(miner => {
           try {
             const domain = 'openkairo_mining';
@@ -999,7 +1197,7 @@ class OpenKairoMiningPanel extends LitElement {
             }
 
             profit = dailyRevenue - dailyCosts;
-            const profitColor = profit > 0 ? '#2ecc71' : (profit < 0 ? '#e74c3c' : '#aaa');
+            const profitColor = profit > 0 ? '#d62cf6' : (profit < 0 ? '#e74c3c' : '#aaa');
             const profitStr = hasProfitData ? (isFinite(profit) ? profit.toFixed(2) : '0.00') : '';
 
             let powerObj = (miner.power_entity && this.hass) ? this.hass.states[miner.power_entity] : null;
@@ -1177,7 +1375,7 @@ class OpenKairoMiningPanel extends LitElement {
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <label style="margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer;">
                                     <input type="checkbox" .checked="${miner.standby_watchdog_enabled}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_watchdog_enabled', e.target.checked)}" style="width: 16px; height: 16px; margin: 0; accent-color: #e74c3c;">
-                                    <b>🛡️ Watchdog:</b> <span class="highlight-val" style="color: ${stState === 'on' ? '#2ecc71' : '#e74c3c'};">${stState === 'on' ? 'ON' : stState === 'off' ? 'OFF' : stState}</span>
+                                    <b>🛡️ Watchdog:</b> <span class="highlight-val" style="color: ${stState === 'on' ? '#d62cf6' : '#e74c3c'};">${stState === 'on' ? 'ON' : stState === 'off' ? 'OFF' : stState}</span>
                                 </label>
                                 <button class="btn-power ${stState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner.standby_switch)}" title="Watchdog Plug manuell schalten" style="font-size: 1.2em; padding: 4px 12px; min-height: 36px;">
                                   ${watchdogWarning ? html`<span style="color: #e74c3c; font-size: 0.85em; margin-right: 10px; animation: pulse 2s infinite;">${watchdogWarning}</span>` : ''}
@@ -1220,6 +1418,58 @@ class OpenKairoMiningPanel extends LitElement {
             return html`<div class="card" style="border: 1px solid #e74c3c; background: rgba(231, 76, 60, 0.05); padding: 15px;">⚠️ Fehler bei <b>${miner.name}</b></div>`;
           }
         })}
+        </div>
+      </div>
+    `;
+  }
+
+  renderDesignSettings() {
+    return html`
+      <div class="card">
+        <h2>🎨 Design & Personalisierung</h2>
+        <p>Passe das Aussehen deines Mining-Dashboards nach deinen Wünschen an.</p>
+
+        <div class="tech-box" style="margin-bottom: 25px; border-color: var(--theme-accent-1);">
+          <h3 style="color: var(--theme-accent-1); margin-top: 0;">Presets</h3>
+          <div class="form-group">
+            <label>Wähle ein vordefiniertes Design</label>
+            <select @change="${(e) => { this.config.theme = e.target.value; this.saveConfig(true); }}" .value="${this.config.theme || 'cyberpunk'}" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+              <option value="cyberpunk">Cyberpunk (Neon Cyan & Magenta)</option>
+              <option value="matrix">Matrix (Hacker Green)</option>
+              <option value="classic">Classic Bitcoin (Orange & White)</option>
+              <option value="solar">Solar Energy (Yellow & Brown)</option>
+              <option value="custom">Individuell (Eigene Farben)</option>
+            </select>
+          </div>
+        </div>
+
+        ${(this.config.theme === 'custom' || !this.config.theme) ? html`
+          <div class="tech-box" style="border-color: var(--theme-accent-2);">
+            <h3 style="color: var(--theme-accent-2); margin-top: 0;">Eigene Farben</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px;">
+              <div class="form-group">
+                <label>Hashrate</label>
+                <input type="color" .value="${this.config.color_hashrate || '#0bc4e2'}" @input="${(e) => { this.config.color_hashrate = e.target.value; this.requestUpdate(); }}" @change="${() => this.saveConfig(true)}">
+              </div>
+              <div class="form-group">
+                <label>Earnings</label>
+                <input type="color" .value="${this.config.color_earnings || '#d62cf6'}" @input="${(e) => { this.config.color_earnings = e.target.value; this.requestUpdate(); }}" @change="${() => this.saveConfig(true)}">
+              </div>
+              <div class="form-group">
+                <label>Efficiency</label>
+                <input type="color" .value="${this.config.color_efficiency || '#ffcc00'}" @input="${(e) => { this.config.color_efficiency = e.target.value; this.requestUpdate(); }}" @change="${() => this.saveConfig(true)}">
+              </div>
+              <div class="form-group">
+                <label>Power</label>
+                <input type="color" .value="${this.config.color_power || '#00ff88'}" @input="${(e) => { this.config.color_power = e.target.value; this.requestUpdate(); }}" @change="${() => this.saveConfig(true)}">
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        <div style="margin-top: 25px; padding: 15px; background: rgba(var(--theme-accent-1-rgb), 0.05); border-left: 4px solid var(--theme-accent-1); border-radius: 0 8px 8px 0;">
+          <p style="margin: 0; font-size: 0.9em; color: #888;"><b>Hinweis:</b> Bei Auswahl eines Presets werden die individuellen Farben ignoriert. Wähle "Individuell", um deine eigenen Farben zu nutzen.</p>
+        </div>
       </div>
     `;
   }
@@ -1247,6 +1497,22 @@ class OpenKairoMiningPanel extends LitElement {
                   Energy-Stats Tab anzeigen
                </label>
                <small>Aktiviert den Tab zur Visualisierung der Rentabilität.</small>
+            </div>
+          </div>
+
+          <div style="margin-top: 25px; padding-top: 20px; border-top: 1px dashed rgba(255,255,255,0.1); display: flex; gap: 20px; flex-wrap: wrap;">
+            <div class="form-group" style="margin-bottom: 0; flex: 2; min-width: 300px;">
+              <label>Globaler BTC-Guthaben Sensor (z.B. Braiins Pool Balance)</label>
+              <openkairo-entity-picker 
+                placeholder="-- Wallet/Pool Sensor suchen --" 
+                .value="${this.config.wallet_btc_sensor || ''}" 
+                .entities="${this.getEntitiesByDomain('sensor')}" 
+                @change="${(e) => { this.config.wallet_btc_sensor = e.target.value; this.saveConfig(true); }}">
+              </openkairo-entity-picker>
+            </div>
+            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+              <label>Profil Avatar URL (Optional)</label>
+              <input type="text" .value="${this.config.profile_image || ''}" @change="${(e) => { this.config.profile_image = e.target.value; this.saveConfig(true); }}" placeholder="https://...">
             </div>
           </div>
         </div>
@@ -1434,9 +1700,9 @@ class OpenKairoMiningPanel extends LitElement {
                 </div>
             </div>
 
-            <div style="margin-top: 20px; padding: 15px; border: 1px dashed rgba(46, 204, 113, 0.3); border-radius: 8px; background: rgba(46, 204, 113, 0.05);">
-                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #2ecc71; font-weight: bold;">
-                    <input type="checkbox" name="allow_battery" .checked="${this.editForm.allow_battery}" @change="${this.handleFormInput}" style="width: 20px; height: 20px; accent-color: #2ecc71;">
+            <div style="margin-top: 20px; padding: 15px; border: 1px dashed rgba(214, 44, 246, 0.3); border-radius: 8px; background: rgba(214, 44, 246, 0.05);">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #d62cf6; font-weight: bold;">
+                    <input type="checkbox" name="allow_battery" .checked="${this.editForm.allow_battery}" @change="${this.handleFormInput}" style="width: 20px; height: 20px; accent-color: #d62cf6;">
                     🔋 Optionale Batterie-Unterstützung erlauben
                 </label>
                 
@@ -1696,22 +1962,22 @@ class OpenKairoMiningPanel extends LitElement {
 
                         <div style="display: flex; justify-content: space-between; margin-top: 12px; margin-bottom: 4px;">
                             <span style="color: #fff; font-weight: bold;">☀️ Profit (PV):</span>
-                            <strong style="color: #2ecc71; font-size: 1.25em; text-shadow: 0 0 10px rgba(46, 204, 113, 0.2);">
+                            <strong style="color: #d62cf6; font-size: 1.25em; text-shadow: 0 0 10px rgba(214, 44, 246, 0.2);">
                                 +${revenuePerKwh.toFixed(4)} € / kWh
                             </strong>
                         </div>
                      </div>
 
                      ${(dailyRevenue > 0) ? html`
-                     <div class="tech-box" style="background: rgba(46, 204, 113, 0.05); border-color: rgba(46, 204, 113, 0.2); margin-top: 15px;">
-                         <h4 style="margin: 0 0 10px 0; color: #2ecc71; font-size: 0.95em; text-transform: uppercase;">📈 Ertrag 24/7</h4>
+                     <div class="tech-box" style="background: rgba(214, 44, 246, 0.05); border-color: rgba(214, 44, 246, 0.2); margin-top: 15px;">
+                         <h4 style="margin: 0 0 10px 0; color: #d62cf6; font-size: 0.95em; text-transform: uppercase;">📈 Ertrag 24/7</h4>
                          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
                              <span style="color: #888;">Tag:</span>
-                             <strong style="color: #2ecc71;">+${dailyRevenue.toFixed(2)} €</strong>
+                             <strong style="color: #d62cf6;">+${dailyRevenue.toFixed(2)} €</strong>
                          </div>
                          <div style="display: flex; justify-content: space-between;">
                              <span style="color: #888;">Monat:</span>
-                             <strong style="color: #2ecc71; font-size: 1.2em;">+${monthlyRevenue.toFixed(2)} €</strong>
+                             <strong style="color: #d62cf6; font-size: 1.2em;">+${monthlyRevenue.toFixed(2)} €</strong>
                          </div>
                      </div>
                      ` : ''}
@@ -1750,7 +2016,7 @@ class OpenKairoMiningPanel extends LitElement {
               ${miner.hashrate_sensor || miner.power_consumption_sensor ? html`
                   <div class="chart-box" style="text-align: center;">
                       <div style="display: flex; flex-direction: column; gap: 10px;">
-                          ${miner.power_consumption_sensor ? this.renderChart(miner.power_consumption_sensor, '#2ecc71', '⚡ Stromverbrauch', this.hass?.states[miner.power_consumption_sensor]?.attributes?.unit_of_measurement || 'W') : ''}
+                          ${miner.power_consumption_sensor ? this.renderChart(miner.power_consumption_sensor, '#d62cf6', '⚡ Stromverbrauch', this.hass?.states[miner.power_consumption_sensor]?.attributes?.unit_of_measurement || 'W') : ''}
                           ${miner.hashrate_sensor ? this.renderChart(miner.hashrate_sensor, '#0bc4e2', '⛏️ Hashrate', this.hass?.states[miner.hashrate_sensor]?.attributes?.unit_of_measurement || 'TH/s') : ''}
                           ${miner.temp_sensor ? this.renderChart(miner.temp_sensor, '#e74c3c', '🌡️ Temperatur', this.hass?.states[miner.temp_sensor]?.attributes?.unit_of_measurement || '°C') : ''}
                       </div>
@@ -1871,17 +2137,43 @@ class OpenKairoMiningPanel extends LitElement {
         min-height: 100vh;
         color: #e0e0e0;
         color-scheme: dark;
+
+        /* Default Cyan Theme */
+        --theme-primary: #0bc4e2;
+        --theme-secondary: #d62cf6;
+        --theme-accent-1: #0bc4e2;
+        --theme-accent-2: #d62cf6;
+        --theme-accent-3: #ffcc00;
+        --theme-accent-4: #00ff88;
+        
+        --theme-card-bg: rgba(18, 18, 20, 0.4);
+        --theme-header-bg: rgba(18, 18, 20, 0.5);
+        --theme-glow-opacity: 0.1;
       }
       
       .header {
-        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
         margin-bottom: 35px;
-        padding: 10px;
+        padding: 25px 35px;
+        background: rgba(18, 18, 20, 0.4);
+        border-radius: 16px;
+        border: 1px solid rgba(11, 196, 226, 0.1);
+        backdrop-filter: blur(20px);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.4);
       }
+      
+      .avatar-container {
+        position: relative;
+        flex-shrink: 0;
+      }
+
       .header h1 { 
         margin: 0; 
-        font-size: 3.2em; 
-        color: #0bc4e2; /* Bitcoin Orange */
+        font-size: 2.2em; 
+        color: #0bc4e2; 
         text-shadow: 0 0 20px rgba(11, 196, 226, 0.4);
         font-weight: 800;
         letter-spacing: -0.5px;
@@ -1889,10 +2181,60 @@ class OpenKairoMiningPanel extends LitElement {
       .subtitle { 
         margin-top: 10px; 
         font-size: 1.2em; 
-        color: #8E9BAE; 
+        color: #888;
+      }
+      .ticker-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(11, 196, 226, 0.1);
+        border-radius: 8px;
+        border-radius: var(--theme-radius);
+        padding: 8px 15px;
+        margin-bottom: 20px;
+        font-size: 0.75em;
+        font-family: 'Share Tech Mono', monospace;
+        color: #888;
+        letter-spacing: 0.5px;
+        backdrop-filter: blur(5px);
+      }
+
+      .btn-mining {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 900;
+        font-size: 1.4em;
+        padding: 18px 40px;
+        border-radius: var(--theme-radius);
         text-transform: uppercase;
-        letter-spacing: 2px;
-        font-weight: 600;
+        letter-spacing: 4px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+        width: 100%;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .btn-mining::after {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+        transform: rotate(45deg);
+        transition: 0.5s;
+        pointer-events: none;
+      }
+
+      .btn-mining:hover::after {
+        left: 100%;
       }
       
       .tabs { display: flex; justify-content: center; margin-bottom: 35px; gap: 15px; flex-wrap: wrap; }
@@ -1900,7 +2242,7 @@ class OpenKairoMiningPanel extends LitElement {
         padding: 14px 25px; 
         background: rgba(30, 30, 30, 0.6); 
         border: 1px solid rgba(11, 196, 226, 0.2); 
-        border-radius: 8px; 
+        border-radius: var(--theme-radius); 
         cursor: pointer; 
         font-weight: 700;
         transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); 
@@ -1924,7 +2266,7 @@ class OpenKairoMiningPanel extends LitElement {
       /* Techy Cards */
       .card { 
         background: rgba(18, 18, 20, 0.4); 
-        border-radius: 16px; 
+        border-radius: var(--theme-radius); 
         padding: 35px; 
         box-shadow: 0 15px 50px rgba(0,0,0,0.6); 
         margin-bottom: 25px; 
@@ -1944,21 +2286,39 @@ class OpenKairoMiningPanel extends LitElement {
       
       .empty-state { text-align: center; padding: 60px 20px; color: #777; border: 1px dashed #444; }
       
+      .dashboard-wrapper {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 20px;
+      }
+      
       /* Grid for Miners Dashboard */
-      .miners-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
+      .miners-grid { 
+        display: grid; 
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); 
+        gap: 25px; 
+        width: 100%;
+      }
       
       /* Single Miner Layout */
-      .miners-grid.single-miner { display: flex; justify-content: center; }
-      .miners-grid.single-miner .miner-card { width: 100%; max-width: 700px; padding: 40px; }
-      .miners-grid.single-miner .miner-header h3 { font-size: 2.2em; }
-      .miners-grid.single-miner .status-badge { font-size: 1.5em; padding: 15px 30px; }
-      .miners-grid.single-miner .miner-details p { font-size: 1.1em; }
-      .miners-grid.single-miner .btn-power { font-size: 1.8em; padding: 0 30px; }
-      .miners-grid.single-miner .tech-box { padding: 20px; }
+      .miners-grid.single-miner { 
+        display: flex; 
+        justify-content: center; 
+        align-items: flex-start;
+        width: 100%;
+        margin-top: 40px !important;
+      }
+      .miners-grid.single-miner .miner-card { 
+        width: 100%; 
+        max-width: 700px; 
+        padding: 40px; 
+        margin: 0 auto;
+      }
       
       .miner-card { 
         background: linear-gradient(180deg, rgba(35,35,40,0.6) 0%, rgba(20,20,22,0.6) 100%);
-        border-radius: 16px; 
+        border-radius: var(--theme-radius); 
         padding: 25px; 
         position: relative;
         border: 1px solid rgba(255,255,255,0.06);
@@ -1975,7 +2335,7 @@ class OpenKairoMiningPanel extends LitElement {
       }
       .miner-card::before {
         content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-        background: linear-gradient(90deg, #0bc4e2, #2ecc71); border-radius: 16px 16px 0 0;
+        background: linear-gradient(90deg, #0bc4e2, #d62cf6); border-radius: var(--theme-radius) var(--theme-radius) 0 0;
         z-index: 2;
       }
       
@@ -1997,12 +2357,12 @@ class OpenKairoMiningPanel extends LitElement {
       
       .miner-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 18px; }
       .miner-header h3 { margin: 0; font-size: 1.5em; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.1); }
-      .prio-badge { background: rgba(11, 196, 226, 0.15); padding: 4px 10px; border-radius: 6px; font-size: 0.85em; color: #0bc4e2; font-weight: bold; border: 1px solid rgba(11, 196, 226, 0.4);}
+      .prio-badge { background: rgba(11, 196, 226, 0.15); padding: 4px 10px; border-radius: var(--theme-radius); font-size: 0.85em; color: #0bc4e2; font-weight: bold; border: 1px solid rgba(11, 196, 226, 0.4);}
       .prio-badge.small { font-size: 0.75em; padding: 2px 6px; }
       
       .miner-status { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; align-items: stretch; }
       .status-badge { 
-        padding: 10px 20px; border-radius: 12px; font-weight: 800; 
+        padding: 10px 20px; border-radius: var(--theme-radius); font-weight: 800; 
         background: rgba(0,0,0,0.5); color: #555; text-align: center; width: 100%; font-size: 1.2em;
         letter-spacing: 1.5px; border: 1px solid rgba(255,255,255,0.05);
         display: flex; align-items: center; justify-content: center;
@@ -2011,10 +2371,10 @@ class OpenKairoMiningPanel extends LitElement {
         transition: all 0.3s ease;
       }
       .status-badge.on { 
-        background: rgba(39, 174, 96, 0.15); color: #2ecc71; 
-        border-color: rgba(46, 204, 113, 0.5); 
-        box-shadow: inset 0 2px 15px rgba(46, 204, 113, 0.1), 0 0 15px rgba(46, 204, 113, 0.15);
-        text-shadow: 0 0 8px rgba(46, 204, 113, 0.6); 
+        background: rgba(39, 174, 96, 0.15); color: #d62cf6; 
+        border-color: rgba(214, 44, 246, 0.5); 
+        box-shadow: inset 0 2px 15px rgba(214, 44, 246, 0.1), 0 0 15px rgba(214, 44, 246, 0.15);
+        text-shadow: 0 0 8px rgba(214, 44, 246, 0.6); 
       }
       .status-badge.off { 
         background: rgba(231, 76, 60, 0.1); color: #e74c3c; 
@@ -2034,15 +2394,15 @@ class OpenKairoMiningPanel extends LitElement {
       }
       
       .btn-power {
-        background: rgba(37, 37, 40, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #888;
+        background: rgba(37, 37, 40, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--theme-radius); color: #888;
         font-size: 1.5em; padding: 0 20px; cursor: pointer; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         display: flex; align-items: center; justify-content: center;
         backdrop-filter: blur(5px);
       }
       .btn-power:hover { background: rgba(50,50,55,0.8); color: #0bc4e2; border-color: #0bc4e2; transform: scale(1.05); }
       .btn-power:active { transform: scale(0.95); }
-      .btn-power.on { color: #2ecc71; border-color: rgba(46, 204, 113, 0.5); background: rgba(46, 204, 113, 0.15); box-shadow: 0 0 15px rgba(46, 204, 113, 0.2); }
-      .btn-power.on:hover { background: rgba(46, 204, 113, 0.25); box-shadow: 0 0 20px rgba(46, 204, 113, 0.3); }
+      .btn-power.on { color: #d62cf6; border-color: rgba(214, 44, 246, 0.5); background: rgba(214, 44, 246, 0.15); box-shadow: 0 0 15px rgba(214, 44, 246, 0.2); }
+      .btn-power.on:hover { background: rgba(214, 44, 246, 0.25); box-shadow: 0 0 20px rgba(214, 44, 246, 0.3); }
       
       .miner-details p { margin: 8px 0; font-size: 0.95em; color: #ccc; }
       .accent-text { color: #0bc4e2; font-weight: bold; text-shadow: 0 0 5px rgba(11, 196, 226, 0.3); }
@@ -2066,8 +2426,8 @@ class OpenKairoMiningPanel extends LitElement {
       .btn-control:active { transform: translateY(0); }
       .btn-control.mode-low { border-color: rgba(52, 152, 219, 0.4); color: #3498db; }
       .btn-control.mode-low:hover { background: rgba(52, 152, 219, 0.1); box-shadow: 0 0 15px rgba(52, 152, 219, 0.2); }
-      .btn-control.mode-normal { border-color: rgba(46, 204, 113, 0.4); color: #2ecc71; }
-      .btn-control.mode-normal:hover { background: rgba(46, 204, 113, 0.1); box-shadow: 0 0 15px rgba(46, 204, 113, 0.2); }
+      .btn-control.mode-normal { border-color: rgba(214, 44, 246, 0.4); color: #d62cf6; }
+      .btn-control.mode-normal:hover { background: rgba(214, 44, 246, 0.1); box-shadow: 0 0 15px rgba(214, 44, 246, 0.2); }
       .btn-control.mode-high { border-color: rgba(231, 76, 60, 0.4); color: #e74c3c; }
       .btn-control.mode-high:hover { background: rgba(231, 76, 60, 0.1); box-shadow: 0 0 15px rgba(231, 76, 60, 0.2); }
       .btn-control.action { background: rgba(255,255,255,0.05); }
@@ -2115,7 +2475,7 @@ class OpenKairoMiningPanel extends LitElement {
         cursor: pointer; font-weight: 800; margin-bottom: 25px; width: 100%; font-size: 1.1em; 
         transition: 0.3s; box-shadow: 0 4px 15px rgba(11, 196, 226, 0.3);
       }
-      .btn-primary:hover { background: #00d4ff; box-shadow: 0 6px 20px rgba(11, 196, 226, 0.5); }
+      .btn-primary:hover { background: #ff5cfc; box-shadow: 0 6px 20px rgba(11, 196, 226, 0.5); }
       
       .miner-list { display: flex; flex-direction: column; gap: 12px; }
       .miner-list-item { 
@@ -2168,7 +2528,7 @@ class OpenKairoMiningPanel extends LitElement {
         cursor: pointer; flex: 2; font-weight: 800; font-size: 1.1em; transition: 0.3s;
         box-shadow: 0 4px 15px rgba(11, 196, 226, 0.3);
       }
-      .btn-save:hover { background: #00d4ff; box-shadow: 0 6px 20px rgba(11, 196, 226, 0.5); transform: translateY(-2px); }
+      .btn-save:hover { background: #ff5cfc; box-shadow: 0 6px 20px rgba(11, 196, 226, 0.5); transform: translateY(-2px); }
       .btn-cancel { 
         background: transparent; color: #aaa; border: 1px solid #555; padding: 16px; 
         border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; font-size: 1.1em; transition: 0.3s;
@@ -2276,21 +2636,72 @@ class OpenKairoMiningPanel extends LitElement {
 
       /* Mobile Optimierungen - ÜBERSCHREIBEN ODER ERGÄNZEN BESTEHENDER STYLES */
       @media (max-width: 768px) {
-        .header h1 { font-size: 1.5em; text-align: center; }
-        .subtitle { text-align: center; }
-        .tabs { margin: 0 5px 15px 5px; gap: 5px; flex-wrap: wrap; }
-        .tab { padding: 8px 12px; font-size: 0.85em; flex: 1 1 30%; text-align: center; border-radius: 4px; }
-        .ticker-container { margin: 0 10px 15px 10px; padding: 6px 10px; font-size: 0.8em; gap: 12px; justify-content: flex-start; }
-        .miner-card { padding: 15px; margin-bottom: 15px; border-radius: 10px; }
-        .miner-header h2 { font-size: 1.1em; }
-        .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
-        .stat-card { padding: 12px !important; }
-        .stat-val { font-size: 1.2em !important; }
-        .stat-label { font-size: 0.75em !important; }
-        .miner-details { grid-template-columns: 1fr; gap: 10px; }
-        .power-limit-box { padding: 12px; }
-        .form-row { flex-direction: column; gap: 0; }
-        .footer { font-size: 0.8em; padding: 20px 10px; }
+        .header { 
+          flex-direction: column !important; 
+          text-align: center !important; 
+          padding: 15px !important;
+          gap: 15px !important;
+          margin-bottom: 20px !important;
+          border-radius: 12px !important;
+          position: relative;
+          z-index: 100;
+        }
+        .header .title-section { text-align: center !important; width: 100%; }
+        .header .title-section h1 { justify-content: center !important; font-size: 1.6em !important; }
+        .header .subtitle { letter-spacing: 1px !important; font-size: 0.75em !important; }
+        
+        .profile-section { 
+          flex-direction: column !important; 
+          gap: 10px !important; 
+          width: 100%;
+          padding-bottom: 15px;
+          border-bottom: 1px dashed rgba(255,255,255,0.1);
+        }
+        .avatar-container { width: 50px !important; height: 50px !important; }
+        .wallet-info { text-align: center !important; }
+        .wallet-info div:first-child { font-size: 0.6em !important; }
+        .wallet-info div:last-child { font-size: 1.4em !important; }
+        
+        .overview-section { 
+          grid-template-columns: repeat(2, 1fr) !important; 
+          gap: 10px !important; 
+          margin-bottom: 20px !important;
+        }
+        .overview-section .card { padding: 15px !important; }
+        .overview-section .card div:nth-child(2) { font-size: 1.5em !important; margin-top: 10px !important; }
+        .overview-section .card span { font-size: 0.65em !important; }
+        
+        .tabs { margin: 0 5px 15px 5px !important; gap: 8px !important; }
+        .tab { padding: 10px 5px !important; font-size: 0.8em !important; flex: 1 1 45% !important; border-radius: 8px !important; }
+        
+        .ticker-container { 
+          margin: 0 5px 15px 5px !important; 
+          padding: 8px !important; 
+          font-size: 0.7em !important; 
+          gap: 10px !important; 
+          flex-direction: column !important; 
+          align-items: flex-start !important;
+        }
+        .ticker-item { width: 100%; justify-content: space-between; }
+        
+        .miner-card { padding: 15px !important; margin-bottom: 15px !important; }
+        .miner-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+        .btn-mining { padding: 15px !important; font-size: 1.1em !important; letter-spacing: 2px !important; }
+        
+        .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+        .stat-card { padding: 10px !important; }
+        .stat-val { font-size: 1.1em !important; }
+        
+        .miner-details { grid-template-columns: 1fr !important; }
+      }
+
+      /* Speziell für sehr schmale Handys */
+      @media (max-width: 480px) {
+        .overview-section { 
+          grid-template-columns: 1fr !important; 
+        }
+        .header .title-section h1 { font-size: 1.3em !important; }
+        .tab { flex: 1 1 100% !important; }
       }
     `;
   }

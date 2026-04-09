@@ -58,5 +58,5 @@ class MinerSwitch(CoordinatorEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs):
         """Turn the miner off."""
         if self.coordinator.miner_obj:
-            await self.coordinator.miner_obj.pause_mining()
+            await self.coordinator.miner_obj.stop_mining()
             await self.coordinator.async_request_refresh()
