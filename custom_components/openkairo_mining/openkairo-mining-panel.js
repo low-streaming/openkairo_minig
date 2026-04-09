@@ -817,6 +817,15 @@ class OpenKairoMiningPanel extends LitElement {
     `;
   }
 
+  _formatValue(stateObj, unit = '', fallback = '-') {
+    if (!stateObj || stateObj.state === 'unavailable' || stateObj.state === 'unknown') {
+      return fallback;
+    }
+    const val = stateObj.state;
+    const u = unit || stateObj.attributes?.unit_of_measurement || '';
+    return val + (u ? ' ' + u : '');
+  }
+
   renderDashboard() {
     if (!this.config.miners || this.config.miners.length === 0) {
       return html`
@@ -842,39 +851,13 @@ class OpenKairoMiningPanel extends LitElement {
               switchState = this.hass.states[miner.switch].state;
             }
 
-            let pvValue = 'N/A';
-            if (miner.mode === 'pv' && this.hass && miner.pv_sensor && this.hass.states[miner.pv_sensor]) {
-              pvValue = this.hass.states[miner.pv_sensor].state + ' W';
-            }
+            let pvValue = this._formatValue(this.hass?.states[miner.pv_sensor], 'W', 'N/A');
+            let batteryValue = this._formatValue(this.hass?.states[miner.battery_sensor], '%', '');
 
-            let batteryValue = '';
-            if (miner.mode === 'pv' && miner.allow_battery && this.hass && miner.battery_sensor && this.hass.states[miner.battery_sensor]) {
-              batteryValue = this.hass.states[miner.battery_sensor].state + ' %';
-            }
-
-            let hashrateValue = '';
-            if (miner.hashrate_sensor && this.hass && this.hass.states[miner.hashrate_sensor]) {
-              const stateObj = this.hass.states[miner.hashrate_sensor];
-              hashrateValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || 'TH/s');
-            }
-
-            let tempValue = '';
-            if (miner.temp_sensor && this.hass && this.hass.states[miner.temp_sensor]) {
-              const stateObj = this.hass.states[miner.temp_sensor];
-              tempValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || '°C');
-            }
-
-            let powerConsumptionValue = '';
-            if (miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]) {
-              const stateObj = this.hass.states[miner.power_consumption_sensor];
-              powerConsumptionValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || 'W');
-            }
-
-            let batterySOCValue = '';
-            if (miner.battery_sensor && this.hass && this.hass.states[miner.battery_sensor]) {
-              const stateObj = this.hass.states[miner.battery_sensor];
-              batterySOCValue = stateObj.state + ' ' + (stateObj.attributes?.unit_of_measurement || '%');
-            }
+            let hashrateValue = this._formatValue(this.hass?.states[miner.hashrate_sensor], 'TH/s');
+            let tempValue = this._formatValue(this.hass?.states[miner.temp_sensor], '°C');
+            let powerConsumptionValue = this._formatValue(this.hass?.states[miner.power_consumption_sensor], 'W');
+            let batterySOCValue = this._formatValue(this.hass?.states[miner.battery_sensor], '%');
 
             // Profitabilitäts-Berechnung
             let dailyRevenue = 0;
@@ -947,10 +930,9 @@ class OpenKairoMiningPanel extends LitElement {
             const profitColor = profit > 0 ? '#2ecc71' : (profit < 0 ? '#e74c3c' : '#aaa');
             const profitStr = hasProfitData ? (isFinite(profit) ? profit.toFixed(2) : '0.00') : '';
 
-            let powerObj = null;
-            if (miner.power_entity && this.hass && this.hass.states[miner.power_entity]) {
-              powerObj = this.hass.states[miner.power_entity];
-            }
+            let powerObj = (miner.power_entity && this.hass) ? this.hass.states[miner.power_entity] : null;
+            const powerState = powerObj ? powerObj.state : '-';
+            const powerUnit = powerObj?.attributes?.unit_of_measurement || 'W';
 
             const friendlySwitchName = this.hass && this.hass.states[miner.switch] && this.hass.states[miner.switch].attributes?.friendly_name
               ? this.hass.states[miner.switch].attributes.friendly_name
@@ -972,7 +954,9 @@ class OpenKairoMiningPanel extends LitElement {
                 
                 <div class="miner-status">
                   <span class="status-badge ${switchState === 'on' ? 'on' : switchState === 'off' ? 'off' : ''} ${stateObj && stateObj.ramping ? 'pulse-orange' : ''}">
-                    ${stateObj && stateObj.ramping === 'up' ? 'RAMPING UP ⚡' : stateObj && stateObj.ramping === 'down' ? 'RAMPING DOWN 💤' : (switchState === 'on' ? 'MINING 🚀' : switchState === 'off' ? 'STANDBY 💤' : switchState)}
+                    ${stateObj && stateObj.ramping === 'up' ? `HOCHFAHREN ${stateObj.ramping_total ? `(${stateObj.ramping_step}/${stateObj.ramping_total})` : ''} ⚡` : 
+                      stateObj && stateObj.ramping === 'down' ? `HERUNTERFAHREN ${stateObj.ramping_total ? `(${stateObj.ramping_step}/${stateObj.ramping_total})` : ''} 💤` : 
+                      (switchState === 'on' ? 'MINING 🚀' : switchState === 'off' ? 'STANDBY 💤' : switchState)}
                   </span>
                   <button class="btn-power ${switchState === 'on' ? 'on' : ''}" @click="${() => this.toggleMiner(miner)}" title="Manuell ein/ausschalten">
                     ⏻
@@ -981,10 +965,10 @@ class OpenKairoMiningPanel extends LitElement {
                 
                 ${(hashrateValue || tempValue || powerConsumptionValue || batterySOCValue) ? html`
                   <div class="api-stats">
-                    ${hashrateValue ? html`<div class="stat"><span class="lbl">Hashrate:</span> <span class="val">${hashrateValue}</span></div>` : ''}
-                    ${tempValue ? html`<div class="stat"><span class="lbl">Temp:</span> <span class="val">${tempValue}</span></div>` : ''}
-                    ${powerConsumptionValue ? html`<div class="stat"><span class="lbl">Verbrauch:</span> <span class="val">${powerConsumptionValue}</span></div>` : ''}
-                    ${batterySOCValue ? html`<div class="stat"><span class="lbl">SOC:</span> <span class="val">${batterySOCValue}</span></div>` : ''}
+                    ${hashrateValue !== '-' ? html`<div class="stat"><span class="lbl">Hashrate:</span> <span class="val">${hashrateValue}</span></div>` : ''}
+                    ${tempValue !== '-' ? html`<div class="stat"><span class="lbl">Temp:</span> <span class="val">${tempValue}</span></div>` : ''}
+                    ${powerConsumptionValue !== '-' ? html`<div class="stat"><span class="lbl">Verbrauch:</span> <span class="val">${powerConsumptionValue}</span></div>` : ''}
+                    ${batterySOCValue !== '-' ? html`<div class="stat"><span class="lbl">SOC:</span> <span class="val">${batterySOCValue}</span></div>` : ''}
                   </div>
                 ` : ''}
                 
@@ -992,7 +976,7 @@ class OpenKairoMiningPanel extends LitElement {
                   <div class="power-limit-box" style="margin-top: 15px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                       <span style="font-size: 0.85em; color: #888;">Power Limit (S9/ASIC)</span>
-                      <strong style="color: #F7931A;">${powerObj.state} ${powerObj.attributes?.unit_of_measurement || 'W'}</strong>
+                      <strong style="color: #F7931A;">${powerState} ${powerUnit}</strong>
                     </div>
                     <div class="slider-container">
                       ${(() => {
@@ -1080,7 +1064,10 @@ class OpenKairoMiningPanel extends LitElement {
                         const threshold = miner.standby_power || 100;
                         const delayMins = miner.standby_delay || 10;
 
-                        if (currentWatchValue < threshold) {
+                        const sensorState = watchObj.state;
+                        const isNumeric = sensorState !== 'unavailable' && sensorState !== 'unknown' && !isNaN(parseFloat(sensorState));
+
+                        if (isNumeric && currentWatchValue < threshold) {
                           const lastChanged = new Date(watchObj.last_changed).getTime();
                           const nowMillis = new Date().getTime();
                           const elapsedMins = (nowMillis - lastChanged) / 60000;

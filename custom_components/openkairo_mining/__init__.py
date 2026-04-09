@@ -326,9 +326,11 @@ async def _mining_loop(hass):
                             if ramping == "up":
                                 steps = [s.strip() for s in str(miner.get("soft_start_steps", "100,500,1000")).split(",")]
                                 target_power = miner.get("soft_target_power", 1200)
-                                if state["ramping_step"] < len(steps):
+                                total_steps = len(steps)
+                                if state["ramping_step"] < total_steps:
+                                    state["ramping_total"] = total_steps
                                     val = steps[state["ramping_step"]]
-                                    _LOGGER.info(f"[{miner_name}] Soft-Start step {state['ramping_step'] + 1}/{len(steps)}: Setting power to {val}W")
+                                    _LOGGER.info(f"[{miner_name}] Soft-Start step {state['ramping_step'] + 1}/{total_steps}: Setting power to {val}W")
                                     await hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val}, blocking=False)
                                     if state["ramping_step"] == 0 and not is_on:
                                         await hass.services.async_call("switch", "turn_on", {"entity_id": switches}, blocking=False)
@@ -338,11 +340,15 @@ async def _mining_loop(hass):
                                     _LOGGER.info(f"[{miner_name}] Soft-Start complete. Final power: {target_power}W")
                                     await hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": target_power}, blocking=False)
                                     state["ramping"] = None
+                                    state["ramping_step"] = 0
+                                    state["ramping_total"] = 0
                             elif ramping == "down":
                                 steps = [s.strip() for s in str(miner.get("soft_stop_steps", "1000,500,100")).split(",")]
-                                if state["ramping_step"] < len(steps):
+                                total_steps = len(steps)
+                                if state["ramping_step"] < total_steps:
+                                    state["ramping_total"] = total_steps
                                     val = steps[state["ramping_step"]]
-                                    _LOGGER.info(f"[{miner_name}] Soft-Stop step {state['ramping_step'] + 1}/{len(steps)}: Setting power to {val}W")
+                                    _LOGGER.info(f"[{miner_name}] Soft-Stop step {state['ramping_step'] + 1}/{total_steps}: Setting power to {val}W")
                                     await hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val}, blocking=False)
                                     state["ramping_step"] += 1
                                     state["ramping_last_time"] = current_time
@@ -350,6 +356,8 @@ async def _mining_loop(hass):
                                     _LOGGER.info(f"[{miner_name}] Soft-Stop complete. Turning OFF {switches}")
                                     await hass.services.async_call("switch", "turn_off", {"entity_id": switches}, blocking=False)
                                     state["ramping"] = None
+                                    state["ramping_step"] = 0
+                                    state["ramping_total"] = 0
                 
                 # Manual mode might also need to stop ramping if state changed manually?
                 # For now let's hope the user doesn't mess with it.
