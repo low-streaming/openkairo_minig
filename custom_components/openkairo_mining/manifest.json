@@ -7,7 +7,15 @@
     "codeowners": [
         "@openkairo"
     ],
-    "requirements": [],
+    "requirements": [
+        "pyasic>=0.50.0"
+    ],
+    "platforms": [
+        "sensor",
+        "switch",
+        "number",
+        "select"
+    ],
     "iot_class": "local_polling",
     "config_flow": true,
     "issue_tracker": "https://github.com/low-streaming/openkairo_minig/issues"

@@ -3,15 +3,30 @@ import json
 import os
 import time
 import asyncio
+import pydantic
+
+# Pydantic Fix für pyasic unter Python 3.14 (Home Assistant 2024.x)
+try:
+    pydantic.BaseModel.model_config = {"arbitrary_types_allowed": True}
+except Exception:
+    pass
+
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.http import HomeAssistantView
-from homeassistant.const import EVENT_HOMEASSISTANT_START
+from homeassistant.const import EVENT_HOMEASSISTANT_START, Platform
 
 DOMAIN = "openkairo_mining"
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_FILE = "openkairo_mining_config.json"
+
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.NUMBER,
+    Platform.SELECT,
+]
 
 from homeassistant.components.frontend import async_register_built_in_panel, async_remove_panel
 
@@ -23,6 +38,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN]["config"] = await hass.async_add_executor_job(_load_config, hass)
+    hass.data[DOMAIN]["entry_id"] = entry.entry_id
+    hass.data[DOMAIN]["coordinators"] = {}
     
     async_register_built_in_panel(
         hass,
@@ -42,6 +59,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.http.register_view(OpenKairoMiningFrontendView())
     hass.http.register_view(OpenKairoMiningApiView())
     
+    # Setup hardware services
+    from .services import async_setup_services
+    await async_setup_services(hass)
+
+    # Forward setup to hardware platforms
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
     if not hass.data[DOMAIN].get("loop_started"):
         hass.data[DOMAIN]["loop_started"] = True
         if hass.is_running:
@@ -53,8 +77,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
-    async_remove_panel(hass, "openkairo_mining")
-    return True
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        async_remove_panel(hass, "openkairo_mining")
+    return unload_ok
 
 def _get_config_path(hass):
     return hass.config.path(CONFIG_FILE)

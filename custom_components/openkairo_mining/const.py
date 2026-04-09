@@ -1,0 +1,1 @@
+DOMAIN = "openkairo_mining"

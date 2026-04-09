@@ -59,4 +59,17 @@ Wir haben noch viel vor, um OpenKairo zur ultimativen Schaltzentrale für Miner 
 - [ ] **Support für weitere Systeme:** Native Einbindung von HiveOS-Statistiken und ASIC-Hub Funktionalitäten.
 
 ---
+## 🛠️ Fehlerbehebung (Hass-Miner Fix)
+Da die originale **Hass-Miner** Integration aktuell nicht mehr gepflegt wird, kommt es unter neueren Home Assistant Versionen (Python 3.14+) zu einem Start-Fehler (`Invalid handler specified` / `PydanticSchemaGenerationError`).
+
+**So behebst du den Fehler manuell:**
+1. Öffne mit dem File Editor die Datei `/config/custom_components/miner/__init__.py`.
+2. Füge ganz oben (Zeile 1) folgendes ein:
+   ```python
+   import pydantic
+   pydantic.main.BaseModel.model_config = {"arbitrary_types_allowed": True}
+   ```
+3. Speichere die Datei und starte Home Assistant neu.
+
+---
 **Powered by OpenKairo** | [openkairo.de](https://openkairo.de)

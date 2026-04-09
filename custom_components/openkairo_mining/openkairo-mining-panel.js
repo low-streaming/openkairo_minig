@@ -594,6 +594,37 @@ class OpenKairoMiningPanel extends LitElement {
     }
   }
 
+  async callHardwareService(miner, service, option = null) {
+    if (!this.hass) return;
+    const ipAddress = miner.switch;
+    if (!ipAddress || ipAddress.includes('.')) { 
+        // Falls IP-Adresse erkannt (Punkte enthalten)
+        const data = { ip_address: ipAddress };
+        if (option) data.mode = option;
+        
+        try {
+            await this.hass.callService('openkairo_mining', service, data);
+            console.log(`Calling service ${service} for ${ipAddress}`);
+        } catch (e) {
+            console.error("Error calling hardware service", e);
+        }
+    } else {
+        // Fallback auf alte Methode
+        this.callMinerService(miner, service, option ? { mode: option } : {});
+    }
+  }
+
+  async callMinerService(miner, service, data = {}) {
+    if (!this.hass) return;
+    // Da wir jetzt alles in openkairo_mining haben, leiten wir ggf. um
+    try {
+      await this.hass.callService('openkairo_mining', service, data);
+    } catch (e) {
+      // Fallback auf alte miner integration falls noch vorhanden
+      await this.hass.callService('miner', service, data);
+    }
+  }
+
   toggleMiner(miner) {
     if (!this.hass) return;
     const entityId = typeof miner === 'string' ? miner : miner.switch;
@@ -854,9 +885,25 @@ class OpenKairoMiningPanel extends LitElement {
             let pvValue = this._formatValue(this.hass?.states[miner.pv_sensor], 'W', 'N/A');
             let batteryValue = this._formatValue(this.hass?.states[miner.battery_sensor], '%', '');
 
-            let hashrateValue = this._formatValue(this.hass?.states[miner.hashrate_sensor], 'TH/s');
-            let tempValue = this._formatValue(this.hass?.states[miner.temp_sensor], '°C');
-            let powerConsumptionValue = this._formatValue(this.hass?.states[miner.power_consumption_sensor], 'W');
+            // --- AUTO-ENTITY MAPPING (PRO) ---
+            // Wenn keine manuellen Entitäten gesetzt sind, versuchen wir die internen 
+            // Entitäten des neuen Hardware-Treibers zu finden.
+            const ipSlug = miner.switch ? miner.switch.replace(/\./g, '_') : '';
+            const domain = 'openkairo_mining';
+            
+            let hSensor = miner.hashrate_sensor;
+            let tSensor = miner.temp_sensor;
+            let pSensor = miner.power_consumption_sensor;
+            let pEntity = miner.power_entity;
+
+            if (!hSensor && ipSlug) hSensor = `sensor.${domain}_${ipSlug}_hashrate`;
+            if (!tSensor && ipSlug) tSensor = `sensor.${domain}_${ipSlug}_temperature`;
+            if (!pSensor && ipSlug) pSensor = `sensor.${domain}_${ipSlug}_power`;
+            if (!pEntity && ipSlug) pEntity = `number.${domain}_${ipSlug}_power_limit`;
+
+            let hashrateValue = this._formatValue(this.hass?.states[hSensor], 'TH/s');
+            let tempValue = this._formatValue(this.hass?.states[tSensor], '°C');
+            let powerConsumptionValue = this._formatValue(this.hass?.states[pSensor], 'W');
             let batterySOCValue = this._formatValue(this.hass?.states[miner.battery_sensor], '%');
 
             // Profitabilitäts-Berechnung
@@ -1129,20 +1176,18 @@ class OpenKairoMiningPanel extends LitElement {
                   `}
                 </div>
 
-                ${(hashrateValue || tempValue) ? html`
                   <div class="miner-controls" style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
-                    <p style="margin: 0 0 10px 0; font-size: 0.8em; color: #888; text-transform: uppercase;">⚡ Steuerung</p>
+                    <p style="margin: 0 0 10px 0; font-size: 0.8em; color: #888; text-transform: uppercase;">⚡ Hardware Steuerung (Direkt)</p>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                      <button class="btn-control mode-low" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'low' })}">LOW</button>
-                      <button class="btn-control mode-normal" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'normal' })}">NORM</button>
-                      <button class="btn-control mode-high" @click="${() => this.callMinerService(miner, 'set_work_mode', { mode: 'high' })}">HIGH</button>
+                      <button class="btn-control mode-low" @click="${() => this.callHardwareService(miner, 'set_work_mode', 'low')}">LOW</button>
+                      <button class="btn-control mode-normal" @click="${() => this.callHardwareService(miner, 'set_work_mode', 'normal')}">NORM</button>
+                      <button class="btn-control mode-high" @click="${() => this.callHardwareService(miner, 'set_work_mode', 'high')}">HIGH</button>
                     </div>
                     <div style="display: flex; gap: 8px; margin-top: 8px;">
-                      <button class="btn-control action" @click="${() => this.callMinerService(miner, 'restart_backend')}">🔄 Restart</button>
-                      <button class="btn-control action warn" @click="${() => this.callMinerService(miner, 'reboot')}">⚡ Reboot</button>
+                      <button class="btn-control action" @click="${() => this.callHardwareService(miner, 'restart_backend')}">🔄 Restart</button>
+                      <button class="btn-control action warn" @click="${() => this.callHardwareService(miner, 'reboot')}">⚡ Reboot</button>
                     </div>
                   </div>
-                ` : ''}
               </div>
             `;
           } catch (e) {
@@ -1257,9 +1302,9 @@ class OpenKairoMiningPanel extends LitElement {
         <small style="margin-top: -15px; display: block; margin-bottom: 20px;">Die Steckdose(n) oder der 'hass-miner' Switch, an dem der Miner pausiert wird.</small>
 
         <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);">
-            <h3 style="color: #aaa; font-size: 1.1em;">🔌 Hass-Miner Integration (Optional)</h3>
-            <p style="color: #888; font-size: 0.85em; margin-top: -10px; margin-bottom: 20px;">
-                Wenn du die <a href="https://github.com/Schnitzel/hass-miner" target="_blank" style="color: #F7931A;">Hass-Miner</a> Integration von Schnitzel installiert hast, kannst du hier die Dashboard-Statistiken verknüpfen.
+            <h3 style="color: #F7931A; font-size: 1.1em;">🔌 Integrierter Hardware-Treiber (All-in-One)</h3>
+            <p style="color: #bbb; font-size: 0.85em; margin-top: -10px; margin-bottom: 20px;">
+                <b>NEU:</b> Du musst keine externe Integration mehr installieren! Wenn du oben unter "Steckdose" die <b>IP-Adresse</b> deines Miners eingibst, wird die Hardware automatisch erkannt.
             </p>
             <div class="form-row">
                 <div class="form-group flex-1">
