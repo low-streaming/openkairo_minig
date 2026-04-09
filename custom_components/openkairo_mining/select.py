@@ -14,8 +14,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     
     entities = []
     for miner in miners:
-        if miner.get("switch") and "." not in miner.get("switch"):
+        ip = miner.get("miner_ip")
+        if not ip and miner.get("switch") and "." in miner.get("switch"):
              ip = miner.get("switch")
+             
+        if ip:
              name = miner.get("name", "Asic")
              
              coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name)

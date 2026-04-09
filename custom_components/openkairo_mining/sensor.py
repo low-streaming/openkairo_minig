@@ -19,11 +19,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     
     entities = []
     for miner in miners:
-        # Check if miner has an IP or switch that could be an ASIC
-        # If it has a 'switch' and is in a special mode, we might want to skip or include
-        # For our merged integration, we assume all miners in settings could have hardware
-        if miner.get("switch") and "." not in miner.get("switch"): # Simple check for IP or host
+        # Check if miner has an explicit IP or if the switch might be an IP/Host
+        ip = miner.get("miner_ip")
+        if not ip and miner.get("switch") and "." in miner.get("switch"):
              ip = miner.get("switch")
+             
+        if ip:
              name = miner.get("name", "Asic")
              
              coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name)

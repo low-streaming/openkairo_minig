@@ -596,7 +596,7 @@ class OpenKairoMiningPanel extends LitElement {
 
   async callHardwareService(miner, service, option = null) {
     if (!this.hass) return;
-    const ipAddress = miner.switch;
+    const ipAddress = miner.miner_ip || (miner.switch && miner.switch.includes('.') ? miner.switch : '');
     if (!ipAddress || ipAddress.includes('.')) { 
         // Falls IP-Adresse erkannt (Punkte enthalten)
         const data = { ip_address: ipAddress };
@@ -886,9 +886,9 @@ class OpenKairoMiningPanel extends LitElement {
             let batteryValue = this._formatValue(this.hass?.states[miner.battery_sensor], '%', '');
 
             // --- AUTO-ENTITY MAPPING (PRO) ---
-            // Wenn keine manuellen Entitäten gesetzt sind, versuchen wir die internen 
-            // Entitäten des neuen Hardware-Treibers zu finden.
-            const ipSlug = miner.switch ? miner.switch.replace(/\./g, '_') : '';
+            // Wir verwenden primär die miner_ip, falls gesetzt, sonst den switch (Fallback).
+            const ipForSlug = miner.miner_ip || (miner.switch && miner.switch.includes('.') ? miner.switch : '');
+            const ipSlug = ipForSlug ? ipForSlug.replace(/\./g, '_') : '';
             const domain = 'openkairo_mining';
             
             let hSensor = miner.hashrate_sensor;
@@ -1291,12 +1291,13 @@ class OpenKairoMiningPanel extends LitElement {
 
         <div class="form-row">
             <div class="form-group flex-1">
-              <label>Schalter / Steckdose 1</label>
-              <openkairo-entity-picker name="switch" placeholder="-- Steckdose 1 wählen --" .value="${this.editForm.switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+              <label>ASIC IP-Adresse (für Hardware-Daten)</label>
+              <input type="text" name="miner_ip" placeholder="z.B. 192.168.1.50" .value="${this.editForm.miner_ip || ''}" @input="${this.handleFormInput}">
+              <small>Wenn ausgefüllt, werden Hashrate & Temp automatisch geladen.</small>
             </div>
             <div class="form-group flex-1">
-              <label>Schalter / Steckdose 2 (Optional)</label>
-              <openkairo-entity-picker name="switch_2" placeholder="-- Optionale Steckdose 2 --" .value="${this.editForm.switch_2 || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+              <label>Schalter / Steckdose 1</label>
+              <openkairo-entity-picker name="switch" placeholder="-- Steckdose 1 wählen --" .value="${this.editForm.switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
             </div>
         </div>
         <small style="margin-top: -15px; display: block; margin-bottom: 20px;">Die Steckdose(n) oder der 'hass-miner' Switch, an dem der Miner pausiert wird.</small>
