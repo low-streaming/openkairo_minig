@@ -34,12 +34,26 @@ async def async_setup(hass: HomeAssistant, config: dict):
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    _LOGGER.info("Setting up OpenKairo Mining Integration")
+    _LOGGER.info(f"Setting up OpenKairo Mining Integration: {entry.title}")
     
     hass.data.setdefault(DOMAIN, {})
+    
+    # Check if this entry contains IP address (meaning it's a hardware ASIC config)
+    if "ip_address" in entry.data:
+        # Load hardware platforms (sensor, switch, etc.) for this miner
+        hass.data[DOMAIN].setdefault("miners", {})
+        hass.data[DOMAIN]["miners"][entry.entry_id] = entry.data
+        
+        # We need to ensure the coordinators dict exists
+        hass.data[DOMAIN].setdefault("coordinators", {})
+        
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        return True
+    
+    # If no IP is in data, this is the main Dashboard entry (Zentrale)
     hass.data[DOMAIN]["config"] = await hass.async_add_executor_job(_load_config, hass)
     hass.data[DOMAIN]["entry_id"] = entry.entry_id
-    hass.data[DOMAIN]["coordinators"] = {}
+    hass.data[DOMAIN].setdefault("coordinators", {})
     
     async_register_built_in_panel(
         hass,
@@ -50,7 +64,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         config={
             "_panel_custom": {
                 "name": "openkairo-mining-panel",
-                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=1.2.6"
+                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=1.2.7"
             }
         },
         require_admin=True
@@ -63,9 +77,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     from .services import async_setup_services
     await async_setup_services(hass)
 
-    # Forward setup to hardware platforms
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
     if not hass.data[DOMAIN].get("loop_started"):
         hass.data[DOMAIN]["loop_started"] = True
         if hass.is_running:
@@ -77,10 +88,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        async_remove_panel(hass, "openkairo_mining")
-    return unload_ok
+    if "ip_address" in entry.data:
+        # Unload ASIC hardware platforms
+        unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        if unload_ok and entry.entry_id in hass.data[DOMAIN].get("miners", {}):
+            hass.data[DOMAIN]["miners"].pop(entry.entry_id)
+        return unload_ok
+
+    # Unload Main Dashboard
+    async_remove_panel(hass, "openkairo_mining")
+    return True
 
 def _get_config_path(hass):
     return hass.config.path(CONFIG_FILE)

@@ -9,22 +9,18 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up OpenKairo Miner select entities."""
-    config = hass.data[DOMAIN].get("config", {})
-    miners = config.get("miners", [])
+    if "ip_address" not in config_entry.data:
+        return
+
+    ip = config_entry.data["ip_address"]
+    name = config_entry.title
+    user = config_entry.data.get("username")
+    password = config_entry.data.get("password")
     
-    entities = []
-    for miner in miners:
-        ip = miner.get("miner_ip")
-        if not ip and miner.get("switch") and "." in miner.get("switch"):
-             ip = miner.get("switch")
-             
-        if ip:
-             name = miner.get("name", "Asic")
-             user = miner.get("miner_user")
-             password = miner.get("miner_password")
-             
-             coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name, user, password)
-             entities.append(MinerWorkModeSelect(coordinator, miner))
+    coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name, user, password)
+    
+    miner_config = {"id": config_entry.entry_id}
+    entities = [MinerWorkModeSelect(coordinator, miner_config)]
              
     async_add_entities(entities)
 

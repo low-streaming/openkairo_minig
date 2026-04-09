@@ -1315,31 +1315,16 @@ class OpenKairoMiningPanel extends LitElement {
 
         <div class="form-row">
             <div class="form-group flex-1">
-              <label>ASIC IP-Adresse (für Hardware-Daten)</label>
-              <input type="text" name="miner_ip" placeholder="z.B. 192.168.1.50" .value="${this.editForm.miner_ip || ''}" @input="${this.handleFormInput}">
-              <small>Wenn ausgefüllt, werden Hashrate & Temp automatisch geladen.</small>
-            </div>
-            <div class="form-group flex-1">
               <label>Schalter / Steckdose 1</label>
               <openkairo-entity-picker name="switch" placeholder="-- Steckdose 1 wählen --" .value="${this.editForm.switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
-            </div>
-        </div>
-        <div class="form-row" style="margin-top: -10px; margin-bottom: 20px;">
-            <div class="form-group flex-1">
-              <label>ASIC Benutzername (Optional)</label>
-              <input type="text" name="miner_user" placeholder="root" .value="${this.editForm.miner_user || ''}" @input="${this.handleFormInput}">
-            </div>
-            <div class="form-group flex-1">
-              <label>ASIC Passwort (Optional)</label>
-              <input type="password" name="miner_password" placeholder="Passwort" .value="${this.editForm.miner_password || ''}" @input="${this.handleFormInput}">
             </div>
         </div>
         <small style="margin-top: -15px; display: block; margin-bottom: 20px;">Die Steckdose(n) oder der 'hass-miner' Switch, an dem der Miner pausiert wird.</small>
 
         <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);">
-            <h3 style="color: #F7931A; font-size: 1.1em;">🔌 Integrierter Hardware-Treiber (All-in-One)</h3>
+            <h3 style="color: #F7931A; font-size: 1.1em;">🔌 Native Hardware Integration</h3>
             <p style="color: #bbb; font-size: 0.85em; margin-top: -10px; margin-bottom: 20px;">
-                <b>NEU:</b> Du musst keine externe Integration mehr installieren! Wenn du oben unter "Steckdose" die <b>IP-Adresse</b> deines Miners eingibst, wird die Hardware automatisch erkannt.
+                <b>NEU:</b> Gehe in Home Assistant zu <b>Einstellungen -> Geräte & Dienste -> Integration hinzufügen</b> und suche nach "OpenKairo Mining". Füge dort die IP-Adresse (sowie Passwort falls nötig) deines Miners ein. Die Sensoren werden danach automatisch generiert und du kannst sie hier unten auswählen.
             </p>
             <div class="form-row">
                 <div class="form-group flex-1">
