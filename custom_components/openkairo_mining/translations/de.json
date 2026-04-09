@@ -3,12 +3,22 @@
     "config": {
         "step": {
             "user": {
-                "title": "OpenKairo Mining Setup",
-                "description": "Erstelle die zentrale Instanz für OpenKairo Mining. Die eigentliche Konfiguration der Miner und Sensoren nimmst du danach im Dashboard-Panel in der Seitenleiste vor."
+                "title": "ASIC Miner hinzufügen",
+                "description": "Gib die Verbindungsdaten für deinen ASIC Miner ein. Das Gerät wird automatisch im Hintergrund abgefragt und eingerichtet.",
+                "data": {
+                    "ip_address": "IP-Adresse",
+                    "username": "Benutzername (Optional)",
+                    "password": "Passwort (Optional)"
+                }
             }
         },
+        "error": {
+            "cannot_connect": "Verbindung fehlgeschlagen. Überprüfe die IP-Adresse.",
+            "invalid_auth": "Anmeldung fehlgeschlagen. Überprüfe Passwort & Benutzername.",
+            "unknown": "Ein unerwarteter Fehler ist aufgetreten."
+        },
         "abort": {
-            "single_instance_allowed": "Nur eine Instanz der OpenKairo Mining Integration ist erlaubt."
+            "already_configured": "Ein Miner mit dieser IP ist bereits konfiguriert."
         }
     }
 }

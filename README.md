@@ -66,7 +66,7 @@ Da die originale **Hass-Miner** Integration aktuell nicht mehr gepflegt wird, ko
 1. Öffne mit dem File Editor die Datei `/config/custom_components/miner/__init__.py`.
 2. Füge ganz oben (Zeile 1) folgendes ein:
    ```python
-   import pydantic
+   import pydantic![alt text](image.png)
    pydantic.main.BaseModel.model_config = {"arbitrary_types_allowed": True}
    ```
 3. Speichere die Datei und starte Home Assistant neu.

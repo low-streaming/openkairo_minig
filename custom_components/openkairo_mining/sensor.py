@@ -12,6 +12,16 @@ from .coordinator import async_get_miner_coordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+def _safe_get(data, keys):
+    if not data:
+        return None
+    for key in keys:
+        if isinstance(data, dict) and key in data and data[key] is not None:
+            return data[key]
+        elif hasattr(data, key) and getattr(data, key) is not None:
+            return getattr(data, key)
+    return None
+
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up OpenKairo Miner sensors based on a config entry."""
     if "ip_address" not in config_entry.data:
@@ -29,9 +39,15 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     
     entities = [
         MinerHashrateSensor(coordinator, miner_config),
+        MinerExpectedHashrateSensor(coordinator, miner_config),
         MinerTempSensor(coordinator, miner_config),
-        MinerPowerSensor(coordinator, miner_config)
+        MinerPowerSensor(coordinator, miner_config),
+        MinerEfficiencySensor(coordinator, miner_config),
     ]
+    
+    # Optional Fans
+    for i in range(4):
+        entities.append(MinerFanSensor(coordinator, miner_config, i))
          
     async_add_entities(entities)
 
@@ -65,10 +81,23 @@ class MinerHashrateSensor(MinerBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        data = self.coordinator.data
-        if data and "hashrate" in data:
-            return round(data["hashrate"], 2)
-        return None
+        val = _safe_get(self.coordinator.data, ["hashrate"])
+        return round(val, 2) if val is not None else None
+
+class MinerExpectedHashrateSensor(MinerBaseEntity, SensorEntity):
+    """Sensor for Miner Expected Hashrate."""
+    _attr_native_unit_of_measurement = "TH/s"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    
+    def __init__(self, coordinator, miner_config):
+        super().__init__(coordinator, miner_config)
+        self._attr_unique_id = f"{self.coordinator.miner_ip}_expected_hashrate"
+        self._attr_name = f"{self.coordinator.miner_name} Ziel-Hashrate"
+
+    @property
+    def native_value(self):
+        val = _safe_get(self.coordinator.data, ["expected_hashrate", "ideal_hashrate"])
+        return round(val, 2) if val is not None else None
 
 class MinerTempSensor(MinerBaseEntity, SensorEntity):
     """Sensor for Miner Temperature."""
@@ -83,10 +112,8 @@ class MinerTempSensor(MinerBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        data = self.coordinator.data
-        if data and "temperature" in data:
-            return data["temperature"]
-        return None
+        val = _safe_get(self.coordinator.data, ["temperature", "env_temp", "temperature_avg"])
+        return round(val, 1) if val is not None else None
 
 class MinerPowerSensor(MinerBaseEntity, SensorEntity):
     """Sensor for Miner Power Consumption."""
@@ -101,7 +128,35 @@ class MinerPowerSensor(MinerBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        data = self.coordinator.data
-        if data and "wattage" in data:
-            return data["wattage"]
-        return None
+        return _safe_get(self.coordinator.data, ["wattage", "power"])
+
+class MinerEfficiencySensor(MinerBaseEntity, SensorEntity):
+    """Sensor for Miner Efficiency."""
+    _attr_native_unit_of_measurement = "W/TH"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, miner_config):
+        super().__init__(coordinator, miner_config)
+        self._attr_unique_id = f"{self.coordinator.miner_ip}_efficiency"
+        self._attr_name = f"{self.coordinator.miner_name} Effizienz"
+
+    @property
+    def native_value(self):
+        val = _safe_get(self.coordinator.data, ["efficiency"])
+        return round(val, 2) if val is not None else None
+
+class MinerFanSensor(MinerBaseEntity, SensorEntity):
+    """Sensor for Miner Fans."""
+    _attr_native_unit_of_measurement = "RPM"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, miner_config, fan_idx):
+        super().__init__(coordinator, miner_config)
+        self.fan_idx = fan_idx
+        self._attr_unique_id = f"{self.coordinator.miner_ip}_fan_{fan_idx}"
+        self._attr_name = f"{self.coordinator.miner_name} Lüfter {fan_idx + 1}"
+
+    @property
+    def native_value(self):
+        val = _safe_get(self.coordinator.data, [f"fan_{self.fan_idx}", f"fan_{self.fan_idx + 1}"])
+        return val
