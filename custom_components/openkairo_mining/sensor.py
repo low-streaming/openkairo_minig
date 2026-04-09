@@ -173,9 +173,21 @@ class MinerFanSensor(MinerBaseEntity, SensorEntity):
             
         if fans_list is not None and isinstance(fans_list, list) and len(fans_list) > self.fan_idx:
             val = fans_list[self.fan_idx]
-            if val is not None and val > 0:
-                return val
+            if val is not None:
+                # Handle pyasic Fan objects
+                if hasattr(val, "speed"):
+                    val = val.speed
+                elif hasattr(val, "rpm"):
+                    val = val.rpm
+                
+                try:
+                    v_int = int(val)
+                    if v_int > 0:
+                        return v_int
+                except (ValueError, TypeError):
+                    pass
                 
         # Fallback to direct keys
+
         val = _safe_get(data, [f"fan_{self.fan_idx}", f"fan_{self.fan_idx + 1}"])
         return val if val != -1 else None
