@@ -20,8 +20,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
              
         if ip:
              name = miner.get("name", "Asic")
+             user = miner.get("miner_user")
+             password = miner.get("miner_password")
              
-             coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name)
+             coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name, user, password)
              entities.append(MinerPowerLimit(coordinator, miner))
              
     async_add_entities(entities)
@@ -38,7 +40,7 @@ class MinerPowerLimit(CoordinatorEntity, NumberEntity):
         self.miner_id = miner_config.get("id")
         self._attr_has_entity_name = True
         self._attr_unique_id = f"{self.coordinator.miner_ip}_power_limit"
-        self._attr_name = "Power Limit"
+        self._attr_name = f"{self.coordinator.miner_name} Power-Limit"
 
     @property
     def device_info(self):

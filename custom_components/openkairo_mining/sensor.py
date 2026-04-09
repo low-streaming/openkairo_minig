@@ -26,8 +26,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
              
         if ip:
              name = miner.get("name", "Asic")
+             user = miner.get("miner_user")
+             password = miner.get("miner_password")
              
-             coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name)
+             coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name, user, password)
              entities.append(MinerHashrateSensor(coordinator, miner))
              entities.append(MinerTempSensor(coordinator, miner))
              entities.append(MinerPowerSensor(coordinator, miner))
@@ -60,7 +62,7 @@ class MinerHashrateSensor(MinerBaseEntity, SensorEntity):
     def __init__(self, coordinator, miner_config):
         super().__init__(coordinator, miner_config)
         self._attr_unique_id = f"{self.coordinator.miner_ip}_hashrate"
-        self._attr_name = "Hashrate"
+        self._attr_name = f"{self.coordinator.miner_name} Hashrate"
 
     @property
     def native_value(self):
@@ -78,7 +80,7 @@ class MinerTempSensor(MinerBaseEntity, SensorEntity):
     def __init__(self, coordinator, miner_config):
         super().__init__(coordinator, miner_config)
         self._attr_unique_id = f"{self.coordinator.miner_ip}_temperature"
-        self._attr_name = "Temperatur"
+        self._attr_name = f"{self.coordinator.miner_name} Temperatur"
 
     @property
     def native_value(self):
@@ -96,7 +98,7 @@ class MinerPowerSensor(MinerBaseEntity, SensorEntity):
     def __init__(self, coordinator, miner_config):
         super().__init__(coordinator, miner_config)
         self._attr_unique_id = f"{self.coordinator.miner_ip}_power"
-        self._attr_name = "Verbrauch"
+        self._attr_name = f"{self.coordinator.miner_name} Verbrauch"
 
     @property
     def native_value(self):

@@ -276,7 +276,9 @@ class OpenKairoEntityPicker extends LitElement {
     `;
   }
 }
-customElements.define("openkairo-entity-picker", OpenKairoEntityPicker);
+if (!customElements.get('openkairo-entity-picker')) {
+    customElements.define('openkairo-entity-picker', OpenKairoEntityPicker);
+}
 
 class OpenKairoMiningPanel extends LitElement {
   static get properties() {
@@ -659,15 +661,34 @@ class OpenKairoMiningPanel extends LitElement {
 
   handleFormInput(e) {
     const { name, value, type, checked } = e.target;
+    const finalValue = type === 'checkbox' ? checked : value;
     
-    if (name === 'switch_2' && value && value !== this.editForm.switch_2) {
+    if (name === 'switch_2' && finalValue && finalValue !== this.editForm.switch_2) {
         if (!confirm("⚠️ WARNUNG: Der Betrieb eines Miners an zwei getrennten smarten Steckdosen ist eigentlich nicht zulässig und erfolgt auf eigene Gefahr! \n\nEs kann zu Problemen beim Leistungsschutz oder zur Überlastung führen. Möchtest du fortfahren?")) {
             e.target.value = '';
             return;
         }
     }
 
-    this.editForm = { ...this.editForm, [name]: type === 'checkbox' ? checked : value };
+    let updatedForm = { ...this.editForm, [name]: finalValue };
+
+    // Automatische Entitäten-Vorauswahl bei IP-Eingabe
+    if (name === 'miner_ip' && finalValue.includes('.')) {
+        const ipSlug = finalValue.replace(/\./g, '_');
+        const domain = 'openkairo_mining';
+        
+        const autoHashrate = `sensor.${domain}_${ipSlug}_hashrate`;
+        const autoTemp = `sensor.${domain}_${ipSlug}_temperature`;
+        const autoPower = `sensor.${domain}_${ipSlug}_power`;
+        const autoLimit = `number.${domain}_${ipSlug}_power_limit`;
+
+        if (this.hass?.states[autoHashrate] && !updatedForm.hashrate_sensor) updatedForm.hashrate_sensor = autoHashrate;
+        if (this.hass?.states[autoTemp] && !updatedForm.temp_sensor) updatedForm.temp_sensor = autoTemp;
+        if (this.hass?.states[autoPower] && !updatedForm.power_consumption_sensor) updatedForm.power_consumption_sensor = autoPower;
+        if (this.hass?.states[autoLimit] && !updatedForm.power_entity) updatedForm.power_entity = autoLimit;
+    }
+
+    this.editForm = updatedForm;
     this.requestUpdate();
   }
 
@@ -1301,6 +1322,16 @@ class OpenKairoMiningPanel extends LitElement {
             <div class="form-group flex-1">
               <label>Schalter / Steckdose 1</label>
               <openkairo-entity-picker name="switch" placeholder="-- Steckdose 1 wählen --" .value="${this.editForm.switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+            </div>
+        </div>
+        <div class="form-row" style="margin-top: -10px; margin-bottom: 20px;">
+            <div class="form-group flex-1">
+              <label>ASIC Benutzername (Optional)</label>
+              <input type="text" name="miner_user" placeholder="root" .value="${this.editForm.miner_user || ''}" @input="${this.handleFormInput}">
+            </div>
+            <div class="form-group flex-1">
+              <label>ASIC Passwort (Optional)</label>
+              <input type="password" name="miner_password" placeholder="Passwort" .value="${this.editForm.miner_password || ''}" @input="${this.handleFormInput}">
             </div>
         </div>
         <small style="margin-top: -15px; display: block; margin-bottom: 20px;">Die Steckdose(n) oder der 'hass-miner' Switch, an dem der Miner pausiert wird.</small>
