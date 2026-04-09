@@ -17,6 +17,8 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required("ip_address"): str,
         vol.Optional("username", default="root"): str,
         vol.Optional("password", default=""): str,
+        vol.Optional("ssh_username", default="root"): str,
+        vol.Optional("ssh_password", default=""): str,
     }
 )
 
@@ -25,6 +27,8 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
     ip_address = data["ip_address"]
     username = data.get("username", "root")
     password = data.get("password", "")
+    ssh_username = data.get("ssh_username", "root")
+    ssh_password = data.get("ssh_password", "")
 
     try:
         miner = await pyasic.get_miner(ip_address)
@@ -34,6 +38,13 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
         if password:
             miner.username = username
             miner.pwd = password
+            
+        if ssh_password:
+            try:
+                miner.ssh_username = ssh_username
+                miner.ssh_pwd = ssh_password
+            except Exception:
+                pass
 
         # Versuche Daten abzurufen, um Login zu testen
         miner_data = await miner.get_data()

@@ -31,8 +31,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     name = config_entry.title
     user = config_entry.data.get("username")
     password = config_entry.data.get("password")
+    ssh_user = config_entry.data.get("ssh_username")
+    ssh_password = config_entry.data.get("ssh_password")
     
-    coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name, user, password)
+    coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name, user, password, ssh_user, ssh_password)
     
     # Dummy Config, um die restliche Klasse nicht komplett umschreiben zu müssen
     miner_config = {"id": config_entry.entry_id}
@@ -158,5 +160,22 @@ class MinerFanSensor(MinerBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        val = _safe_get(self.coordinator.data, [f"fan_{self.fan_idx}", f"fan_{self.fan_idx + 1}"])
-        return val
+        data = self.coordinator.data
+        if not data:
+            return None
+            
+        # Check for list of fans in dataclass / dict
+        fans_list = None
+        if isinstance(data, dict) and "fans" in data:
+            fans_list = data["fans"]
+        elif hasattr(data, "fans"):
+            fans_list = getattr(data, "fans")
+            
+        if fans_list is not None and isinstance(fans_list, list) and len(fans_list) > self.fan_idx:
+            val = fans_list[self.fan_idx]
+            if val is not None and val > 0:
+                return val
+                
+        # Fallback to direct keys
+        val = _safe_get(data, [f"fan_{self.fan_idx}", f"fan_{self.fan_idx + 1}"])
+        return val if val != -1 else None

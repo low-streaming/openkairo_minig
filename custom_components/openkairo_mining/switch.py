@@ -16,8 +16,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     name = config_entry.title
     user = config_entry.data.get("username")
     password = config_entry.data.get("password")
+    ssh_user = config_entry.data.get("ssh_username")
+    ssh_password = config_entry.data.get("ssh_password")
     
-    coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name, user, password)
+    coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name, user, password, ssh_user, ssh_password)
     
     miner_config = {"id": config_entry.entry_id}
     entities = [MinerSwitch(coordinator, miner_config)]
