@@ -161,9 +161,25 @@ class OpenKairoMiningApiView(HomeAssistantView):
             "height": hass.data.get(DOMAIN, {}).get("mempool_height"),
             "halving": hass.data.get(DOMAIN, {}).get("mempool_halving")
         }
+        
+        logs = hass.data.get(DOMAIN, {}).get("logs", [])
 
         from aiohttp import web
-        return web.json_response({"status": "ok", "config": config, "states": clean_states, "mempool": mempool})
+        return web.json_response({"status": "ok", "config": config, "states": clean_states, "mempool": mempool, "logs": logs})
+
+def _add_log_entry(hass, message):
+    if DOMAIN not in hass.data:
+        return
+    if "logs" not in hass.data[DOMAIN]:
+        hass.data[DOMAIN]["logs"] = []
+    
+    timestamp = time.strftime("%H:%M:%S")
+    log_entry = f"[{timestamp}] {message}"
+    
+    hass.data[DOMAIN]["logs"].insert(0, log_entry)
+    # Keep only last 20 entries
+    hass.data[DOMAIN]["logs"] = hass.data[DOMAIN]["logs"][:20]
+    _LOGGER.info(f"[OpenKairo Log] {message}")
 
 
     async def post(self, request):
@@ -254,7 +270,9 @@ async def _mining_loop(hass):
                                     if state.get("standby_since") is None:
                                         state["standby_since"] = current_time
                                     elif current_time - state["standby_since"] >= standby_delay_secs:
-                                        _LOGGER.warning(f"[{miner_name}] Watchdog triggered ({watchdog_type})! Value {current_value} < {standby_threshold} for >={standby_delay_mins} min. Turning OFF {standby_switch}.")
+                                        msg = f"Watchdog an {miner_name} ausgelöst ({watchdog_type})! Wert {current_value} zu niedrig. Schalte Steckdose AUS."
+                                        _LOGGER.warning(f"[{miner_name}] {msg}")
+                                        _add_log_entry(hass, f"🛡️ {msg}")
                                         await hass.services.async_call("switch", "turn_off", {"entity_id": standby_switch}, blocking=False)
                                         state["standby_since"] = None
                                 else:
@@ -343,16 +361,20 @@ async def _mining_loop(hass):
                                 if standby_switch:
                                     standby_switch_state = hass.states.get(standby_switch)
                                     if standby_switch_state and standby_switch_state.state == "off":
-                                        _LOGGER.info(f"[{miner_name}] Watchdog recovery! Turning ON {standby_switch}")
+                                        msg = f"Watchdog-Erholung für {miner_name}: Schalte Steckdose wieder EIN."
+                                        _LOGGER.info(f"[{miner_name}] {msg}")
+                                        _add_log_entry(hass, f"🛡️ {msg}")
                                         await hass.services.async_call("switch", "turn_on", {"entity_id": standby_switch}, blocking=False)
                             
                             if not is_on and state.get("ramping") != "up":
                                 if miner.get("soft_start_enabled") and miner.get("power_entity"):
+                                    _add_log_entry(hass, f"🎢 {miner_name}: Soft-Start (Hochfahren) gestartet.")
                                     _LOGGER.info(f"[{miner_name}] Starting Soft-Start Ramping Up")
                                     state["ramping"] = "up"
                                     state["ramping_step"] = 0
                                     state["ramping_last_time"] = 0 # trigger immediately
                                 else:
+                                    _add_log_entry(hass, f"⚡ {miner_name} wird eingeschaltet (PV/SOC).")
                                     _LOGGER.info(f"[{miner_name}] Turn ON condition met for >= {delay_minutes} min, turning ON {switches}")
                                     await hass.services.async_call("switch", "turn_on", {"entity_id": switches}, blocking=False)
                     else:
@@ -364,11 +386,13 @@ async def _mining_loop(hass):
                         elif current_time - state["off_since"] >= delay_seconds:
                             if is_on and state.get("ramping") != "down":
                                 if miner.get("soft_stop_enabled") and miner.get("power_entity"):
+                                    _add_log_entry(hass, f"🎢 {miner_name}: Soft-Stop (Herunterfahren) gestartet.")
                                     _LOGGER.info(f"[{miner_name}] Starting Soft-Stop Ramping Down")
                                     state["ramping"] = "down"
                                     state["ramping_step"] = 0
                                     state["ramping_last_time"] = 0 # trigger immediately
                                 else:
+                                    _add_log_entry(hass, f"💤 {miner_name} wird ausgeschaltet (PV/SOC).")
                                     _LOGGER.info(f"[{miner_name}] Turn OFF condition met for >= {delay_minutes} min, turning OFF {switches}")
                                     await hass.services.async_call("switch", "turn_off", {"entity_id": switches}, blocking=False)
                     else:
@@ -382,11 +406,12 @@ async def _mining_loop(hass):
                             power_entity = miner.get("power_entity")
                             if ramping == "up":
                                 steps = [s.strip() for s in str(miner.get("soft_start_steps", "100,500,1000")).split(",")]
-                                target_power = miner.get("soft_target_power", 1200)
+                                target_power = float(miner.get("soft_target_power", 1200))
                                 total_steps = len(steps)
                                 if state["ramping_step"] < total_steps:
                                     state["ramping_total"] = total_steps
-                                    val = steps[state["ramping_step"]]
+                                    # Capping: Never exceed target_power during ramping steps
+                                    val = min(float(steps[state["ramping_step"]]), target_power)
                                     _LOGGER.info(f"[{miner_name}] Soft-Start step {state['ramping_step'] + 1}/{total_steps}: Setting power to {val}W")
                                     await hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val}, blocking=False)
                                     if state["ramping_step"] == 0 and not is_on:
@@ -394,6 +419,7 @@ async def _mining_loop(hass):
                                     state["ramping_step"] += 1
                                     state["ramping_last_time"] = current_time
                                 else:
+                                    _add_log_entry(hass, f"✅ {miner_name}: Soft-Start abgeschlossen ({target_power}W).")
                                     _LOGGER.info(f"[{miner_name}] Soft-Start complete. Final power: {target_power}W")
                                     await hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": target_power}, blocking=False)
                                     state["ramping"] = None
@@ -404,7 +430,7 @@ async def _mining_loop(hass):
                                 total_steps = len(steps)
                                 if state["ramping_step"] < total_steps:
                                     state["ramping_total"] = total_steps
-                                    val = steps[state["ramping_step"]]
+                                    val = float(steps[state["ramping_step"]])
                                     _LOGGER.info(f"[{miner_name}] Soft-Stop step {state['ramping_step'] + 1}/{total_steps}: Setting power to {val}W")
                                     await hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val}, blocking=False)
                                     state["ramping_step"] += 1

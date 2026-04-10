@@ -292,7 +292,10 @@ class OpenKairoMiningPanel extends LitElement {
       mempool: { type: Object },
       difficulty_adjustment: { type: Object },
       btc_price_history: { type: Array },
-      previewConfig: { type: Object }
+      btcPriceEur: { type: Number },
+      btcPriceUsd: { type: Number },
+      previewConfig: { type: Object },
+      logs: { type: Array }
     };
   }
 
@@ -315,6 +318,7 @@ class OpenKairoMiningPanel extends LitElement {
     this.btc_price_history = [];
     this.previewConfig = null;
     this.loadedFonts = new Set();
+    this.logs = [];
   }
 
   firstUpdated() {
@@ -351,15 +355,20 @@ class OpenKairoMiningPanel extends LitElement {
 
   async fetchBtcPriceHistory() {
     try {
-      const response = await fetch('https://mempool.space/api/v1/historical-price');
+      // Use CoinGecko API (CORS friendly) for granular 24h data
+      const response = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=eur&days=1');
       const data = await response.json();
-      if (data && data.prices) {
-        // We take the last 24 entries (hours) for a daily chart
-        this.btc_price_history = data.prices.slice(-24);
+      
+      if (data && data.prices && Array.isArray(data.prices)) {
+        // CoinGecko returns {"prices": [[timestamp, price], ...]}
+        this.btc_price_history = data.prices.map(p => ({
+          time: p[0],
+          EUR: p[1]
+        }));
         this.requestUpdate();
       }
     } catch (e) {
-      console.error("Failed to fetch BTC price history", e);
+      console.error("Failed to fetch BTC price history from CoinGecko", e);
     }
   }
 
@@ -377,19 +386,21 @@ class OpenKairoMiningPanel extends LitElement {
   _renderPriceChart() {
     if (!this.btc_price_history || this.btc_price_history.length < 2) return '';
     
-    const prices = this.btc_price_history.map(p => p.EUR);
+    const prices = this.btc_price_history.map(p => p.EUR).filter(v => v != null && !isNaN(v));
+    if (prices.length < 2) return '';
+    
     const min = Math.min(...prices);
     const max = Math.max(...prices);
-    const range = max - min;
+    const range = max - min || 1; // Fallback to 1 to avoid division by zero
     
-    const width = 100;
+    const width = 120; // Increased width
     const height = 30;
-    const padding = 2;
+    const padding = 4;
     
     const points = prices.map((p, i) => {
       const x = (i / (prices.length - 1)) * width;
       const y = height - (((p - min) / range) * (height - padding * 2) + padding);
-      return `${x},${y}`;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
     });
     
     const d = `M ${points.join(' L ')}`;
@@ -397,13 +408,16 @@ class OpenKairoMiningPanel extends LitElement {
     const color = isUp ? 'var(--theme-accent-4)' : '#ff4d4d';
 
     return html`
-      <div style="display: flex; align-items: center; gap: 10px; margin-left: 15px; opacity: 0.8;">
-        <svg width="60" height="20" viewBox="0 0 100 30" preserveAspectRatio="none">
-          <path d="${d}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+      <div style="display: flex; align-items: center; gap: 12px; margin-left: 12px; opacity: 0.9; background: rgba(0,0,0,0.4); padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(var(--theme-accent-1-rgb), 0.1); box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
+        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 1px;">
+          <span style="font-size: 0.6em; text-transform: uppercase; color: var(--theme-text-dim); letter-spacing: 1px; font-weight: 800; opacity: 0.6;">BTC Trend</span>
+          <span style="font-size: 0.9em; font-weight: 950; color: ${color}; font-family: var(--theme-font); line-height: 1;">
+            ${isUp ? '↑' : '↓'} ${Math.abs(((prices[prices.length - 1] - prices[0]) / (prices[0] || 1)) * 100).toFixed(1)}%
+          </span>
+        </div>
+        <svg width="60" height="24" viewBox="0 0 120 30" preserveAspectRatio="none" style="margin-left: 6px;">
+          <path d="${d}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 5px ${color}88);" />
         </svg>
-        <span style="font-size: 0.7em; font-weight: bold; color: ${color}">
-          ${isUp ? '↑' : '↓'} ${Math.abs(((prices[prices.length - 1] - prices[0]) / prices[0]) * 100).toFixed(1)}%
-        </span>
       </div>
     `;
   }
@@ -415,22 +429,30 @@ class OpenKairoMiningPanel extends LitElement {
     const totalBlocksPerHalving = 210000;
     const progress = Math.max(0, Math.min(100, (1 - (blocksRemaining / totalBlocksPerHalving)) * 100));
     
-    const size = 60;
-    const stroke = 4;
+    const size = 54; // Reduced size
+    const stroke = 4; // Reduced stroke
     const radius = (size - stroke) / 2;
     const circumference = radius * 2 * Math.PI;
     const offset = circumference - (progress / 100) * circumference;
 
     return html`
-      <div class="halving-widget" style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
-        <svg width="${size}" height="${size}">
-          <circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="${stroke}" />
-          <circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="var(--theme-primary)" stroke-width="${stroke}" 
-                  stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" stroke-linecap="round"
-                  style="transition: stroke-dashoffset 1s ease-out; transform: rotate(-90deg); transform-origin: 50% 50%; shadow: 0 0 10px var(--theme-primary);" />
-        </svg>
-        <div style="position: absolute; text-align: center;">
-          <div style="font-size: 0.8em; font-weight: 800; color: var(--theme-text-main)">${Math.floor(progress)}%</div>
+      <div class="halving-widget" style="display: flex; gap: 15px; align-items: center; background: rgba(255,255,255,0.03); padding: 10px 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+        <div style="position: relative; width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center;">
+          <svg width="${size}" height="${size}">
+            <circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="${stroke}" />
+            <circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="var(--theme-accent-2)" stroke-width="${stroke}" 
+                    stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" stroke-linecap="round"
+                    style="transition: stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1); transform: rotate(-90deg); transform-origin: 50% 50%; filter: drop-shadow(0 0 8px var(--theme-accent-2));" />
+          </svg>
+          <div style="position: absolute; text-align: center;">
+            <div style="font-size: 0.8em; font-weight: 950; color: var(--theme-text-main); font-family: var(--theme-font); letter-spacing: -0.5px;">${Math.floor(progress)}%</div>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="font-size: 0.6em; text-transform: uppercase; letter-spacing: 1.5px; color: var(--theme-text-dim); font-weight: 800; opacity: 0.7;">Halving</div>
+          <div style="font-size: 0.9em; font-weight: 950; color: var(--theme-accent-2); font-family: var(--theme-font); line-height: 1.1;">
+            ${(blocksRemaining/1000).toFixed(1)}k <span style="font-size: 0.7em; color: var(--theme-text-dim); font-weight: 600;">Blocks</span>
+          </div>
         </div>
       </div>
     `;
@@ -465,15 +487,26 @@ class OpenKairoMiningPanel extends LitElement {
 
   async fetchBtcPrice() {
     try {
-      const response = await fetch('https://mempool.space/api/v1/prices');
+      // Use Blockchain.info for better decimal precision
+      const response = await fetch('https://blockchain.info/ticker');
       const data = await response.json();
       if (data && data.EUR) {
-        this.btcPriceEur = data.EUR;
-        this.btcPriceUsd = data.USD;
+        this.btcPriceEur = data.EUR.last;
+        this.btcPriceUsd = data.USD.last;
         this.requestUpdate();
       }
     } catch (e) {
       console.error("Failed to fetch BTC price", e);
+      // Fallback to mempool if blockchain.info fails
+      try {
+        const response = await fetch('https://mempool.space/api/v1/prices');
+        const data = await response.json();
+        if (data && data.EUR) {
+          this.btcPriceEur = data.EUR;
+          this.btcPriceUsd = data.USD;
+          this.requestUpdate();
+        }
+      } catch (e2) {}
     }
   }
 
@@ -485,9 +518,13 @@ class OpenKairoMiningPanel extends LitElement {
       if (diff > 0) {
         this.btcDifficulty = diff;
         this.requestUpdate();
+      } else {
+        // Fallback-Difficulty (approximierter Wert für 2024/2025)
+        this.btcDifficulty = 82000000000000; 
       }
     } catch (e) {
       console.error("Failed to fetch BTC difficulty", e);
+      this.btcDifficulty = 82000000000000; // Final Fallback
     }
   }
 
@@ -629,6 +666,7 @@ class OpenKairoMiningPanel extends LitElement {
           this.config = data.config;
           this.states = data.states || {};
           this.mempool = data.mempool || { fees: null, height: null, halving: null };
+          this.logs = data.logs || [];
         } else {
           this.config = { miners: [] };
           this.states = {};
@@ -969,7 +1007,6 @@ class OpenKairoMiningPanel extends LitElement {
        };
        layout = { radius: '24px', font: "'Outfit', sans-serif", glow: '0.1' };
     } else if (theme === 'cyberpunk') {
-       // Values were already mostly cyberpunk default, but explicit for clarity
        colors = {
          accent1: '#0bc4e2', accent2: '#d62cf6', accent3: '#ffcc00', accent4: '#00ff88',
          primary: '#0bc4e2', bgText: '#ffffff', bgTextDim: '#888888',
@@ -978,6 +1015,33 @@ class OpenKairoMiningPanel extends LitElement {
          borderColor: 'rgba(11, 196, 226, 0.1)'
        };
        layout = { radius: '16px', font: "'Inter', sans-serif", glow: '0.15' };
+    } else if (theme === 'midnight') {
+       colors = {
+         accent1: '#a29bfe', accent2: '#6c5ce7', accent3: '#dfe6e9', accent4: '#ff7675',
+         primary: '#6c5ce7', bgText: '#ffffff', bgTextDim: '#b2bec3',
+         bgApp: 'linear-gradient(180deg, #1e1e2f 0%, #0f0f1a 100%)',
+         bgHeader: 'rgba(30, 30, 47, 0.6)', bgCard: 'rgba(45, 45, 70, 0.3)',
+         borderColor: 'rgba(108, 92, 231, 0.2)'
+       };
+       layout = { radius: '12px', font: "'Outfit', sans-serif", glow: '0.2' };
+    } else if (theme === 'atlantis') {
+       colors = {
+         accent1: '#00cec9', accent2: '#0984e3', accent3: '#81ecec', accent4: '#55efc4',
+         primary: '#0984e3', bgText: '#f1f2f6', bgTextDim: '#74b9ff',
+         bgApp: 'radial-gradient(circle at top left, #002f4b 0%, #000000 100%)',
+         bgHeader: 'rgba(0, 47, 75, 0.5)', bgCard: 'rgba(0, 100, 150, 0.1)',
+         borderColor: 'rgba(0, 206, 201, 0.15)'
+       };
+       layout = { radius: '20px', font: "'Inter', sans-serif", glow: '0.25' };
+    } else if (theme === 'lava') {
+       colors = {
+         accent1: '#ff7675', accent2: '#d63031', accent3: '#fdcb6e', accent4: '#e17055',
+         primary: '#d63031', bgText: '#ffffff', bgTextDim: '#fab1a0',
+         bgApp: 'linear-gradient(135deg, #1a0f0f 0%, #000000 100%)',
+         bgHeader: 'rgba(45, 20, 20, 0.7)', bgCard: 'rgba(60, 25, 25, 0.3)',
+         borderColor: 'rgba(214, 48, 49, 0.25)'
+       };
+       layout = { radius: '4px', font: "'Outfit', sans-serif", glow: '0.3' };
     }
 
     // Try loading font if it looks like a Google Font
@@ -1053,43 +1117,46 @@ class OpenKairoMiningPanel extends LitElement {
     const walletState = (this.hass && walletSensor && this.hass.states[walletSensor]) ? this.hass.states[walletSensor].state : '0.0000';
     const profileImg = this.config.profile_image || 'https://openkairo.de/wp-content/uploads/2024/01/openkairo-logo-icon.png';
 
+    this._applyThemeStyles();
+
     return html`
-      ${this._applyThemeStyles()}
+      <div class="theme-bg-overlay"></div>
       <div class="dashboard-container theme-${theme}">
         <div class="header">
-        
-        <div class="profile-section" style="display: flex; align-items: center; gap: 20px;">
-          <div class="avatar-container" style="position: relative; width: 64px; height: 64px; flex-shrink: 0;">
-            <div style="width: 100%; height: 100%; border-radius: 50%; border: 2px solid var(--theme-accent-2); box-shadow: 0 0 20px rgba(var(--theme-accent-2-rgb), 0.4); overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center;">
-              <img src="${profileImg}" style="width: 110%; height: 110%; object-fit: cover;">
+          <div class="profile-section">
+            <div class="avatar-container" style="width: 72px; height: 72px;">
+              <div style="width: 100%; height: 100%; border-radius: 50%; border: 2px solid var(--theme-accent-2); box-shadow: 0 0 25px rgba(var(--theme-accent-2-rgb), 0.4); overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center;">
+                <img src="${profileImg}" style="width: 110%; height: 110%; object-fit: cover;">
+              </div>
+              <div style="position: absolute; bottom: 4px; right: 4px; width: 16px; height: 16px; background: var(--theme-accent-1); border: 3px solid #111; border-radius: 50%; box-shadow: 0 0 15px var(--theme-accent-1);"></div>
             </div>
-            <div style="position: absolute; bottom: 0; right: 0; width: 14px; height: 14px; background: var(--theme-accent-1); border: 2px solid #000; border-radius: 50%; box-shadow: 0 0 10px var(--theme-accent-1);"></div>
+            <div class="wallet-info">
+              <div style="color: var(--theme-text-dim); font-size: 0.65em; text-transform: uppercase; letter-spacing: 3px; font-weight: 800; margin-bottom: 2px; opacity: 0.6;">Total Portfolio</div>
+              <div style="color: var(--theme-text-main); font-size: 2.6em; font-weight: 950; font-family: var(--theme-font); text-shadow: 0 0 20px rgba(var(--theme-text-main-rgb, 255,255,255), 0.1); display: flex; align-items: baseline; gap: 8px; letter-spacing: -1.5px; line-height: 1;">
+                ${walletState} <span style="font-size: 0.35em; color: var(--theme-accent-2); letter-spacing: 2px; font-weight: 900; opacity: 0.9;">BTC</span>
+              </div>
+              ${this.btcPriceEur && walletState && parseFloat(walletState) > 0 ? html`
+                <div style="font-size: 0.9em; color: #888; font-weight: bold; margin-top: 2px; letter-spacing: 1px; opacity: 0.8;">
+                   ≈ ${(parseFloat(walletState) * this.btcPriceEur).toLocaleString('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 })}
+                </div>
+              ` : ''}
+            </div>
           </div>
-          <div class="wallet-info">
-            <div style="color: var(--theme-text-dim); font-size: 0.7em; text-transform: uppercase; letter-spacing: 2px; font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
-               Earned / Balance
-               ${this._renderPriceChart()}
-            </div>
-               Earned / Balance
-               ${this._renderPriceChart()}
-            </div>
-            <div style="color: var(--theme-text-main); font-size: 2.2em; font-weight: 950; font-family: var(--theme-font); text-shadow: 0 0 15px rgba(var(--theme-text-main-rgb, 255,255,255), 0.1); display: flex; align-items: baseline; gap: 6px; letter-spacing: -1px;">
-              ${walletState} <span style="font-size: 0.4em; color: var(--theme-accent-2); letter-spacing: 1px; font-weight: 800;">BTC</span>
-            </div>
+
+          <div class="market-section">
+            ${this._renderHalvingCircle()}
+            <div style="height: 40px; width: 1px; background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.1), transparent);"></div>
+            ${this._renderPriceChart()}
+          </div>
+
+          <div class="title-section">
+            <h1 style="display: flex; align-items: center; justify-content: flex-end; gap: 15px;">
+              <span style="opacity: 0.6; font-size: 0.8em;">₿</span> OpenKairo <span style="color: var(--theme-accent-1); opacity: 0.9;">Mining</span>
+              <span style="font-size: 0.3em; background: rgba(var(--theme-accent-1-rgb), 0.15); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 6px; padding: 4px 10px; color: var(--theme-accent-1); font-weight: 950; text-shadow: none; vertical-align: middle; letter-spacing: 1px;">PREMIUM v1.3</span>
+            </h1>
+            <p class="subtitle">Next-Gen Miner Control</p>
           </div>
         </div>
-
-        <div class="market-section" style="display: flex; gap: 20px; align-items: center;">
-          ${this._renderHalvingCircle()}
-        </div>
-
-        <div class="title-section" style="text-align: right;">
-          <h1 style="margin: 0; font-size: 2.4em; color: var(--theme-primary); text-shadow: 0 0 25px rgba(var(--theme-primary-rgb), 0.5); font-weight: 800; letter-spacing: -0.5px; display: flex; align-items: center; justify-content: flex-end; gap: 12px;">
-            <span style="opacity: 0.8;">₿</span> OpenKairo Mining <span style="font-size: 0.4em; background: linear-gradient(135deg, var(--theme-accent-1), var(--theme-accent-2)); border-radius: 6px; padding: 2px 10px; color: #000; font-weight: 950; text-shadow: none; vertical-align: middle;">v1.3</span>
-          </h1>
-          <p class="subtitle" style="margin: 2px 0 0 0; font-size: 0.85em; color: var(--theme-text-dim); text-transform: uppercase; letter-spacing: 3px; font-weight: 700;">Intelligente Miner-Steuerung</p>
-        </div>
-      </div>
 
 
       ${this._renderTicker()}
@@ -1107,7 +1174,10 @@ class OpenKairoMiningPanel extends LitElement {
       <div class="content">
         ${(() => {
           try {
-            if (this.activeTab === 'dashboard') return html`<div class="tab-content-anim">${this.renderDashboard()}</div>`;
+            if (this.activeTab === 'dashboard') return html`
+              ${this.renderActivityTicker()}
+              <div class="tab-content-anim">${this.renderDashboard()}</div>
+            `;
             if (this.activeTab === 'statistics') return html`<div class="tab-content-anim">${this.renderStatistics()}</div>`;
             if (this.activeTab === 'energy') return html`<div class="tab-content-anim">${this.renderEnergyStats()}</div>`;
             if (this.activeTab === 'design') return html`<div class="tab-content-anim">${this.renderDesignSettings()}</div>`;
@@ -1133,60 +1203,172 @@ class OpenKairoMiningPanel extends LitElement {
       <div class="footer">
         <a href="https://openkairo.de" target="_blank">powered by OpenKAIRO</a>
       </div>
+      </div>
     `;
   }
 
   renderInfo() {
     return html`
-      <div class="card">
-        <h2>ℹ️ Informationen & Anleitung</h2>
-        <p>Willkommen beim <strong>OpenKairo Mining</strong> Panel. Diese Integration ermöglicht es dir, deine Krypto-Miner effizient mit deinem eigenen Solarstrom zu betreiben.</p>
-        
-        <div class="tech-box">
-          <h3 style="margin-top:0; color:#0bc4e2;">☀️ Intelligente PV-Steuerung:</h3>
-          <p style="color:#bbb; line-height:1.6; margin-top: 5px;">Das System überwacht permanent deine Netzeinspeisung und schaltet Miner basierend auf deinen Regeln ein:</p>
-          <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
-            <li><strong style="color:#ddd;">Priorisierung:</strong> Miner mit niedrigerer Priorität (z.B. 1) starten zuerst. So kannst du festlegen, welche Hardware bei wenig Sonne den Vorrang hat.</li>
-            <li><strong style="color:#ddd;">Überschuss-Logik:</strong> Gib an, ab wie viel Watt Einspeisung ein Miner starten soll und ab welchem Wert (z.B. Netzbezug) er wieder stoppt.</li>
-            <li><strong style="color:#ddd;">Batterie-Support:</strong> Erlaube dem Miner optional, auch bei sinkendem PV-Ertrag weiterzulaufen, solange dein Heimspeicher noch ausreichend gefüllt ist.</li>
-            <li><strong style="color:#ddd;">Hysterese (Verzögerung):</strong> Um ständiges Schalten bei vorbeiziehenden Wolken zu vermeiden, kannst du eine Zeitverzögerung in Minuten einstellen.</li>
-          </ul>
+      <div class="card" style="padding: 30px;">
+        <h2 style="display: flex; align-items: center; gap: 15px; margin-top: 0;">
+          <span style="font-size: 1.5em;">🚀</span> OpenKairo Dashboard v1.3
+        </h2>
+        <p style="font-size: 1.1em; color: var(--theme-text-main); line-height: 1.6;">
+          <strong>Dein ultimatives Mining Control Center.</strong> <br>
+          Dieses Dashboard vereint alle Innovationen der letzten Monate in einer Oberfläche. Hier erfährst du, was OpenKairo so besonders macht:
+        </p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-top: 30px;">
+          
+          <div class="tech-box" style="border-top: 4px solid var(--theme-accent-1); background: rgba(var(--theme-accent-1-rgb), 0.03);">
+            <h3 style="margin-top:0; color:var(--theme-accent-1); display: flex; align-items: center; gap: 10px;">
+              <span>⚡</span> Direkte Steuerung & Power-Limit
+            </h3>
+            <p style="color:#bbb; line-height:1.6;">
+              Kontrolliere deine Hardware direkt aus dem Dashboard ohne Umwege:
+            </p>
+            <ul style="color:#888; font-size: 0.9em; padding-left: 20px; margin-bottom: 0; line-height: 1.5;">
+              <li><strong>Power Limit Slider:</strong> Reguliere die Wattzahl kompatibler Miner stufenlos im Dashboard.</li>
+              <li><strong>Hardware Buttons:</strong> Schalte zwischen LOW, NORM und HIGH Modus oder führe einen Reboot direkt vom Sofa aus durch.</li>
+            </ul>
+          </div>
+
+          <div class="tech-box" style="border-top: 4px solid var(--theme-accent-4); background: rgba(var(--theme-accent-4-rgb), 0.03);">
+            <h3 style="margin-top:0; color:var(--theme-accent-4); display: flex; align-items: center; gap: 10px;">
+              <span>🤖</span> Smarter Profit-Rechner (Auto-Fallback)
+            </h3>
+            <p style="color:#bbb; line-height:1.6;">
+              Du weißt immer genau, was hängen bleibt – auch wenn deine Pool-Daten mal nicht da sind:
+            </p>
+            <ul style="color:#888; font-size: 0.9em; padding-left: 20px; margin-bottom: 0; line-height: 1.5;">
+              <li><strong>Auto-Schätzung:</strong> Findet kein Pool-Sensor, nutzt das Dashboard die Live-Netzwerkdaten zur automatischen Ertrags-Vorschau.</li>
+              <li><strong>Echtzeit-Statistiken:</strong> Verfolgt deine 7-Tage Historie live aus der Home Assistant Datenbank.</li>
+            </ul>
+          </div>
+
+          <div class="tech-box" style="border-top: 4px solid var(--theme-accent-3); background: rgba(var(--theme-accent-3-rgb), 0.03);">
+            <h3 style="margin-top:0; color:var(--theme-accent-3); display: flex; align-items: center; gap: 10px;">
+              <span>📊</span> Präzise Markt-Daten & Ticker
+            </h3>
+            <p style="color:#bbb; line-height:1.6;">
+              Keine Schätzwerte mehr. Wir nutzen hochpräzise Schnittstellen:
+            </p>
+            <ul style="color:#888; font-size: 0.9em; padding-left: 20px; margin-bottom: 0; line-height: 1.5;">
+              <li><strong>High-Precision Price:</strong> Bitcoin Preise mit zwei Nachkommastellen für dein gesamtes Portfolio.</li>
+              <li><strong>Live Network Data:</strong> Aktuelle Gebühren (Fees), Halving-Countdown und Block-Height in Echtzeit vom Mempool.</li>
+            </ul>
+          </div>
+
+          <div class="tech-box" style="border-top: 4px solid var(--theme-accent-2); background: rgba(var(--theme-accent-2-rgb), 0.03);">
+            <h3 style="margin-top:0; color:var(--theme-accent-2); display: flex; align-items: center; gap: 10px;">
+              <span>🎨</span> Premium Design Studio
+            </h3>
+            <p style="color:#bbb; line-height:1.6;">
+              Dein Dashboard, dein Style. Wähle aus exklusiven Design-Presets:
+            </p>
+            <ul style="color:#888; font-size: 0.9em; padding-left: 20px; margin-bottom: 0; line-height: 1.5;">
+              <li><strong>Themen:</strong> Midnight Glow, Atlantis, Lava Field, Matrix und Solar.</li>
+              <li><strong>Anpassung:</strong> Jedes Design wurde für maximale Performance und eine premium Ästhetik optimiert.</li>
+            </ul>
+          </div>
+
         </div>
 
-        <div class="tech-box" style="margin-top: 15px;">
-          <h3 style="margin-top:0; color:#3498db;">📊 Rentabilität & Echte Historie:</h3>
-          <p style="color:#bbb; line-height:1.6; margin-top: 5px;">Das Panel verfügt nun über eine integrierte Wirtschaftlichkeitsauswertung (Live):</p>
-          <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
-            <li><strong style="color:#ddd;">Live-Rentabilitätsrechner:</strong> Berechnet auf Basis des aktuellen Bitcoin-Kurses und der Live Network-Difficulty deinen potenziellen Gewinn (Monat/Tag) und den Break-Even Strompreis. Wähle einfach dein Modell im Dropdown (z.B. S19).</li>
-            <li><strong style="color:#ddd;">Echte Historie (HA-Recorder):</strong> Liest live aus deiner Home Assistant Datenbank aus, wie viele Minuten/Stunden dein Miner in den letzten 7 Tagen <u style="text-decoration-color: #3498db">tatsächlich</u> an war und schätzt basierend auf dem aktuellen Kurs die genauen Live-Erträge.</li>
-          </ul>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-top: 20px;">
+          
+          <div class="tech-box" style="border-left: 4px solid #ff9800; background: rgba(255,152,0,0.03);">
+             <h3 style="margin-top:0; color:#ff9800; display: flex; align-items: center; gap: 10px;">
+              <span>🎢</span> Ramping & Soft-Start
+            </h3>
+            <p style="color:#bbb; line-height:1.6;">
+              Schone deine Hardware und dein Stromnetz. Anstatt sofort auf 100% zu springen, fährt das System die Leistung stufenweise hoch oder runter.
+            </p>
+            <ul style="color:#888; font-size: 0.85em; padding-left: 20px; margin-bottom: 0;">
+              <li><strong>Schonung:</strong> Verhindert Spannungsspitzen und schont das Netzteil.</li>
+              <li><strong>Visualisierung:</strong> Während des Vorgangs pulsieren die Status-Badges <strong>orange</strong>.</li>
+            </ul>
+          </div>
+
+          <div class="tech-box" style="border-left: 4px solid #fff; background: rgba(255,255,255,0.03);">
+             <h3 style="margin-top:0; color:#fff; display: flex; align-items: center; gap: 10px;">
+              <span>🔒</span> Hardware Wächter 2.0
+            </h3>
+            <p style="color:#bbb; line-height:1.6;">
+              Vollautomatische Überwachung deiner Miner. Wenn etwas hängen bleibt, greift das System ein und startet die Hardware neu – inklusive Countdown-Timer im Dashboard.
+            </p>
+          </div>
+
+          <div class="tech-box" style="border-left: 4px solid var(--theme-accent-1); background: rgba(var(--theme-accent-1-rgb), 0.03);">
+             <h3 style="margin-top:0; color:var(--theme-accent-1); display: flex; align-items: center; gap: 10px;">
+              <span>☀️</span> PV & SOC Intelligenz
+            </h3>
+            <p style="color:#bbb; line-height:1.6;">
+              Maximiere die Nutzung deines Solarstroms. Miner schalten basierend auf deiner Einspeisung oder deinem Batterie-Ladestand (Hysterese-gesteuert).
+            </p>
+          </div>
+
         </div>
 
-        <div class="tech-box" style="margin-top: 15px;">
-          <h3 style="margin-top:0; color:#d62cf6;">🔋 Batterie SOC-Modus & Watchdog:</h3>
-          <p style="color:#bbb; line-height:1.6; margin-top: 5px;">Zusätzlich zum reinen PV-Überschuss gibt es weitere Steuerungsmöglichkeiten:</p>
-          <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
-            <li><strong style="color:#ddd;">Batterie SOC-Steuerung:</strong> Ein eigener Modus, bei dem der Miner rein nach dem Füllstand deines Hausakkus gesteuert wird (z.B. An ab 90%, Aus unter 30%).</li>
-            <li><strong style="color:#ddd;">Standby-Watchdog (mit Live-Timer):</strong> Eine Sicherheitsfunktion, die einen Smart-Plug (z.B. Shelly) komplett ausschaltet, wenn der Miner sich aufhängt oder zu lange extrem wenig Strom verbraucht. Inkl. optischem Countdown-Timer. Sobald wieder genug Überschuss oder SOC vorhanden ist, wird die Steckdose vollautomatisch wieder aktiviert.</li>
-          </ul>
-        </div>
+        <div class="tech-box" style="margin-top: 40px; border-color: rgba(var(--theme-accent-1-rgb), 0.2); background: rgba(0,0,0,0.1); border-radius: 20px; padding: 30px;">
+          <h2 style="margin-top:0; color:#fff; text-align: center; margin-bottom: 30px;">☕ Projekt unterstützen</h2>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            
+            <!-- PayPal Card -->
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 25px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 0.3s ease; cursor: default;">
+              <div style="font-size: 2.5em; margin-bottom: 15px;">🚀</div>
+              <h3 style="margin: 0 0 10px 0; color: #fff;">PayPal</h3>
+              <p style="color: #888; font-size: 0.9em; margin-bottom: 20px;">Die klassische Unterstützung für Kaffee & Energie.</p>
+              <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=info@openkairo.de&currency_code=EUR&source=url" target="_blank" class="btn-primary" style="display:inline-block; text-decoration:none; width:100%; padding: 12px 0; border-radius:30px; font-weight: 800; font-size: 0.9em;">
+                Spenden via PayPal
+              </a>
+            </div>
 
-        <div class="tech-box" style="margin-top: 15px;">
-          <h3 style="margin-top:0; color:#0bc4e2;">🔌 Hass-Miner Integration:</h3>
-          <p style="color:#bbb; line-height:1.6; margin-top: 5px;">In Kombination mit der <strong>Hass-Miner</strong> Integration von Schnitzel schaltest du das volle Potenzial frei:</p>
-          <ul style="color:#bbb; line-height:1.6; padding-left:20px;">
-            <li><strong style="color:#ddd;">Echtzeit-Monitoring:</strong> Visualisierung von Hashrate, Temperatur, Stromverbrauch und Batterie-SOC direkt im Dashboard.</li>
-            <li><strong style="color:#ddd;">Remote Control:</strong> Sende Befehle wie Neustart, Reboot oder Modus-Wechsel (Low/Normal/High Power) direkt vom Sofa aus.</li>
-            <li><strong style="color:#ddd;">Power Limit Slider:</strong> Reguliere den Stromverbrauch kompatibler Miner (z.B. S9 mit Braiins OS+) stufenlos direkt auf der Miner-Karte.</li>
-          </ul>
-        </div>
+            <!-- Bitcoin Card -->
+            <div style="background: rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.03); border: 1px solid rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.1); border-radius: 16px; padding: 25px; text-align: center; display: flex; flex-direction: column; align-items: center; transition: transform 0.3s ease;">
+              <div style="background: #fff; padding: 10px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.3);">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=bitcoin:37KAus3ABc6krJ5T4jZyLKVB3uzbfQZGWD" style="width: 100px; height: 100px; display: block;" alt="Bitcoin QR Code">
+              </div>
+              <h3 style="margin: 0 0 10px 0; color: var(--theme-accent-3);">Bitcoin</h3>
+              <p style="color: #888; font-size: 0.8em; margin-bottom: 15px;">Direkt, dezentral & für Miner gemacht.</p>
+              <div @click="${(e) => { 
+                const addr = '37KAus3ABc6krJ5T4jZyLKVB3uzbfQZGWD';
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(addr).then(() => {
+                    this.dispatchEvent(new CustomEvent('hass-notification', { detail: { message: 'BTC Adresse kopiert!' }, bubbles: true, composed: true }));
+                  }).catch(() => {
+                    // Fallback if clipboard fails
+                    const textArea = document.createElement('textarea');
+                    textArea.value = addr;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    this.dispatchEvent(new CustomEvent('hass-notification', { detail: { message: 'BTC Adresse kopiert!' }, bubbles: true, composed: true }));
+                  });
+                } else {
+                  // Immediate fallback for non-secure contexts
+                  const textArea = document.createElement('textarea');
+                  textArea.value = addr;
+                  document.body.appendChild(textArea);
+                  textArea.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(textArea);
+                  this.dispatchEvent(new CustomEvent('hass-notification', { detail: { message: 'BTC Adresse kopiert!' }, bubbles: true, composed: true }));
+                }
+              }}" 
+                   style="background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; border: 1px dashed rgba(var(--theme-accent-3-rgb), 0.3); font-family: monospace; font-size: 0.75em; color: var(--theme-accent-3); cursor: pointer; width: 100%; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center; margin-top: 5px; min-height: 44px;" 
+                   title="Klick zum Kopieren">
+                <code style="word-break: break-all; text-align: left; padding-right: 10px;">37KAus3AB...QZGWD</code>
+                <span style="font-size: 1.2em;">📋</span>
+              </div>
+            </div>
 
-        <div class="tech-box" style="margin-top: 25px; text-align: center; border-color: rgba(11, 196, 226, 0.4); background: rgba(11, 196, 226, 0.05);">
-          <h3 style="margin-top:0; color:#fff;">☕ Unterstütze das Projekt</h3>
-          <p style="color:#bbb; margin-bottom: 25px;">OpenKairo ist ein Community-Projekt. Wenn dir die Integration hilft, Energiekosten zu sparen, freuen wir uns über eine kleine Unterstützung für die Weiterentwicklung!</p>
-          <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=info@openkairo.de&currency_code=EUR&source=url" target="_blank" class="btn-primary" style="display:inline-block; text-decoration:none; width:auto; padding: 15px 40px; border-radius:30px; line-height:1;">
-            ☕ Kaffee / Energy spendieren (PayPal)
-          </a>
+          </div>
+
+          <p style="color:#555; text-align: center; margin-top: 25px; font-size: 0.85em; font-style: italic;">
+            OpenKairo ist ein leidenschaftliches Community-Projekt. Danke für deine Unterstützung!
+          </p>
         </div>
       </div>
     `;
@@ -1261,13 +1443,18 @@ class OpenKairoMiningPanel extends LitElement {
         }
 
         // BTC Earnings (Estimated via Braiins standard formula or direct if sensor exists)
-        if (miner.calc_method === 'btc_auto' && hrInTH > 0 && this.btcDifficulty && switchState === 'on') {
-            const btcPerDay = (hrInTH * 1e12 / (this.btcDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
-            totalDailyRevBTC += btcPerDay;
+        let btcPerDay = 0;
+        const currentDifficulty = this.btcDifficulty || 82000000000000; // Final Fallback
+        
+        if (miner.calc_method === 'btc_auto' && hrInTH > 0 && switchState === 'on') {
+            btcPerDay = (hrInTH * 1e12 / (currentDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
         } else if (miner.crypto_revenue_sensor && this.hass && this.hass.states[miner.crypto_revenue_sensor] && switchState === 'on') {
-            const rev = parseFloat(this.hass.states[miner.crypto_revenue_sensor].state) || 0;
-            totalDailyRevBTC += rev;
+            btcPerDay = parseFloat(this.hass.states[miner.crypto_revenue_sensor].state) || 0;
+        } else if (hrInTH > 0 && switchState === 'on') {
+            // AUTO-FALLBACK: Wenn hS vorhanden aber kein Profit-Sensor gesetzt, nutze Auto-Vorschau
+            btcPerDay = (hrInTH * 1e12 / (currentDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
         }
+        totalDailyRevBTC += btcPerDay;
     });
 
     const overviewHtml = html`
@@ -1290,9 +1477,9 @@ class OpenKairoMiningPanel extends LitElement {
             <span style="background: rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.15); padding: 4px 8px; border-radius: 6px; color: var(--theme-accent-2); font-size: 0.7em; border: 1px solid rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.3);">Pool Est</span>
           </div>
           <div style="font-size: 2.3em; font-weight: 800; color: #fff; margin-top: 15px; text-shadow: 0 0 15px rgba(255,255,255,0.2); font-family: monospace; position: relative; z-index: 1;">
-             ${totalDailyRevBTC > 0 ? totalDailyRevBTC.toFixed(6) : '0.000'} <span style="font-size: 0.4em; color: #888;">BTC</span>
+             ${anyBtcPrice > 0 ? (totalDailyRevBTC * anyBtcPrice).toFixed(2) : '0.00'} <span style="font-size: 0.5em; color: #888;">€</span>
           </div>
-          ${anyBtcPrice > 0 && totalDailyRevBTC > 0 ? html`<div style="color: #888; font-size: 0.85em; margin-top: 5px; font-weight: bold; position: relative; z-index: 1;">≈ ${(totalDailyRevBTC * anyBtcPrice).toFixed(2)} €</div>` : ''}
+          <div style="color: #888; font-size: 0.85em; margin-top: 5px; font-weight: bold; position: relative; z-index: 1;">≈ ${totalDailyRevBTC.toFixed(6)} BTC</div>
           <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--theme-accent-2); box-shadow: 0 0 10px var(--theme-accent-2);"></div>
         </div>
 
@@ -1392,7 +1579,9 @@ class OpenKairoMiningPanel extends LitElement {
               }
             }
 
-            if (miner.calc_method === 'btc_auto' && miner.hashrate_sensor && currentCoinPrice > 0 && this.hass && this.hass.states[miner.hashrate_sensor] && this.btcDifficulty) {
+            const currentDifficulty = this.btcDifficulty || 82000000000000;
+
+            if (miner.calc_method === 'btc_auto' && miner.hashrate_sensor && currentCoinPrice > 0 && this.hass && this.hass.states[miner.hashrate_sensor]) {
               const hrState = this.hass.states[miner.hashrate_sensor];
               const hrValue = parseFloat(hrState.state) || 0;
 
@@ -1401,7 +1590,7 @@ class OpenKairoMiningPanel extends LitElement {
               if (unit.includes('GH')) hrInTH = hrValue / 1000;
               if (unit.includes('PH')) hrInTH = hrValue * 1000;
 
-              const btcPerDay = (hrInTH * 1e12 / (this.btcDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
+              const btcPerDay = (hrInTH * 1e12 / (currentDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
               dailyRevenue = btcPerDay * currentCoinPrice;
               hasProfitData = true;
 
@@ -1409,6 +1598,18 @@ class OpenKairoMiningPanel extends LitElement {
               const cryptoState = this.hass.states[miner.crypto_revenue_sensor];
               const cryptoVal = parseFloat(cryptoState.state) || 0;
               dailyRevenue = cryptoVal * currentCoinPrice;
+              hasProfitData = true;
+            } else if (miner.hashrate_sensor && currentCoinPrice > 0 && this.hass && this.hass.states[miner.hashrate_sensor]) {
+              // AUTO-FALLBACK for individual miner
+              const hrState = this.hass.states[miner.hashrate_sensor];
+              const hrValue = parseFloat(hrState.state) || 0;
+              let hrInTH = hrValue;
+              const unit = (hrState.attributes?.unit_of_measurement || 'TH/s').toUpperCase();
+              if (unit.includes('GH')) hrInTH = hrValue / 1000;
+              if (unit.includes('PH')) hrInTH = hrValue * 1000;
+              
+              const btcPerDay = (hrInTH * 1e12 / (currentDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
+              dailyRevenue = btcPerDay * currentCoinPrice;
               hasProfitData = true;
             }
 
@@ -1681,6 +1882,9 @@ class OpenKairoMiningPanel extends LitElement {
             <label>Wähle ein vordefiniertes Design</label>
             <select @change="${(e) => { this.config.theme = e.target.value; this.saveConfig(true); }}" .value="${this.config.theme || 'cyberpunk'}" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
               <option value="cyberpunk">Cyberpunk (Neon Cyan & Magenta)</option>
+              <option value="midnight">Midnight Glow (Luxury Purple)</option>
+              <option value="atlantis">Atlantis (Oceanic Teal)</option>
+              <option value="lava">Lava Field (Energy Red)</option>
               <option value="matrix">Matrix (Hacker Green)</option>
               <option value="classic">Classic Bitcoin (Orange & White)</option>
               <option value="solar">Solar Energy (Yellow & Brown)</option>
@@ -2171,6 +2375,17 @@ class OpenKairoMiningPanel extends LitElement {
     `;
   }
 
+  renderActivityTicker() {
+    if (!this.logs || this.logs.length === 0) return '';
+    return html`
+      <div class="activity-ticker">
+        <div class="ticker-content">
+          ${this.logs.map(log => html`<div class="ticker-item">${log}</div>`)}
+        </div>
+      </div>
+    `;
+  }
+
   renderEnergyStats() {
     const formatDifficulty = (diff) => {
       if (!diff) return '-';
@@ -2500,31 +2715,147 @@ class OpenKairoMiningPanel extends LitElement {
         --theme-accent-4: #00ff88;
         --theme-radius: 16px;
       }
+
+      /* --- DYNAMIC BACKGROUND OVERLAYS --- */
+      .theme-bg-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        pointer-events: none;
+        z-index: 0;
+        overflow: hidden;
+      }
+
+      /* Midnight Glow */
+      :host([theme="midnight"]) .theme-bg-overlay::before {
+        content: "";
+        position: absolute;
+        width: 200%; height: 200%;
+        background: radial-gradient(circle at 30% 30%, rgba(138, 43, 226, 0.08) 0%, transparent 40%),
+                    radial-gradient(circle at 70% 80%, rgba(75, 0, 130, 0.08) 0%, transparent 40%);
+        animation: bg-float 40s infinite linear;
+      }
+
+      /* Atlantis */
+      :host([theme="atlantis"]) .theme-bg-overlay::before {
+        content: "";
+        position: absolute;
+        width: 100%; height: 100%;
+        background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7z' fill='rgba(0,255,255,0.03)' fill-rule='evenodd'/%3E%3C/svg%3E");
+        animation: bg-water-flow 60s infinite linear;
+      }
+
+      /* Lava */
+      :host([theme="lava"]) .theme-bg-overlay::before {
+        content: "";
+        position: absolute;
+        width: 100%; height: 100%;
+        background: radial-gradient(circle at 50% 120%, rgba(255, 69, 0, 0.08) 0%, transparent 60%);
+        animation: bg-flicker 6s infinite alternate;
+      }
+
+      @keyframes bg-float {
+        from { transform: translate(-25%, -25%) rotate(0deg); }
+        to { transform: translate(0%, 0%) rotate(360deg); }
+      }
+
+      @keyframes bg-water-flow {
+        from { background-position: 0 0; }
+        to { background-position: 1000px 1000px; }
+      }
+
+      @keyframes bg-flicker {
+        0% { opacity: 0.2; transform: scale(1); }
+        100% { opacity: 0.8; transform: scale(1.1); }
+      }
+
+      /* --- ACTIVITY TICKER STYLES --- */
+      .activity-ticker {
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(15px);
+        border-bottom: 2px solid rgba(var(--theme-accent-1-rgb), 0.2);
+        height: 40px;
+        overflow: hidden;
+        position: relative;
+        z-index: 101;
+        display: flex;
+        align-items: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      }
+
+      .ticker-content {
+        display: flex;
+        white-space: nowrap;
+        animation: ticker-scroll 80s infinite linear;
+        padding-left: 10%;
+      }
+
+      .ticker-item {
+        color: var(--theme-accent-1);
+        font-family: 'Courier New', monospace;
+        font-size: 0.85em;
+        margin-right: 80px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        text-shadow: 0 0 8px rgba(var(--theme-accent-1-rgb), 0.5);
+      }
+
+      @keyframes ticker-scroll {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-100%); }
+      }
       
       .header {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 30px;
-        margin-bottom: 35px;
-        padding: 25px 35px;
-        background: var(--theme-bg-header, rgba(18, 18, 20, 0.4));
+        margin-bottom: 25px;
+        padding: 30px 40px;
+        background: linear-gradient(135deg, rgba(var(--theme-accent-1-rgb), 0.05) 0%, rgba(var(--theme-accent-2-rgb), 0.02) 100%), var(--theme-bg-header, rgba(18, 18, 20, 0.6));
         border-radius: var(--theme-radius);
-        border: 1px solid var(--theme-border-color, rgba(11, 196, 226, 0.1));
-        backdrop-filter: blur(20px);
-        box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+        border: 1px solid rgba(var(--theme-accent-1-rgb), 0.15);
+        backdrop-filter: blur(30px) saturate(150%);
+        box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.05);
         flex-wrap: wrap;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(var(--theme-accent-1-rgb), 0.3), transparent);
       }
       
-      .profile-section, .title-section {
+      .profile-section {
+        display: flex;
+        align-items: center;
+        gap: 25px;
+        flex: 1.2;
+        min-width: 300px;
+      }
+
+      .title-section {
         flex: 1;
         min-width: 250px;
+        text-align: right;
       }
 
       .market-section {
-        flex-shrink: 0;
+        flex: 0.8;
         display: flex;
         justify-content: center;
+        align-items: center;
+        gap: 30px;
+        padding: 10px 20px;
+        background: rgba(0,0,0,0.2);
+        border-radius: 20px;
+        border: 1px solid rgba(var(--theme-accent-1-rgb), 0.1);
       }
 
       @media (max-width: 900px) {
@@ -2532,15 +2863,32 @@ class OpenKairoMiningPanel extends LitElement {
           flex-direction: column;
           text-align: center;
           gap: 20px;
+          padding: 20px;
         }
         .title-section {
           order: -1;
           text-align: center !important;
+          width: 100%;
         }
         .title-section h1 {
           justify-content: center !important;
+          font-size: 1.8em !important;
         }
         .profile-section {
+          justify-content: center;
+          width: 100%;
+          flex-direction: column;
+          gap: 15px;
+        }
+        .market-section {
+          width: 100%;
+          flex-direction: row;
+          justify-content: space-around;
+          gap: 10px;
+          padding: 15px;
+        }
+        .halving-widget, .market-pulse {
+          flex: 1;
           justify-content: center;
         }
       }
@@ -2552,31 +2900,60 @@ class OpenKairoMiningPanel extends LitElement {
 
       .header h1 { 
         margin: 0; 
-        font-size: 2.2em; 
+        font-size: 2.6em; 
         color: var(--theme-primary); 
-        text-shadow: 0 0 20px rgba(var(--theme-primary-rgb), 0.4);
+        text-shadow: 0 0 30px rgba(var(--theme-primary-rgb), 0.5);
         font-weight: 800;
-        letter-spacing: -0.5px;
+        letter-spacing: -1px;
+        line-height: 1;
       }
       .subtitle { 
-        margin-top: 10px; 
-        font-size: 1.2em; 
+        margin-top: 8px; 
+        font-size: 0.9em; 
         color: var(--theme-text-dim, #888);
+        text-transform: uppercase;
+        letter-spacing: 4px;
+        font-weight: 700;
+        opacity: 0.7;
       }
       .ticker-container {
         display: flex;
         align-items: center;
+        background: rgba(0,0,0,0.4);
+        border: 1px solid rgba(var(--theme-accent-1-rgb), 0.1);
+        border-radius: 40px;
+        padding: 12px 30px;
+        margin: 0 20px 25px 20px;
+        overflow: hidden;
+        position: relative;
+        box-shadow: inset 0 2px 10px rgba(0,0,0,0.3);
+      }
+      
+      .ticker-content {
+        display: flex;
+        align-items: center;
+        width: 100%;
         justify-content: space-between;
-        background: rgba(0, 0, 0, 0.3);
-        border: 1px solid var(--theme-border-color);
-        border-radius: var(--theme-radius);
-        padding: 8px 15px;
-        margin-bottom: 20px;
-        font-size: 0.75em;
+        gap: 20px;
+      }
+      
+      .ticker-mobile-extra {
+        display: none; /* Hidden on Desktop */
+      }
+      
+      .ticker-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
         font-family: 'Share Tech Mono', monospace;
+        font-size: 0.9em;
         color: var(--theme-text-dim);
-        letter-spacing: 0.5px;
-        backdrop-filter: blur(5px);
+      }
+
+      @keyframes tickerScroll {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
       }
 
       .btn-mining {
@@ -3055,7 +3432,28 @@ class OpenKairoMiningPanel extends LitElement {
 
         .tab { padding: 10px 5px !important; font-size: 0.8em !important; flex: 1 1 45% !important; border-radius: 8px !important; }
         
-        .ticker-item { width: 100%; justify-content: space-between; }
+        .ticker-container { 
+          padding: 15px 0 !important;
+          margin: 0 !important;
+          border-radius: 0 !important;
+          background: rgba(0,0,0,0.6) !important;
+          border-left: none !important;
+          border-right: none !important;
+          mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+          -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+        }
+        .ticker-content {
+          animation: tickerScroll 25s linear infinite;
+          width: auto !important;
+          justify-content: flex-start !important;
+          gap: 60px !important;
+        }
+        .ticker-mobile-extra {
+          display: flex !important;
+          align-items: center;
+          gap: 60px;
+        }
+        .ticker-content:hover { animation-play-state: paused; }
         
         .miner-card { padding: 15px !important; margin-bottom: 15px !important; }
         .miner-header { flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -3086,33 +3484,46 @@ class OpenKairoMiningPanel extends LitElement {
     const height = this.mempool.height;
     const halving = this.mempool.halving;
 
+    const tickerItems = html`
+      <div class="ticker-item" title="Aktueller Bitcoin Preis">
+        <span class="ticker-label">Price:</span>
+        <span class="ticker-val" style="color: var(--theme-accent-3); text-shadow: 0 0 10px rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.3);">
+          ${this.btcPriceEur ? this.btcPriceEur.toLocaleString('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 }) : '...'}
+        </span>
+      </div>
+      <div class="ticker-item" title="Empfohlene Gebühren (Fast | Medium | Low)">
+        <span class="ticker-label">Fees:</span>
+        <span class="ticker-val" style="color: var(--theme-accent-1); text-shadow: 0 0 8px rgba(var(--theme-accent-1-rgb), 0.4);">${fees.fastestFee}</span>
+        <span class="ticker-divider">/</span>
+        <span class="ticker-val">${fees.halfHourFee}</span>
+        <span class="ticker-divider">/</span>
+        <span class="ticker-val">${fees.hourFee}</span>
+        <span style="font-size: 0.7em; opacity: 0.4; margin-left: 2px;">sat/vB</span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-label">Height:</span>
+        <span class="ticker-val" style="color: var(--theme-text-main); font-family: var(--theme-font);">${height?.toLocaleString()}</span>
+      </div>
+      <div class="ticker-item" title="Difficulty Adjustment">
+        <span class="ticker-label">Diff:</span>
+        <span class="ticker-val" style="color: ${this.difficulty_adjustment?.difficultyChange >= 0 ? '#ff4d4d' : 'var(--theme-accent-4)'}; font-weight: 900;">
+          ${this.difficulty_adjustment ? (this.difficulty_adjustment.difficultyChange >= 0 ? '↑' : '↓') : ''}
+          ${this.difficulty_adjustment ? Math.abs(this.difficulty_adjustment.difficultyChange).toFixed(2) : '-'}%
+        </span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-label">Halving:</span>
+        <span class="ticker-val" style="color: var(--theme-primary); font-family: var(--theme-font);">${halving?.toLocaleString()} <span style="font-size: 0.7em; opacity: 0.5;">blocks</span></span>
+      </div>
+    `;
+
     return html`
-      <div class="ticker-container" id="btc-ticker" style="background: rgba(var(--theme-primary-rgb), 0.05); border: 1px solid var(--theme-border-color); color: var(--theme-text-dim);">
-        <div class="ticker-item" title="Empfohlene Gebühren (Fast | Medium | Low)">
-          <span class="ticker-label">Fees:</span>
-          <span class="ticker-val" style="color: var(--theme-accent-1)">${fees.fastestFee}</span>
-          <span class="ticker-divider">|</span>
-          <span class="ticker-val" style="color: var(--theme-accent-1)">${fees.halfHourFee}</span>
-          <span class="ticker-divider">|</span>
-          <span class="ticker-val" style="color: var(--theme-accent-1)">${fees.hourFee}</span>
-          <span class="ticker-label" style="text-transform: none; font-weight: normal;">sat/vB</span>
-        </div>
-        <div class="ticker-item">
-          <span class="ticker-label">Height:</span>
-          <span class="ticker-val" style="color: var(--theme-accent-1)">${height?.toLocaleString()}</span>
-        </div>
-        <div class="ticker-item" title="Nächstes Difficulty Adjustment & Tendenz">
-          <span class="ticker-label">Difficulty:</span>
-          <span class="ticker-val" style="color: ${this.difficulty_adjustment?.difficultyChange >= 0 ? '#ff4d4d' : 'var(--theme-accent-4)'}">
-            ${this.difficulty_adjustment ? (this.difficulty_adjustment.difficultyChange >= 0 ? '↑' : '↓') : ''}
-            ${this.difficulty_adjustment ? Math.abs(this.difficulty_adjustment.difficultyChange).toFixed(2) : '-'}%
-          </span>
-          <span style="font-size: 0.8em; opacity: 0.5; margin-left: 4px;">(${this.difficulty_adjustment ? Math.floor(this.difficulty_adjustment.progressPercent) : '-'}%)</span>
-        </div>
-        <div class="ticker-item" title="Blöcke bis zum nächsten Halving">
-          <span class="ticker-label">Halving in:</span>
-          <span class="ticker-val" style="color: var(--theme-accent-1)">${halving?.toLocaleString()}</span>
-          <span class="ticker-label" style="text-transform: none; font-weight: normal;">Blocks</span>
+      <div class="ticker-container" id="btc-ticker">
+        <div class="ticker-content">
+          ${tickerItems}
+          <div class="ticker-mobile-extra">
+            ${tickerItems}
+          </div>
         </div>
       </div>
     `;
