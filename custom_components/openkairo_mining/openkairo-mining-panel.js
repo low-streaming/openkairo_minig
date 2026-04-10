@@ -1061,6 +1061,15 @@ class OpenKairoMiningPanel extends LitElement {
          borderColor: 'rgba(0, 255, 159, 0.3)'
        };
        layout = { radius: '30px', font: "'Outfit', sans-serif", glow: '0.3' };
+    } else if (theme === 'gladbeck') {
+       colors = {
+         accent1: '#0078bb', accent2: '#ff9900', accent3: '#ffffff', accent4: '#0078bb',
+         primary: '#0078bb', bgText: '#ffffff', bgTextDim: '#a0c4ff',
+         bgApp: 'linear-gradient(135deg, #001f3f 0%, #000000 100%)',
+         bgHeader: 'rgba(0, 40, 80, 0.8)', bgCard: 'rgba(255, 255, 255, 0.05)',
+         borderColor: 'rgba(0, 120, 187, 0.4)'
+       };
+       layout = { radius: '12px', font: "'Inter', sans-serif", glow: '0.35' };
     }
 
     // Try loading font if it looks like a Google Font
@@ -1138,12 +1147,24 @@ class OpenKairoMiningPanel extends LitElement {
             ${this._renderPriceChart()}
           </div>
 
-          <div class="title-section">
-            <h1 style="display: flex; align-items: center; justify-content: flex-end; gap: 15px;">
+          <div class="title-section" style="text-align: right;">
+            ${theme === 'gladbeck' ? html`
+              <div class="partner-sponsorship" style="margin-bottom: 15px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-size: 0.65em; letter-spacing: 2px; opacity: 0.4; text-transform: uppercase; font-weight: 800; color: #fff;">Exklusiver Partner</span>
+                  <img src="https://solarmodule-gladbeck.de/wp-content/uploads/2023/07/cropped-logo_new.png" style="height: 55px; filter: drop-shadow(0 0 15px rgba(0,120,187,0.4));">
+                </div>
+                <a href="https://solarmodule-gladbeck.de" target="_blank" class="partner-btn" style="text-decoration: none; background: rgba(0,120,187,0.2); border: 1px solid rgba(0,120,187,0.5); color: #fff; padding: 6px 15px; border-radius: 20px; font-size: 0.75em; font-weight: bold; letter-spacing: 1px; transition: all 0.3s ease; box-shadow: 0 0 15px rgba(0,120,187,0.2); display: flex; align-items: center; gap: 8px;">
+                  <span>Website besuchen</span>
+                  <span style="font-size: 1.25em;">↗</span>
+                </a>
+              </div>
+            ` : ''}
+            <h1 style="display: flex; align-items: center; justify-content: flex-end; gap: 15px; margin: 0;">
               <span style="opacity: 0.6; font-size: 0.8em;">₿</span> OpenKairo <span style="color: var(--theme-accent-1); opacity: 0.9;">Mining</span>
               <span style="font-size: 0.3em; background: rgba(var(--theme-accent-1-rgb), 0.15); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 6px; padding: 4px 10px; color: var(--theme-accent-1); font-weight: 950; text-shadow: none; vertical-align: middle; letter-spacing: 1px;">PREMIUM v1.3</span>
             </h1>
-            <p class="subtitle">Next-Gen Miner Control</p>
+            <p class="subtitle" style="margin-top: 5px;">${theme === 'gladbeck' ? 'Sponsoring Edition' : 'Next-Gen Miner Control'}</p>
           </div>
         </div>
 
@@ -1458,6 +1479,9 @@ class OpenKairoMiningPanel extends LitElement {
              ${totalHashrateTH > 0 ? totalHashrateTH.toFixed(2) : '0.00'} <span style="font-size: 0.5em; color: #888;">TH/s</span>
           </div>
           <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--theme-accent-1); box-shadow: 0 0 10px var(--theme-accent-1);"></div>
+          ${this.config.theme === 'gladbeck' ? html`
+            <img src="https://solarmodule-gladbeck.de/wp-content/uploads/2023/07/cropped-logo_new.png" style="position: absolute; bottom: 10px; right: 10px; height: 25px; opacity: 0.12; filter: grayscale(1) brightness(1.5); pointer-events: none; z-index: 0;">
+          ` : ''}
         </div>
 
         <div class="card" style="margin-bottom: 0; padding: 25px; border-color: rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.4); box-shadow: 0 10px 30px rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.1); position: relative; overflow: hidden; height: 100%;">
@@ -1470,6 +1494,9 @@ class OpenKairoMiningPanel extends LitElement {
           </div>
           <div style="color: #888; font-size: 0.85em; margin-top: 5px; font-weight: bold; position: relative; z-index: 1;">≈ ${totalDailyRevBTC.toFixed(6)} BTC</div>
           <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--theme-accent-2); box-shadow: 0 0 10px var(--theme-accent-2);"></div>
+          ${this.config.theme === 'gladbeck' ? html`
+            <img src="https://solarmodule-gladbeck.de/wp-content/uploads/2023/07/cropped-logo_new.png" style="position: absolute; bottom: 10px; right: 10px; height: 25px; opacity: 0.12; filter: grayscale(1) brightness(1.5); pointer-events: none; z-index: 0;">
+          ` : ''}
         </div>
 
         <div class="card" style="margin-bottom: 0; padding: 25px; border-color: rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.4); box-shadow: 0 10px 30px rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.05); position: relative; overflow: hidden; height: 100%;">
@@ -1481,6 +1508,9 @@ class OpenKairoMiningPanel extends LitElement {
              ${(totalHashrateTH > 0 && totalPowerW > 0) ? (totalPowerW / totalHashrateTH).toFixed(1) : '0.0'} <span style="font-size: 0.5em; color: var(--theme-text-dim);">J/TH</span>
           </div>
           <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--theme-accent-3); box-shadow: 0 0 10px var(--theme-accent-3);"></div>
+          ${this.config.theme === 'gladbeck' ? html`
+            <img src="https://solarmodule-gladbeck.de/wp-content/uploads/2023/07/cropped-logo_new.png" style="position: absolute; bottom: 8px; right: 8px; height: 22px; opacity: 0.1; filter: grayscale(1) brightness(1.8); pointer-events: none; z-index: 0;">
+          ` : ''}
         </div>
 
         <div class="card" style="margin-bottom: 0; padding: 25px; border-color: rgba(var(--theme-accent-4-rgb, 0, 255, 136), 0.4); box-shadow: 0 10px 30px rgba(var(--theme-accent-4-rgb, 0, 255, 136), 0.05); position: relative; overflow: hidden; height: 100%;">
@@ -1492,6 +1522,9 @@ class OpenKairoMiningPanel extends LitElement {
              ${totalPowerW > 0 ? (totalPowerW / 1000).toFixed(2) : '0.00'} <span style="font-size: 0.5em; color: var(--theme-text-dim);">kW</span>
           </div>
           <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--theme-accent-4); box-shadow: 0 0 10px var(--theme-accent-4);"></div>
+          ${this.config.theme === 'gladbeck' ? html`
+            <img src="https://solarmodule-gladbeck.de/wp-content/uploads/2023/07/cropped-logo_new.png" style="position: absolute; bottom: 8px; right: 8px; height: 22px; opacity: 0.1; filter: grayscale(1) brightness(1.8); pointer-events: none; z-index: 0;">
+          ` : ''}
         </div>
 
       </div>
@@ -1650,6 +1683,9 @@ class OpenKairoMiningPanel extends LitElement {
 
             return html`
               <div class="miner-card">
+                ${this.config.theme === 'gladbeck' ? html`
+                  <img src="https://solarmodule-gladbeck.de/wp-content/uploads/2023/07/cropped-logo_new.png" style="position: absolute; top: 10px; right: 10px; height: 18px; opacity: 0.1; filter: grayscale(1) brightness(2); pointer-events: none; z-index: 0;">
+                ` : ''}
                 ${miner.image ? html`<div class="miner-image" style="background-image: url('${miner.image}')"></div>` : html`<div class="miner-image placeholder">₿</div>`}
                 <div class="miner-header">
                   <h3>${miner.name}</h3>
@@ -1880,6 +1916,7 @@ class OpenKairoMiningPanel extends LitElement {
                 <option value="solar">Solar Energy (Yellow & Brown)</option>
                 <option value="ice">Crystal Ice (Arctic Blue)</option>
                 <option value="abyss">Deep Abyss (Bioluminescent)</option>
+                <option value="gladbeck">☀️ Solarmodule Gladbeck (EXKLUSIV)</option>
                 <option value="custom">Individuell (Eigene Farben)</option>
               </select>
             </div>
@@ -2812,6 +2849,77 @@ class OpenKairoMiningPanel extends LitElement {
         animation: bg-flicker 10s infinite alternate;
       }
 
+      /* Solarmodule Gladbeck - Solar Power Engine (Ultra Premium) */
+      :host([theme="gladbeck"]) .theme-bg-overlay::before {
+        content: "";
+        position: absolute;
+        width: 100%; height: 100%;
+        background: 
+          url("https://solarmodule-gladbeck.de/wp-content/uploads/2023/07/cropped-logo_new.png") no-repeat center 55% / 35%,
+          url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h60v60H0z' fill='none'/%3E%3Cpath d='M0 30h60M30 0v60' stroke='rgba(0,120,187,0.15)' stroke-width='1.5'/%3E%3C/svg%3E") repeat,
+          radial-gradient(circle at 50% 10%, rgba(255, 153, 0, 0.15) 0%, transparent 40%);
+        filter: contrast(1.1) brightness(1.2);
+        animation: bg-grid-float 35s infinite linear, bg-logo-pulse 12s infinite ease-in-out;
+        z-index: 1;
+      }
+      :host([theme="gladbeck"]) .theme-bg-overlay::after {
+        content: "";
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: 
+          repeating-conic-gradient(from 0deg at 50% -10%, transparent 0deg, rgba(0, 120, 187, 0.03) 5deg, transparent 10deg),
+          radial-gradient(circle at 50% -10%, rgba(255, 153, 0, 0.1) 0%, transparent 60%);
+        animation: bg-sun-rays 25s infinite linear, bg-flicker 8s infinite alternate;
+        mix-blend-mode: screen;
+        z-index: 2;
+      }
+
+      /* Card Upgrades for Gladbeck Theme */
+      :host([theme="gladbeck"]) .card, 
+      :host([theme="gladbeck"]) .miner-card,
+      :host([theme="gladbeck"]) .tech-box {
+        backdrop-filter: blur(25px) saturate(180%);
+        background: rgba(0, 31, 63, 0.4) !important;
+        border: 1px solid rgba(0, 120, 187, 0.4);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(0, 120, 187, 0.1);
+        animation: border-glow-cycle 8s infinite ease-in-out;
+        position: relative;
+        overflow: hidden;
+      }
+      :host([theme="gladbeck"]) .card::before,
+      :host([theme="gladbeck"]) .miner-card::before {
+        content: "";
+        position: absolute;
+        top: -50%; left: -50%; width: 200%; height: 200%;
+        background: linear-gradient(45deg, transparent, rgba(255,255,255,0.03), transparent);
+        transform: rotate(45deg);
+        animation: card-sheen 6s infinite linear;
+        pointer-events: none;
+      }
+
+      @keyframes bg-sun-rays {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes border-glow-cycle {
+        0%, 100% { border-color: rgba(0, 120, 187, 0.4); box-shadow: 0 0 15px rgba(0, 120, 187, 0.2); }
+        50% { border-color: rgba(255, 153, 0, 0.5); box-shadow: 0 0 25px rgba(255, 153, 0, 0.25); }
+      }
+      @keyframes card-sheen {
+        0% { transform: translateX(-100%) rotate(45deg); }
+        100% { transform: translateX(100%) rotate(45deg); }
+      }
+
+      @keyframes bg-logo-pulse {
+        0%, 100% { opacity: 0.04; transform: scale(0.95); }
+        50% { opacity: 0.08; transform: scale(1.02); }
+      }
+
+      @keyframes bg-grid-float {
+        from { background-position: 0 0; }
+        to { background-position: 400px 400px; }
+      }
+
       @keyframes bg-ice-float {
         from { background-position: 0 0; }
         to { background-position: 500px 1000px; }
@@ -3580,6 +3688,12 @@ class OpenKairoMiningPanel extends LitElement {
     const halving = this.mempool.halving;
 
     const tickerItems = html`
+      ${this.config.theme === 'gladbeck' ? html`
+        <div class="ticker-item" style="border-right: 1px solid rgba(0,120,187,0.3); padding-right: 20px;">
+          <span style="color: var(--theme-accent-2); font-weight: bold; font-size: 0.9em; letter-spacing: 1px;">☀️ Solarmodule Gladbeck:</span>
+          <span style="color: #fff; font-size: 0.8em; opacity: 0.8; margin-left: 8px;">Ihr Experte für Photovoltaik & Balkonkraftwerke</span>
+        </div>
+      ` : ''}
       <div class="ticker-item" title="Aktueller Bitcoin Preis">
         <span class="ticker-label">Price:</span>
         <span class="ticker-val" style="color: var(--theme-accent-3); text-shadow: 0 0 10px rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.3);">
