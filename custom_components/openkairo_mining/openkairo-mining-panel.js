@@ -289,9 +289,11 @@ class OpenKairoMiningPanel extends LitElement {
       editingMinerId: { type: String },
       editForm: { type: Object },
       simulatorModels: { type: Object },
-      mempool: { type: Object }
+      mempool: { type: Object },
+      difficulty_adjustment: { type: Object },
+      btc_price_history: { type: Array },
+      previewConfig: { type: Object }
     };
-
   }
 
   constructor() {
@@ -309,12 +311,156 @@ class OpenKairoMiningPanel extends LitElement {
     this.switchHistoryData = {};
     this.fetchingSwitchHistory = {};
     this.manualInputs = {};
+    this.difficulty_adjustment = null;
+    this.btc_price_history = [];
+    this.previewConfig = null;
+    this.loadedFonts = new Set();
   }
 
   firstUpdated() {
     this.loadConfig();
     this.fetchBtcDifficulty();
     this.fetchBtcPrice();
+    this.fetchMarketData();
+    this.fetchBtcPriceHistory();
+    
+    // Refresh market data every 10 minutes
+    setInterval(() => {
+      this.fetchBtcPrice();
+      this.fetchMarketData();
+    }, 10 * 60 * 1000);
+
+    // Refresh history every hour
+    setInterval(() => {
+      this.fetchBtcPriceHistory();
+    }, 60 * 60 * 1000);
+  }
+
+  async fetchMarketData() {
+    try {
+      const response = await fetch('https://mempool.space/api/v1/difficulty-adjustment');
+      const data = await response.json();
+      if (data) {
+        this.difficulty_adjustment = data;
+        this.requestUpdate();
+      }
+    } catch (e) {
+      console.error("Failed to fetch difficulty adjustment", e);
+    }
+  }
+
+  async fetchBtcPriceHistory() {
+    try {
+      const response = await fetch('https://mempool.space/api/v1/historical-price');
+      const data = await response.json();
+      if (data && data.prices) {
+        // We take the last 24 entries (hours) for a daily chart
+        this.btc_price_history = data.prices.slice(-24);
+        this.requestUpdate();
+      }
+    } catch (e) {
+      console.error("Failed to fetch BTC price history", e);
+    }
+  }
+
+  _loadGoogleFont(fontName) {
+    if (!fontName || fontName === 'Inter' || fontName === 'sans-serif' || this.loadedFonts.has(fontName)) return;
+    
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}:wght@400;700;800&display=swap`;
+    document.head.appendChild(link);
+    this.loadedFonts.add(fontName);
+    console.log(`Font loaded: ${fontName}`);
+  }
+
+  _renderPriceChart() {
+    if (!this.btc_price_history || this.btc_price_history.length < 2) return '';
+    
+    const prices = this.btc_price_history.map(p => p.EUR);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const range = max - min;
+    
+    const width = 100;
+    const height = 30;
+    const padding = 2;
+    
+    const points = prices.map((p, i) => {
+      const x = (i / (prices.length - 1)) * width;
+      const y = height - (((p - min) / range) * (height - padding * 2) + padding);
+      return `${x},${y}`;
+    });
+    
+    const d = `M ${points.join(' L ')}`;
+    const isUp = prices[prices.length - 1] >= prices[0];
+    const color = isUp ? 'var(--theme-accent-4)' : '#ff4d4d';
+
+    return html`
+      <div style="display: flex; align-items: center; gap: 10px; margin-left: 15px; opacity: 0.8;">
+        <svg width="60" height="20" viewBox="0 0 100 30" preserveAspectRatio="none">
+          <path d="${d}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span style="font-size: 0.7em; font-weight: bold; color: ${color}">
+          ${isUp ? '↑' : '↓'} ${Math.abs(((prices[prices.length - 1] - prices[0]) / prices[0]) * 100).toFixed(1)}%
+        </span>
+      </div>
+    `;
+  }
+
+  _renderHalvingCircle() {
+    if (!this.mempool || !this.mempool.halving) return '';
+    
+    const blocksRemaining = this.mempool.halving;
+    const totalBlocksPerHalving = 210000;
+    const progress = Math.max(0, Math.min(100, (1 - (blocksRemaining / totalBlocksPerHalving)) * 100));
+    
+    const size = 60;
+    const stroke = 4;
+    const radius = (size - stroke) / 2;
+    const circumference = radius * 2 * Math.PI;
+    const offset = circumference - (progress / 100) * circumference;
+
+    return html`
+      <div class="halving-widget" style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+        <svg width="${size}" height="${size}">
+          <circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="${stroke}" />
+          <circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="var(--theme-primary)" stroke-width="${stroke}" 
+                  stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" stroke-linecap="round"
+                  style="transition: stroke-dashoffset 1s ease-out; transform: rotate(-90deg); transform-origin: 50% 50%; shadow: 0 0 10px var(--theme-primary);" />
+        </svg>
+        <div style="position: absolute; text-align: center;">
+          <div style="font-size: 0.8em; font-weight: 800; color: var(--theme-text-main)">${Math.floor(progress)}%</div>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderDesignPreview() {
+    return html`
+      <div class="preview-box" style="margin-bottom: 30px; padding: 25px; background: rgba(var(--theme-primary-rgb), 0.03); border: 2px dashed rgba(var(--theme-primary-rgb), 0.2); border-radius: var(--theme-radius); overflow: hidden; animation: fadeIn 1s ease-out;">
+        <div style="font-size: 0.75em; text-transform: uppercase; letter-spacing: 2px; color: var(--theme-text-dim); margin-bottom: 15px; font-weight: 800;">Live Vorschau</div>
+        
+        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 150px; background: var(--theme-bg-card); border: 1px solid var(--theme-border-color); padding: 15px; border-radius: var(--theme-radius); box-shadow: 0 5px 15px rgba(0,0,0,0.2);">
+            <div style="color: var(--theme-accent-1); font-weight: 800; font-size: 0.6em; text-transform: uppercase;">Example Metric</div>
+            <div style="font-size: 1.4em; font-weight: 800; color: var(--theme-text-main); margin-top: 5px;">140.5 <span style="font-size: 0.5em; color: var(--theme-text-dim);">TH/s</span></div>
+          </div>
+          <div style="flex: 1; min-width: 200px; background: var(--theme-bg-card); border: 1px solid var(--theme-border-color); padding: 15px; border-radius: var(--theme-radius); box-shadow: 0 5px 15px rgba(0,0,0,0.2);">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 30px; height: 30px; background: var(--theme-accent-2); border-radius: 50%; box-shadow: 0 0 10px var(--theme-accent-2);"></div>
+              <div>
+                <div style="font-weight: 800; font-size: 0.8em; color: var(--theme-primary);">Antminer S21</div>
+                <div style="font-size: 0.6em; color: var(--theme-text-dim);">Status: Aktiv</div>
+              </div>
+            </div>
+            <div style="margin-top: 10px; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden;">
+              <div style="width: 70%; height: 100%; background: var(--theme-accent-1); box-shadow: 0 0 5px var(--theme-accent-1);"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   async fetchBtcPrice() {
@@ -834,6 +980,12 @@ class OpenKairoMiningPanel extends LitElement {
        layout = { radius: '16px', font: "'Inter', sans-serif", glow: '0.15' };
     }
 
+    // Try loading font if it looks like a Google Font
+    if (layout.font && layout.font.includes("'")) {
+        const cleanFont = layout.font.replace(/'/g, '').split(',')[0].trim();
+        this._loadGoogleFont(cleanFont);
+    }
+
     return html`
       <style>
         :host {
@@ -864,6 +1016,31 @@ class OpenKairoMiningPanel extends LitElement {
             font-family: var(--theme-font) !important;
             background: var(--theme-bg-app);
             color: var(--theme-text-main);
+            ${this.config.animations_enabled !== false ? 'animation: fadeIn 0.6s ease-out;' : ''}
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .tab-content-anim {
+            ${this.config.animations_enabled !== false ? 'animation: slideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);' : ''}
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .energy-flow-line {
+            stroke-dasharray: 10;
+            animation: flow 2s linear infinite;
+        }
+
+        @keyframes flow {
+            from { stroke-dashoffset: 20; }
+            to { stroke-dashoffset: 0; }
         }
       </style>
     `;
@@ -889,11 +1066,21 @@ class OpenKairoMiningPanel extends LitElement {
             <div style="position: absolute; bottom: 0; right: 0; width: 14px; height: 14px; background: var(--theme-accent-1); border: 2px solid #000; border-radius: 50%; box-shadow: 0 0 10px var(--theme-accent-1);"></div>
           </div>
           <div class="wallet-info">
-            <div style="color: var(--theme-text-dim); font-size: 0.7em; text-transform: uppercase; letter-spacing: 2px; font-weight: 800; margin-bottom: 4px;">Earned / Balance</div>
-            <div style="color: var(--theme-text-main); font-size: 1.8em; font-weight: 900; font-family: var(--theme-font); text-shadow: 0 0 10px rgba(var(--theme-text-main-rgb, 255,255,255), 0.1); display: flex; align-items: baseline; gap: 8px;">
-              ${walletState} <span style="font-size: 0.5em; color: var(--theme-accent-2); letter-spacing: 1px;">BTC</span>
+            <div style="color: var(--theme-text-dim); font-size: 0.7em; text-transform: uppercase; letter-spacing: 2px; font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+               Earned / Balance
+               ${this._renderPriceChart()}
+            </div>
+               Earned / Balance
+               ${this._renderPriceChart()}
+            </div>
+            <div style="color: var(--theme-text-main); font-size: 2.2em; font-weight: 950; font-family: var(--theme-font); text-shadow: 0 0 15px rgba(var(--theme-text-main-rgb, 255,255,255), 0.1); display: flex; align-items: baseline; gap: 6px; letter-spacing: -1px;">
+              ${walletState} <span style="font-size: 0.4em; color: var(--theme-accent-2); letter-spacing: 1px; font-weight: 800;">BTC</span>
             </div>
           </div>
+        </div>
+
+        <div class="market-section" style="display: flex; gap: 20px; align-items: center;">
+          ${this._renderHalvingCircle()}
         </div>
 
         <div class="title-section" style="text-align: right;">
@@ -920,12 +1107,12 @@ class OpenKairoMiningPanel extends LitElement {
       <div class="content">
         ${(() => {
           try {
-            if (this.activeTab === 'dashboard') return this.renderDashboard();
-            if (this.activeTab === 'statistics') return this.renderStatistics();
-            if (this.activeTab === 'energy') return this.renderEnergyStats();
-            if (this.activeTab === 'design') return this.renderDesignSettings();
-            if (this.activeTab === 'settings') return this.renderSettings();
-            if (this.activeTab === 'info') return this.renderInfo();
+            if (this.activeTab === 'dashboard') return html`<div class="tab-content-anim">${this.renderDashboard()}</div>`;
+            if (this.activeTab === 'statistics') return html`<div class="tab-content-anim">${this.renderStatistics()}</div>`;
+            if (this.activeTab === 'energy') return html`<div class="tab-content-anim">${this.renderEnergyStats()}</div>`;
+            if (this.activeTab === 'design') return html`<div class="tab-content-anim">${this.renderDesignSettings()}</div>`;
+            if (this.activeTab === 'settings') return html`<div class="tab-content-anim">${this.renderSettings()}</div>`;
+            if (this.activeTab === 'info') return html`<div class="tab-content-anim">${this.renderInfo()}</div>`;
             return '';
           } catch (e) {
             console.error("Dashboard Render Error:", e);
@@ -1139,7 +1326,19 @@ class OpenKairoMiningPanel extends LitElement {
     return html`
       <div class="dashboard-wrapper" style="display: flex; flex-direction: column; width: 100%; gap: 10px;">
         ${overviewHtml}
-        <div class="miners-grid ${this.config.miners.length === 1 ? 'single-miner' : ''}" style="margin-top: 20px;">
+
+        ${totalPowerW > 0 ? html`
+          <div class="energy-flow-container" style="height: 40px; margin-top: 10px; display: flex; justify-content: center; overflow: hidden;">
+             <svg width="100%" height="40" preserveAspectRatio="none">
+               <path class="energy-flow-line" d="M 0 20 Q ${this.offsetWidth/4 || 200} 0, ${this.offsetWidth/2 || 400} 20 T ${this.offsetWidth || 800} 20" 
+                     fill="none" stroke="var(--theme-accent-1)" stroke-width="2" opacity="0.3" />
+               <path class="energy-flow-line" d="M 0 20 Q ${this.offsetWidth/4 || 200} 40, ${this.offsetWidth/2 || 400} 20 T ${this.offsetWidth || 800} 20" 
+                     fill="none" stroke="var(--theme-accent-4)" stroke-width="1.5" opacity="0.2" style="animation-delay: -1s;" />
+             </svg>
+          </div>
+        ` : ''}
+
+        <div class="miners-grid ${this.config.miners.length === 1 ? 'single-miner' : ''}" style="margin-top: 5px;">
         ${this.config.miners.map(miner => {
           try {
             const domain = 'openkairo_mining';
@@ -1474,6 +1673,8 @@ class OpenKairoMiningPanel extends LitElement {
         <h2>🎨 Design & Personalisierung</h2>
         <p>Passe das Aussehen deines Mining-Dashboards nach deinen Wünschen an.</p>
 
+        ${this._renderDesignPreview()}
+
         <div class="tech-box" style="margin-bottom: 25px; border-color: var(--theme-accent-1);">
           <h3 style="color: var(--theme-accent-1); margin-top: 0;">Design-Vorlage</h3>
           <div class="form-group">
@@ -1549,6 +1750,58 @@ class OpenKairoMiningPanel extends LitElement {
                 </div>
               </div>
 
+            </div>
+
+            <h4 style="margin: 30px 0 15px 0; font-size: 0.9em; opacity: 0.7; text-transform: uppercase;">Schriftart & Branding</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px;">
+               <div class="form-group">
+                 <label>Schriftart (Google Fonts)</label>
+                 <select @change="${(e) => { this.config.font_family = `'${e.target.value}', sans-serif`; this.requestUpdate(); this.saveConfig(true); }}" .value="${(this.config.font_family || '').replace(/'/g, '').split(',')[0].trim()}" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+                   <option value="Inter">Inter (Standard)</option>
+                   <option value="Roboto">Roboto (Klassisch)</option>
+                   <option value="Space Mono">Space Mono (Tech)</option>
+                   <option value="Outfit">Outfit (Elegant)</option>
+                   <option value="Montserrat">Montserrat (Modern)</option>
+                   <option value="Share Tech Mono">Share Tech Mono (Console)</option>
+                   <option value="Ubuntu">Ubuntu (Clean)</option>
+                   <option value="Fira Code">Fira Code (Dev)</option>
+                 </select>
+               </div>
+               <div class="form-group">
+                 <label>Animationen & Effekte</label>
+                 <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                      <input type="checkbox" ?checked="${this.config.animations_enabled !== false}" @change="${(e) => { this.config.animations_enabled = e.target.checked; this.requestUpdate(); this.saveConfig(true); }}" style="width: 20px; height: 20px; accent-color: var(--theme-primary);">
+                      UI-Animationen aktivieren
+                    </label>
+                 </div>
+               </div>
+            </div>
+
+            <h4 style="margin: 30px 0 15px 0; font-size: 0.9em; opacity: 0.7; text-transform: uppercase;">Schriftart & Branding</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px;">
+               <div class="form-group">
+                 <label>Schriftart (Google Fonts)</label>
+                 <select @change="${(e) => { this.config.font_family = `'${e.target.value}', sans-serif`; this.requestUpdate(); this.saveConfig(true); }}" .value="${(this.config.font_family || '').replace(/'/g, '').split(',')[0].trim()}" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+                   <option value="Inter">Inter (Standard)</option>
+                   <option value="Roboto">Roboto (Klassisch)</option>
+                   <option value="Space Mono">Space Mono (Tech)</option>
+                   <option value="Outfit">Outfit (Elegant)</option>
+                   <option value="Montserrat">Montserrat (Modern)</option>
+                   <option value="Share Tech Mono">Share Tech Mono (Console)</option>
+                   <option value="Ubuntu">Ubuntu (Clean)</option>
+                   <option value="Fira Code">Fira Code (Dev)</option>
+                 </select>
+               </div>
+               <div class="form-group">
+                 <label>Animationen & Effekte</label>
+                 <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                      <input type="checkbox" ?checked="${this.config.animations_enabled !== false}" @change="${(e) => { this.config.animations_enabled = e.target.checked; this.requestUpdate(); this.saveConfig(true); }}" style="width: 20px; height: 20px; accent-color: var(--theme-primary);">
+                      UI-Animationen aktivieren
+                    </label>
+                 </div>
+               </div>
             </div>
 
             <h4 style="margin: 30px 0 15px 0; font-size: 0.9em; opacity: 0.7; text-transform: uppercase;">Layout & Effekte</h4>
@@ -2252,7 +2505,7 @@ class OpenKairoMiningPanel extends LitElement {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 20px;
+        gap: 30px;
         margin-bottom: 35px;
         padding: 25px 35px;
         background: var(--theme-bg-header, rgba(18, 18, 20, 0.4));
@@ -2260,6 +2513,36 @@ class OpenKairoMiningPanel extends LitElement {
         border: 1px solid var(--theme-border-color, rgba(11, 196, 226, 0.1));
         backdrop-filter: blur(20px);
         box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+        flex-wrap: wrap;
+      }
+      
+      .profile-section, .title-section {
+        flex: 1;
+        min-width: 250px;
+      }
+
+      .market-section {
+        flex-shrink: 0;
+        display: flex;
+        justify-content: center;
+      }
+
+      @media (max-width: 900px) {
+        .header {
+          flex-direction: column;
+          text-align: center;
+          gap: 20px;
+        }
+        .title-section {
+          order: -1;
+          text-align: center !important;
+        }
+        .title-section h1 {
+          justify-content: center !important;
+        }
+        .profile-section {
+          justify-content: center;
+        }
       }
       
       .avatar-container {
@@ -2817,6 +3100,14 @@ class OpenKairoMiningPanel extends LitElement {
         <div class="ticker-item">
           <span class="ticker-label">Height:</span>
           <span class="ticker-val" style="color: var(--theme-accent-1)">${height?.toLocaleString()}</span>
+        </div>
+        <div class="ticker-item" title="Nächstes Difficulty Adjustment & Tendenz">
+          <span class="ticker-label">Difficulty:</span>
+          <span class="ticker-val" style="color: ${this.difficulty_adjustment?.difficultyChange >= 0 ? '#ff4d4d' : 'var(--theme-accent-4)'}">
+            ${this.difficulty_adjustment ? (this.difficulty_adjustment.difficultyChange >= 0 ? '↑' : '↓') : ''}
+            ${this.difficulty_adjustment ? Math.abs(this.difficulty_adjustment.difficultyChange).toFixed(2) : '-'}%
+          </span>
+          <span style="font-size: 0.8em; opacity: 0.5; margin-left: 4px;">(${this.difficulty_adjustment ? Math.floor(this.difficulty_adjustment.progressPercent) : '-'}%)</span>
         </div>
         <div class="ticker-item" title="Blöcke bis zum nächsten Halving">
           <span class="ticker-label">Halving in:</span>
