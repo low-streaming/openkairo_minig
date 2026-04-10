@@ -983,20 +983,21 @@ class OpenKairoMiningPanel extends LitElement {
     // Presets override defaults unless custom is selected
     if (theme === 'matrix') {
        colors = { 
-         accent1: '#00ff41', accent2: '#008f11', accent3: '#003b00', accent4: '#00ff41',
+         accent1: '#00ff41', accent2: '#008f11', accent3: '#d1d1d1', accent4: '#003b00',
          primary: '#00ff41', bgText: '#00ff41', bgTextDim: '#008f11',
          bgApp: '#000000', bgHeader: 'rgba(0, 20, 0, 0.8)', bgCard: 'rgba(0, 10, 0, 0.6)',
-         borderColor: '#00ff4133'
+         borderColor: 'rgba(0, 255, 65, 0.3)'
        };
-       layout = { radius: '0px', font: "'Courier New', monospace", glow: '0' };
+       layout = { radius: '0px', font: "'Courier New', monospace", glow: '0.4' };
     } else if (theme === 'classic') {
        colors = { 
          accent1: '#f7931a', accent2: '#ffffff', accent3: '#4d4d4d', accent4: '#f7931a',
-         primary: '#f7931a', bgText: '#ffffff', bgTextDim: '#aaaaaa',
-         bgApp: '#1a1a1a', bgHeader: '#111111', bgCard: '#252525',
-         borderColor: '#333333'
+         primary: '#f7931a', bgText: '#ffffff', bgTextDim: '#a0a0a0',
+         bgApp: 'radial-gradient(circle at center, #2e2e2e 0%, #111111 100%)', 
+         bgHeader: 'rgba(40, 40, 40, 0.6)', bgCard: 'rgba(40, 40, 40, 0.4)',
+         borderColor: 'rgba(247, 147, 26, 0.3)'
        };
-       layout = { radius: '4px', font: "'Roboto', sans-serif", glow: '0' };
+       layout = { radius: '12px', font: "'Inter', sans-serif", glow: '0.15' };
     } else if (theme === 'solar') {
        colors = { 
          accent1: '#ff9d00', accent2: '#ffcc00', accent3: '#ff5e00', accent4: '#ffcc00',
@@ -1008,13 +1009,13 @@ class OpenKairoMiningPanel extends LitElement {
        layout = { radius: '24px', font: "'Outfit', sans-serif", glow: '0.1' };
     } else if (theme === 'cyberpunk') {
        colors = {
-         accent1: '#0bc4e2', accent2: '#d62cf6', accent3: '#ffcc00', accent4: '#00ff88',
-         primary: '#0bc4e2', bgText: '#ffffff', bgTextDim: '#888888',
-         bgApp: 'radial-gradient(circle at center 0%, #201a14 0%, #0d0c0b 100%)',
-         bgHeader: 'rgba(18, 18, 20, 0.5)', bgCard: 'rgba(18, 18, 20, 0.4)',
-         borderColor: 'rgba(11, 196, 226, 0.1)'
+         accent1: '#00fbff', accent2: '#ff00ff', accent3: '#ffff00', accent4: '#00ff88',
+         primary: '#00fbff', bgText: '#ffffff', bgTextDim: '#a0a0b0',
+         bgApp: 'linear-gradient(135deg, #120a1f 0%, #050505 100%)',
+         bgHeader: 'rgba(20, 10, 30, 0.6)', bgCard: 'rgba(20, 10, 30, 0.4)',
+         borderColor: 'rgba(0, 251, 255, 0.2)'
        };
-       layout = { radius: '16px', font: "'Inter', sans-serif", glow: '0.15' };
+       layout = { radius: '16px', font: "'Inter', sans-serif", glow: '0.2' };
     } else if (theme === 'midnight') {
        colors = {
          accent1: '#a29bfe', accent2: '#6c5ce7', accent3: '#dfe6e9', accent4: '#ff7675',
@@ -1042,6 +1043,24 @@ class OpenKairoMiningPanel extends LitElement {
          borderColor: 'rgba(214, 48, 49, 0.25)'
        };
        layout = { radius: '4px', font: "'Outfit', sans-serif", glow: '0.3' };
+    } else if (theme === 'ice') {
+       colors = {
+         accent1: '#00d2ff', accent2: '#e1e1e1', accent3: '#ffffff', accent4: '#00d2ff',
+         primary: '#00d2ff', bgText: '#ffffff', bgTextDim: '#b0e0e6',
+         bgApp: 'linear-gradient(135deg, #001f3f 0%, #000000 100%)',
+         bgHeader: 'rgba(0, 40, 80, 0.6)', bgCard: 'rgba(255, 255, 255, 0.05)',
+         borderColor: 'rgba(0, 210, 255, 0.4)'
+       };
+       layout = { radius: '16px', font: "'Inter', sans-serif", glow: '0.4' };
+    } else if (theme === 'abyss') {
+       colors = {
+         accent1: '#00ff9f', accent2: '#001f3f', accent3: '#00d2ff', accent4: '#00ff9f',
+         primary: '#00ff9f', bgText: '#ffffff', bgTextDim: '#00ccff',
+         bgApp: '#000000',
+         bgHeader: 'rgba(0, 15, 30, 0.9)', bgCard: 'rgba(0, 31, 63, 0.3)',
+         borderColor: 'rgba(0, 255, 159, 0.3)'
+       };
+       layout = { radius: '30px', font: "'Outfit', sans-serif", glow: '0.3' };
     }
 
     // Try loading font if it looks like a Google Font
@@ -1050,64 +1069,33 @@ class OpenKairoMiningPanel extends LitElement {
         this._loadGoogleFont(cleanFont);
     }
 
-    return html`
-      <style>
-        :host {
-          --theme-accent-1: ${colors.accent1};
-          --theme-accent-2: ${colors.accent2};
-          --theme-accent-3: ${colors.accent3};
-          --theme-accent-4: ${colors.accent4};
-          --theme-accent-1-rgb: ${this._hexToRgb(colors.accent1)};
-          --theme-accent-2-rgb: ${this._hexToRgb(colors.accent2)};
-          --theme-accent-3-rgb: ${this._hexToRgb(colors.accent3)};
-          --theme-accent-4-rgb: ${this._hexToRgb(colors.accent4)};
-          
-          --theme-primary: ${colors.primary};
-          --theme-primary-rgb: ${this._hexToRgb(colors.primary)};
-          --theme-text-main: ${colors.bgText};
-          --theme-text-dim: ${colors.bgTextDim};
-          --theme-bg-app: ${colors.bgApp};
-          --theme-bg-header: ${colors.bgHeader};
-          --theme-bg-card: ${colors.bgCard};
-          --theme-border-color: ${colors.borderColor};
-          
-          --theme-radius: ${layout.radius};
-          --theme-font: ${layout.font};
-          --theme-glow-op: ${layout.glow};
-        }
-        
-        .dashboard-container {
-            font-family: var(--theme-font) !important;
-            background: var(--theme-bg-app);
-            color: var(--theme-text-main);
-            ${this.config.animations_enabled !== false ? 'animation: fadeIn 0.6s ease-out;' : ''}
-        }
+    // Apply styles directly to host for maximum reliability
+    const root = this;
+    root.style.setProperty('--theme-accent-1', colors.accent1);
+    root.style.setProperty('--theme-accent-2', colors.accent2);
+    root.style.setProperty('--theme-accent-3', colors.accent3);
+    root.style.setProperty('--theme-accent-4', colors.accent4);
+    root.style.setProperty('--theme-accent-1-rgb', this._hexToRgb(colors.accent1));
+    root.style.setProperty('--theme-accent-2-rgb', this._hexToRgb(colors.accent2));
+    root.style.setProperty('--theme-accent-3-rgb', this._hexToRgb(colors.accent3));
+    root.style.setProperty('--theme-accent-4-rgb', this._hexToRgb(colors.accent4));
+    
+    root.style.setProperty('--theme-primary', colors.primary);
+    root.style.setProperty('--theme-primary-rgb', this._hexToRgb(colors.primary));
+    root.style.setProperty('--theme-text-main', colors.bgText);
+    root.style.setProperty('--theme-text-dim', colors.bgTextDim);
+    root.style.setProperty('--theme-bg-app', colors.bgApp);
+    root.style.setProperty('--theme-bg-header', colors.bgHeader);
+    root.style.setProperty('--theme-bg-card', colors.bgCard);
+    root.style.setProperty('--theme-border-color', colors.borderColor);
+    
+    root.style.setProperty('--theme-radius', layout.radius);
+    root.style.setProperty('--theme-font', layout.font);
+    root.style.setProperty('--theme-glow-op', layout.glow);
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .tab-content-anim {
-            ${this.config.animations_enabled !== false ? 'animation: slideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);' : ''}
-        }
-
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(20px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-
-        .energy-flow-line {
-            stroke-dasharray: 10;
-            animation: flow 2s linear infinite;
-        }
-
-        @keyframes flow {
-            from { stroke-dashoffset: 20; }
-            to { stroke-dashoffset: 0; }
-        }
-      </style>
-    `;
+    // Set host attribute for CSS targeting
+    this.setAttribute('theme', theme);
+    return html``;
   }
 
 
@@ -1117,11 +1105,12 @@ class OpenKairoMiningPanel extends LitElement {
     const walletState = (this.hass && walletSensor && this.hass.states[walletSensor]) ? this.hass.states[walletSensor].state : '0.0000';
     const profileImg = this.config.profile_image || 'https://openkairo.de/wp-content/uploads/2024/01/openkairo-logo-icon.png';
 
+    // Apply variables to host
     this._applyThemeStyles();
 
     return html`
-      <div class="theme-bg-overlay"></div>
-      <div class="dashboard-container theme-${theme}">
+      ${this.config.background_animations_enabled !== false ? html`<div class="theme-bg-overlay"></div>` : ''}
+      <div class="dashboard-container">
         <div class="header">
           <div class="profile-section">
             <div class="avatar-container" style="width: 72px; height: 72px;">
@@ -1878,30 +1867,88 @@ class OpenKairoMiningPanel extends LitElement {
 
         <div class="tech-box" style="margin-bottom: 25px; border-color: var(--theme-accent-1);">
           <h3 style="color: var(--theme-accent-1); margin-top: 0;">Design-Vorlage</h3>
-          <div class="form-group">
-            <label>Wähle ein vordefiniertes Design</label>
-            <select @change="${(e) => { this.config.theme = e.target.value; this.saveConfig(true); }}" .value="${this.config.theme || 'cyberpunk'}" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
-              <option value="cyberpunk">Cyberpunk (Neon Cyan & Magenta)</option>
-              <option value="midnight">Midnight Glow (Luxury Purple)</option>
-              <option value="atlantis">Atlantis (Oceanic Teal)</option>
-              <option value="lava">Lava Field (Energy Red)</option>
-              <option value="matrix">Matrix (Hacker Green)</option>
-              <option value="classic">Classic Bitcoin (Orange & White)</option>
-              <option value="solar">Solar Energy (Yellow & Brown)</option>
-              <option value="custom">Individuell (Eigene Farben)</option>
-            </select>
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 15px;">
+            <div>
+              <label>Wähle ein vordefiniertes Design</label>
+              <select @change="${(e) => { this.config.theme = e.target.value; this.requestUpdate(); this.saveConfig(true); }}" .value="${this.config.theme || 'cyberpunk'}" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+                <option value="cyberpunk">Cyberpunk (Neon Cyan & Magenta)</option>
+                <option value="midnight">Midnight Glow (Luxury Purple)</option>
+                <option value="atlantis">Atlantis (Oceanic Teal)</option>
+                <option value="lava">Lava Field (Energy Red)</option>
+                <option value="matrix">Matrix (Hacker Green)</option>
+                <option value="classic">Classic Bitcoin (Orange & White)</option>
+                <option value="solar">Solar Energy (Yellow & Brown)</option>
+                <option value="ice">Crystal Ice (Arctic Blue)</option>
+                <option value="abyss">Deep Abyss (Bioluminescent)</option>
+                <option value="custom">Individuell (Eigene Farben)</option>
+              </select>
+            </div>
+            
+            <!-- Globaler Background-Switch (Immer sichtbar) -->
+            <div style="background: rgba(255,255,255,0.03); padding: 10px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 0.9em;">
+                    <input type="checkbox" ?checked="${this.config.background_animations_enabled !== false}" @change="${(e) => { this.config.background_animations_enabled = e.target.checked; this.requestUpdate(); this.saveConfig(true); }}" style="width: 20px; height: 20px; accent-color: var(--theme-primary);">
+                    <span><b>Hintergrund-Effekte aktivieren</b> (bewegte Animationen)</span>
+                </label>
+            </div>
+            
             <small>Hinweis: Bei Auswahl eines Presets werden die individuellen Einstellungen unten überschrieben.</small>
           </div>
         </div>
 
         ${(this.config.theme === 'custom' || !this.config.theme) ? html`
           <div class="tech-box" style="border-color: var(--theme-accent-2); margin-top: 20px;">
-            <h3 style="color: var(--theme-accent-2); margin-top: 0;">Individuelle Farben & Branding</h3>
+            <h3 style="color: var(--theme-accent-2); margin-top: 0;">Erweiterte Einstellungen (Individuell)</h3>
             
+            <h4 style="margin: 20px 0 10px 0; font-size: 0.85em; opacity: 0.6; text-transform: uppercase;">Typografie & Animation</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px;">
+               <div class="form-group">
+                 <label>Schriftart (Google Fonts)</label>
+                 <select @change="${(e) => { this.config.font_family = `'${e.target.value}', sans-serif`; this.requestUpdate(); this.saveConfig(true); }}" .value="${(this.config.font_family || '').replace(/'/g, '').split(',')[0].trim()}" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+                   <option value="Inter">Inter (Standard)</option>
+                   <option value="Roboto">Roboto (Klassisch)</option>
+                   <option value="Space Mono">Space Mono (Tech)</option>
+                   <option value="Outfit">Outfit (Elegant)</option>
+                   <option value="Montserrat">Montserrat (Modern)</option>
+                   <option value="Share Tech Mono">Share Tech Mono (Console)</option>
+                   <option value="Ubuntu">Ubuntu (Clean)</option>
+                   <option value="Fira Code">Fira Code (Dev)</option>
+                 </select>
+               </div>
+               <div class="form-group">
+                 <label>System-Animationen</label>
+                 <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                      <input type="checkbox" ?checked="${this.config.animations_enabled !== false}" @change="${(e) => { this.config.animations_enabled = e.target.checked; this.requestUpdate(); this.saveConfig(true); }}" style="width: 20px; height: 20px; accent-color: var(--theme-primary);">
+                      UI-Animationen (Blenden/Übergänge)
+                    </label>
+                 </div>
+               </div>
+            </div>
+
+            <h4 style="margin: 20px 0 10px 0; font-size: 0.85em; opacity: 0.6; text-transform: uppercase;">Formen & Leuchten</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+              <div class="form-group">
+                <label>Eckenabrundung: <b>${this.config.radius || '16px'}</b></label>
+                <input type="range" min="0" max="40" step="1" .value="${parseInt(this.config.radius) || 16}" 
+                       @input="${(e) => { this.config.radius = e.target.value + 'px'; this.requestUpdate(); }}" 
+                       @change="${() => this.saveConfig(true)}"
+                       style="width: 100%; accent-color: var(--theme-primary);">
+              </div>
+              <div class="form-group">
+                <label>Glow-Intensität: <b>${this.config.glow_intensity || '0.15'}</b></label>
+                <input type="range" min="0" max="0.5" step="0.01" .value="${this.config.glow_intensity || 0.15}" 
+                       @input="${(e) => { this.config.glow_intensity = e.target.value; this.requestUpdate(); }}" 
+                       @change="${() => this.saveConfig(true)}"
+                       style="width: 100%; accent-color: var(--theme-primary);">
+              </div>
+            </div>
+
+            <h4 style="margin: 20px 0 10px 0; font-size: 0.85em; opacity: 0.6; text-transform: uppercase;">Farbpalette</h4>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 25px;">
               
               <div class="color-group">
-                <h4 style="margin: 0 0 10px 0; font-size: 0.9em; opacity: 0.7; text-transform: uppercase;">Basisfarben</h4>
+                <h4 style="margin: 0 0 10px 0; font-size: 0.8em; opacity: 0.7;">Basisfarben</h4>
                 <div class="form-group">
                   <label>Primär (Akzent)</label>
                   <input type="color" .value="${this.config.color_primary || '#0bc4e2'}" @input="${(e) => { this.config.color_primary = e.target.value; this.requestUpdate(); }}" @change="${() => this.saveConfig(true)}">
@@ -1917,7 +1964,7 @@ class OpenKairoMiningPanel extends LitElement {
               </div>
 
               <div class="color-group">
-                <h4 style="margin: 0 0 10px 0; font-size: 0.9em; opacity: 0.7; text-transform: uppercase;">Texte & Details</h4>
+                <h4 style="margin: 0 0 10px 0; font-size: 0.8em; opacity: 0.7;">Texte & Details</h4>
                 <div class="form-group">
                   <label>Text Hauptfarbe</label>
                   <input type="color" .value="${this.config.color_text_main || '#ffffff'}" @input="${(e) => { this.config.color_text_main = e.target.value; this.requestUpdate(); }}" @change="${() => this.saveConfig(true)}">
@@ -1933,7 +1980,7 @@ class OpenKairoMiningPanel extends LitElement {
               </div>
 
               <div class="color-group">
-                <h4 style="margin: 0 0 10px 0; font-size: 0.9em; opacity: 0.7; text-transform: uppercase;">Boxen (Status)</h4>
+                <h4 style="margin: 0 0 10px 0; font-size: 0.8em; opacity: 0.7;">Boxen (Status)</h4>
                 <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                   <div>
                     <label>Hashrate</label>
@@ -1954,76 +2001,6 @@ class OpenKairoMiningPanel extends LitElement {
                 </div>
               </div>
 
-            </div>
-
-            <h4 style="margin: 30px 0 15px 0; font-size: 0.9em; opacity: 0.7; text-transform: uppercase;">Schriftart & Branding</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px;">
-               <div class="form-group">
-                 <label>Schriftart (Google Fonts)</label>
-                 <select @change="${(e) => { this.config.font_family = `'${e.target.value}', sans-serif`; this.requestUpdate(); this.saveConfig(true); }}" .value="${(this.config.font_family || '').replace(/'/g, '').split(',')[0].trim()}" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
-                   <option value="Inter">Inter (Standard)</option>
-                   <option value="Roboto">Roboto (Klassisch)</option>
-                   <option value="Space Mono">Space Mono (Tech)</option>
-                   <option value="Outfit">Outfit (Elegant)</option>
-                   <option value="Montserrat">Montserrat (Modern)</option>
-                   <option value="Share Tech Mono">Share Tech Mono (Console)</option>
-                   <option value="Ubuntu">Ubuntu (Clean)</option>
-                   <option value="Fira Code">Fira Code (Dev)</option>
-                 </select>
-               </div>
-               <div class="form-group">
-                 <label>Animationen & Effekte</label>
-                 <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
-                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                      <input type="checkbox" ?checked="${this.config.animations_enabled !== false}" @change="${(e) => { this.config.animations_enabled = e.target.checked; this.requestUpdate(); this.saveConfig(true); }}" style="width: 20px; height: 20px; accent-color: var(--theme-primary);">
-                      UI-Animationen aktivieren
-                    </label>
-                 </div>
-               </div>
-            </div>
-
-            <h4 style="margin: 30px 0 15px 0; font-size: 0.9em; opacity: 0.7; text-transform: uppercase;">Schriftart & Branding</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px;">
-               <div class="form-group">
-                 <label>Schriftart (Google Fonts)</label>
-                 <select @change="${(e) => { this.config.font_family = `'${e.target.value}', sans-serif`; this.requestUpdate(); this.saveConfig(true); }}" .value="${(this.config.font_family || '').replace(/'/g, '').split(',')[0].trim()}" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
-                   <option value="Inter">Inter (Standard)</option>
-                   <option value="Roboto">Roboto (Klassisch)</option>
-                   <option value="Space Mono">Space Mono (Tech)</option>
-                   <option value="Outfit">Outfit (Elegant)</option>
-                   <option value="Montserrat">Montserrat (Modern)</option>
-                   <option value="Share Tech Mono">Share Tech Mono (Console)</option>
-                   <option value="Ubuntu">Ubuntu (Clean)</option>
-                   <option value="Fira Code">Fira Code (Dev)</option>
-                 </select>
-               </div>
-               <div class="form-group">
-                 <label>Animationen & Effekte</label>
-                 <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
-                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                      <input type="checkbox" ?checked="${this.config.animations_enabled !== false}" @change="${(e) => { this.config.animations_enabled = e.target.checked; this.requestUpdate(); this.saveConfig(true); }}" style="width: 20px; height: 20px; accent-color: var(--theme-primary);">
-                      UI-Animationen aktivieren
-                    </label>
-                 </div>
-               </div>
-            </div>
-
-            <h4 style="margin: 30px 0 15px 0; font-size: 0.9em; opacity: 0.7; text-transform: uppercase;">Layout & Effekte</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
-              <div class="form-group">
-                <label>Eckenabrundung: <b>${this.config.radius || '16px'}</b></label>
-                <input type="range" min="0" max="40" step="1" .value="${parseInt(this.config.radius) || 16}" 
-                       @input="${(e) => { this.config.radius = e.target.value + 'px'; this.requestUpdate(); }}" 
-                       @change="${() => this.saveConfig(true)}"
-                       style="width: 100%; accent-color: var(--theme-primary);">
-              </div>
-              <div class="form-group">
-                <label>Glow-Intensität: <b>${this.config.glow_intensity || '0.15'}</b></label>
-                <input type="range" min="0" max="0.5" step="0.01" .value="${this.config.glow_intensity || 0.15}" 
-                       @input="${(e) => { this.config.glow_intensity = e.target.value; this.requestUpdate(); }}" 
-                       @change="${() => this.saveConfig(true)}"
-                       style="width: 100%; accent-color: var(--theme-primary);">
-              </div>
             </div>
           </div>
         ` : ''}
@@ -2377,10 +2354,12 @@ class OpenKairoMiningPanel extends LitElement {
 
   renderActivityTicker() {
     if (!this.logs || this.logs.length === 0) return '';
+    // Duplicate logs for seamless looping on wide screens
+    const tripledLogs = [...this.logs, ...this.logs, ...this.logs];
     return html`
       <div class="activity-ticker">
         <div class="ticker-content">
-          ${this.logs.map(log => html`<div class="ticker-item">${log}</div>`)}
+          ${tripledLogs.map(log => html`<div class="ticker-item">${log}</div>`)}
         </div>
       </div>
     `;
@@ -2557,11 +2536,6 @@ class OpenKairoMiningPanel extends LitElement {
         <div class="tech-box" style="margin-top: 30px; border-color: rgba(var(--theme-accent-1-rgb), 0.2);">
            <h3 style="color: var(--theme-accent-1); margin-top: 0;">💡 Bitcoin Infos</h3>
            <p style="color: var(--theme-text-dim); font-size: 0.9em;">
-              Difficulty: <b>${formatDifficulty(this.btcDifficulty)}</b> | Preis: <b>${this.btcPriceEur ? this.btcPriceEur.toLocaleString("de-DE", { style: "currency", currency: "EUR" }) : '-'}</b>
-           </p>
-        </div>
-      </div>
-           <p style="color: #bbb; font-size: 0.9em;">
               Difficulty: <b>${formatDifficulty(this.btcDifficulty)}</b> | Preis: <b>${this.btcPriceEur ? this.btcPriceEur.toLocaleString("de-DE", { style: "currency", currency: "EUR" }) : '-'}</b>
            </p>
         </div>
@@ -2753,6 +2727,106 @@ class OpenKairoMiningPanel extends LitElement {
         animation: bg-flicker 6s infinite alternate;
       }
 
+      /* Cyberpunk - Neon Grid & Scanlines */
+      :host([theme="cyberpunk"]) .theme-bg-overlay::before {
+        content: "";
+        position: absolute;
+        width: 100%; height: 100%;
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                    linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+        background-size: 100% 4px, 3px 100%;
+        z-index: 10;
+        pointer-events: none;
+      }
+      :host([theme="cyberpunk"]) .theme-bg-overlay::after {
+        content: "";
+        position: absolute;
+        bottom: 0; left: 0; right: 0; height: 300px;
+        background: linear-gradient(transparent, rgba(255, 0, 255, 0.1));
+        transform: perspective(500px) rotateX(60deg);
+        background-size: 50px 50px;
+        background-image: linear-gradient(to right, rgba(0, 251, 255, 0.1) 1px, transparent 1px),
+                          linear-gradient(to bottom, rgba(0, 251, 255, 0.1) 1px, transparent 1px);
+        animation: bg-grid-move 20s infinite linear;
+      }
+
+      /* Matrix - Digital Rain */
+      :host([theme="matrix"]) .theme-bg-overlay::before {
+        content: "";
+        position: absolute;
+        width: 100%; height: 100%;
+        background: linear-gradient(rgba(0, 255, 65, 0.1) 0%, transparent 70%);
+        background-size: 2px 100%;
+        animation: bg-matrix-rain 8s infinite linear;
+        opacity: 0.3;
+      }
+
+      /* Solar - Flares */
+      :host([theme="solar"]) .theme-bg-overlay::before {
+        content: "";
+        position: absolute;
+        width: 200%; height: 200%;
+        background: radial-gradient(circle at center, rgba(255, 157, 0, 0.05) 0%, transparent 50%);
+        animation: bg-float 30s infinite alternate ease-in-out;
+      }
+
+      /* Bitcoin Classic - Coin Patterns */
+      :host([theme="classic"]) .theme-bg-overlay::before {
+        content: "";
+        position: absolute;
+        width: 100%; height: 100%;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='10' y='40' font-family='Arial' font-size='30' fill='rgba(247,147,26,0.03)'%3E₿%3C/text%3E%3C/svg%3E");
+        animation: bg-water-flow 120s infinite linear;
+      }
+
+      /* Crystal Ice */
+      :host([theme="ice"]) .theme-bg-overlay::before {
+        content: "";
+        position: absolute;
+        width: 100%; height: 100%;
+        background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='10' cy='10' r='1' fill='white' opacity='0.2' /%3E%3Ccircle cx='50' cy='80' r='1.5' fill='white' opacity='0.1' /%3E%3C/svg%3E");
+        animation: bg-ice-float 30s infinite linear;
+      }
+      :host([theme="ice"]) .theme-bg-overlay::after {
+        content: "";
+        position: absolute;
+        width: 100%; height: 100%;
+        background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05) 0%, transparent 80%);
+        animation: bg-flicker 5s infinite;
+      }
+
+      /* Deep Abyss */
+      :host([theme="abyss"]) .theme-bg-overlay::before {
+        content: "";
+        position: absolute;
+        width: 100%; height: 100%;
+        background: radial-gradient(circle at 20% 40%, rgba(0, 255, 159, 0.04) 0%, transparent 40%),
+                    radial-gradient(circle at 80% 60%, rgba(0, 210, 255, 0.04) 0%, transparent 40%);
+        animation: bg-float 25s infinite alternate ease-in-out;
+      }
+      :host([theme="abyss"]) .theme-bg-overlay::after {
+        content: "";
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 255, 159, 0.02));
+        animation: bg-flicker 10s infinite alternate;
+      }
+
+      @keyframes bg-ice-float {
+        from { background-position: 0 0; }
+        to { background-position: 500px 1000px; }
+      }
+
+      @keyframes bg-grid-move {
+        from { background-position: 0 0; }
+        to { background-position: 0 500px; }
+      }
+
+      @keyframes bg-matrix-rain {
+        from { background-position: 0 -1000px; }
+        to { background-position: 0 1000px; }
+      }
+
       @keyframes bg-float {
         from { transform: translate(-25%, -25%) rotate(0deg); }
         to { transform: translate(0%, 0%) rotate(360deg); }
@@ -2785,24 +2859,45 @@ class OpenKairoMiningPanel extends LitElement {
       .ticker-content {
         display: flex;
         white-space: nowrap;
-        animation: ticker-scroll 80s infinite linear;
-        padding-left: 10%;
+        animation: ticker-scroll 40s infinite linear;
       }
 
       .ticker-item {
         color: var(--theme-accent-1);
         font-family: 'Courier New', monospace;
         font-size: 0.85em;
-        margin-right: 80px;
+        margin-right: 15vw;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        text-shadow: 0 0 8px rgba(var(--theme-accent-1-rgb), 0.5);
+        letter-spacing: 1.5px;
+        text-shadow: 0 0 10px rgba(var(--theme-accent-1-rgb), 0.6);
+        flex-shrink: 0;
+      }
+
+      @media (min-width: 1024px) {
+        .activity-ticker {
+          overflow: hidden;
+          background: rgba(0,0,0,0.2);
+          border-bottom: 1px solid var(--theme-border-color);
+        }
+        .ticker-content {
+          animation: none;
+          justify-content: center;
+          padding: 0 20px;
+        }
+        .ticker-item {
+          margin-right: 40px;
+          letter-spacing: 1px;
+        }
+        /* Hide duplicated logs on desktop to keep it static and clean */
+        .ticker-item:nth-child(n+21) {
+          display: none;
+        }
       }
 
       @keyframes ticker-scroll {
         0% { transform: translateX(0); }
-        100% { transform: translateX(-100%); }
+        100% { transform: translateX(-33.333%); }
       }
       
       .header {

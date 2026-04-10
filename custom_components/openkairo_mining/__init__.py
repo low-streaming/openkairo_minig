@@ -167,6 +167,14 @@ class OpenKairoMiningApiView(HomeAssistantView):
         from aiohttp import web
         return web.json_response({"status": "ok", "config": config, "states": clean_states, "mempool": mempool, "logs": logs})
 
+ 
+    async def post(self, request):
+        hass = request.app["hass"]
+        data = await request.json()
+        await hass.async_add_executor_job(_save_config, hass, data)
+        from aiohttp import web
+        return web.json_response({"status": "success"})
+
 def _add_log_entry(hass, message):
     if DOMAIN not in hass.data:
         return
@@ -180,14 +188,6 @@ def _add_log_entry(hass, message):
     # Keep only last 20 entries
     hass.data[DOMAIN]["logs"] = hass.data[DOMAIN]["logs"][:20]
     _LOGGER.info(f"[OpenKairo Log] {message}")
-
-
-    async def post(self, request):
-        hass = request.app["hass"]
-        data = await request.json()
-        await hass.async_add_executor_job(_save_config, hass, data)
-        from aiohttp import web
-        return web.json_response({"status": "success"})
 
 
 async def _mining_loop(hass):

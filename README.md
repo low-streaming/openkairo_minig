@@ -1,4 +1,4 @@
-# OpenKairo Mining v1.2 ⚡
+# OpenKairo Mining v1.3 ⚡
 
 Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intelligent nach PV-Überschuss zu steuern. *Powered by OpenKairo*
 
@@ -8,13 +8,15 @@ Ein Custom Component (Integration) für Home Assistant, um Krypto-Miner intellig
 > Diese muss ebenfalls als **Benutzerdefiniertes Repository** in HACS hinzugefügt werden:
 > 1. URL: `https://github.com/Schnitzel/hass-miner`
 > 2. Kategorie: **Integration**
->
+> 
 > Erst danach stehen die Entitäten bereit, die im OpenKairo Mining Panel verknüpft werden.
 
-## 🆕 Neu in v1.2
-- **Ramping (Soft-Start & Soft-Stop):** Sanftes, mehrstufiges Hoch- und Herunterfahren der ASIC-Leistung (Watt) beim Ein- und Ausschalten.
-- **Dual-Plug Support:** Unterstützung für Miner mit zwei Netzteilen. Zwei smarte Steckdosen können nun absolut synchron gesteuert werden.
-- **Dauerbetrieb optimiert:** Ein wichtiges Stabilitätsupdate verhindert Abstürze der Anzeige ("Black Screen") bei unvollständigen State-Updates von Home Assistant.
+## 🆕 Neu in v1.3 (Command Center Update)
+- **Ultra-Premium Themes:** Zwei neue, hochmoderne Designs: **Crystal Ice** (Arktisches Blau) und **Deep Abyss** (Biolumineszierendes Grün) mit dynamischen Hintergrund-Animationen.
+- **Mempool.space Integration:** Live-Anzeige von Bitcoin-Netzwerkdaten (aktuelle Gebühren, Blockhöhe, Halving-Countdown) direkt im Header.
+- **Responsive Activity Ticker:** Ein intelligenter Ereignis-Ticker, der am PC statisch und elegant wirkt, am Handy jedoch als flüssige Laufschrift alle wichtigen Systemereignisse anzeigt.
+- **Master Effects Switches:** Volle Kontrolle über visuelle Effekte. Hintergrund-Animationen und UI-Übereingänge können nun separat ein- und ausgeschaltet werden.
+- **Stabilitäts-Fixes:** Reparatur der Konfigurations-Persistence und Optimierung der Ticker-Schleife für breite Monitore.
 
 ## ⚙️ Alle Features
 - **Designstarkes Dashboard:** Eine moderne Weboberfläche zur zentralen Steuerung und Überwachung aller Miner.
