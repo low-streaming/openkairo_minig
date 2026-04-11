@@ -267,13 +267,18 @@ async def _mining_loop(hass):
                     watchdog_type = miner.get("watchdog_type", "power")
                     # Wähle das Ziel-Objekt basierend auf dem Typ
                     target_entity = miner.get("power_entity") if watchdog_type == "limit" else miner.get("power_consumption_sensor")
-                    standby_switch = miner.get("standby_switch")
+                    standby_switches = []
+                    if miner.get("standby_switch"):
+                        standby_switches.append(miner.get("standby_switch"))
+                    if miner.get("standby_switch_2"):
+                        standby_switches.append(miner.get("standby_switch_2"))
                     
-                    if target_entity and standby_switch:
+                    if target_entity and standby_switches:
                         target_state = hass.states.get(target_entity)
-                        standby_switch_state = hass.states.get(standby_switch)
+                        # Prüfe ob mindestens einer der Schalter AN ist (sonst ist der Watchdog ggf. schon durch)
+                        any_on = any(hass.states.get(s).state == "on" if hass.states.get(s) else False for s in standby_switches)
                         
-                        if target_state and target_state.state not in ["unknown", "unavailable"] and standby_switch_state and standby_switch_state.state == "on":
+                        if target_state and target_state.state not in ["unknown", "unavailable"] and any_on:
                             try:
                                 current_value = float(target_state.state)
                                 standby_threshold = float(miner.get("standby_power", 100))
@@ -287,7 +292,7 @@ async def _mining_loop(hass):
                                         msg = f"Watchdog an {miner_name} ausgelöst ({watchdog_type})! Wert {current_value} zu niedrig. Schalte Steckdose AUS."
                                         _LOGGER.warning(f"[{miner_name}] {msg}")
                                         _add_log_entry(hass, f"🛡️ {msg}")
-                                        await hass.services.async_call("switch", "turn_off", {"entity_id": standby_switch}, blocking=False)
+                                        await hass.services.async_call("switch", "turn_off", {"entity_id": standby_switches}, blocking=False)
                                         state["standby_since"] = None
                                 else:
                                     state["standby_since"] = None
@@ -371,14 +376,20 @@ async def _mining_loop(hass):
                             
                             # Standby-Switch (Hard Plug) automatically turn ON if it was hard-off
                             if miner.get("standby_watchdog_enabled"):
-                                standby_switch = miner.get("standby_switch")
-                                if standby_switch:
-                                    standby_switch_state = hass.states.get(standby_switch)
-                                    if standby_switch_state and standby_switch_state.state == "off":
-                                        msg = f"Watchdog-Erholung für {miner_name}: Schalte Steckdose wieder EIN."
+                                standby_switches = []
+                                if miner.get("standby_switch"):
+                                    standby_switches.append(miner.get("standby_switch"))
+                                if miner.get("standby_switch_2"):
+                                    standby_switches.append(miner.get("standby_switch_2"))
+
+                                if standby_switches:
+                                    # Wieder einschalten wenn nötig (mindestens einer AUS)
+                                    any_off = any(hass.states.get(s).state == "off" if hass.states.get(s) else False for s in standby_switches)
+                                    if any_off:
+                                        msg = f"Watchdog-Erholung für {miner_name}: Schalte Steckdose(n) wieder EIN."
                                         _LOGGER.info(f"[{miner_name}] {msg}")
                                         _add_log_entry(hass, f"🛡️ {msg}")
-                                        await hass.services.async_call("switch", "turn_on", {"entity_id": standby_switch}, blocking=False)
+                                        await hass.services.async_call("switch", "turn_on", {"entity_id": standby_switches}, blocking=False)
                             
                             if not is_on and state.get("ramping") != "up":
                                 if miner.get("soft_start_enabled") and miner.get("power_entity"):

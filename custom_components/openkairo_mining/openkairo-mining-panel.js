@@ -847,7 +847,7 @@ class OpenKairoMiningPanel extends LitElement {
     const { name, value, type, checked } = e.target;
     const finalValue = type === 'checkbox' ? checked : value;
     
-    if (name === 'switch_2' && finalValue && finalValue !== this.editForm.switch_2) {
+    if ((name === 'switch_2' || name === 'standby_switch_2') && finalValue && finalValue !== this.editForm[name]) {
         if (!confirm("⚠️ WARNUNG: Der Betrieb eines Miners an zwei getrennten smarten Steckdosen ist eigentlich nicht zulässig und erfolgt auf eigene Gefahr! \n\nEs kann zu Problemen beim Leistungsschutz oder zur Überlastung führen. Möchtest du fortfahren?")) {
             e.target.value = '';
             return;
@@ -2157,6 +2157,10 @@ class OpenKairoMiningPanel extends LitElement {
               <label>Schalter / Steckdose 1</label>
               <openkairo-entity-picker name="switch" placeholder="-- Steckdose 1 wählen --" .value="${this.editForm.switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
             </div>
+            <div class="form-group flex-1">
+              <label>Schalter / Steckdose 2 (Optional)</label>
+              <openkairo-entity-picker name="switch_2" placeholder="-- Steckdose 2 wählen --" .value="${this.editForm.switch_2 || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+            </div>
         </div>
         <small style="margin-top: -15px; display: block; margin-bottom: 20px;">Die Steckdose(n) oder der 'hass-miner' Switch, an dem der Miner pausiert wird.</small>
 
@@ -2353,11 +2357,17 @@ class OpenKairoMiningPanel extends LitElement {
             <p style="color: #888; font-size: 0.85em; margin-top: 10px;">Schaltet eine Steckdose (z.B. Shelly Plug) komplett ab, wenn der Stromverbrauch für längere Zeit<br>unter einen Grenzwert fällt. Nützlich wenn Miner sich aufhängen oder im Standby zu viel verbrauchen.</p>
             
             ${this.editForm.standby_watchdog_enabled ? html`
-            <div class="form-group mt-3">
-                <label>Steckdose / Plug (Hard-Off Schalter)</label>
-                <openkairo-entity-picker name="standby_switch" placeholder="-- Steckdose suchen --" .value="${this.editForm.standby_switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
-                <small>HINWEIS: Der Plug wird automatisch wieder hochgefahren, sobald die PV- oder SOC-Einschaltregeln erfüllt sind.</small>
+            <div class="form-row mt-3">
+                <div class="form-group flex-1">
+                    <label>Watchdog Steckdose 1 (Hard-Off)</label>
+                    <openkairo-entity-picker name="standby_switch" placeholder="-- Steckdose suchen --" .value="${this.editForm.standby_switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                </div>
+                <div class="form-group flex-1">
+                    <label>Watchdog Steckdose 2 (Optional)</label>
+                    <openkairo-entity-picker name="standby_switch_2" placeholder="-- Steckdose suchen --" .value="${this.editForm.standby_switch_2 || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                </div>
             </div>
+            <small style="margin-top: -15px; display: block;">HINWEIS: Die Plugs werden automatisch wieder hochgefahren, sobald die PV- oder SOC-Einschaltregeln erfüllt sind.</small>
             
             <div class="form-group mt-3">
                 <label>Überwachungs-Ziel (Was soll geprüft werden?)</label>
