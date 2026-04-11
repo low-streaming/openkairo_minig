@@ -328,6 +328,11 @@ class OpenKairoMiningPanel extends LitElement {
     this.fetchMarketData();
     this.fetchBtcPriceHistory();
     
+    // Refresh miner states/config every 30 seconds
+    setInterval(() => {
+      this.loadConfig();
+    }, 30 * 1000);
+
     // Refresh market data every 10 minutes
     setInterval(() => {
       this.fetchBtcPrice();
