@@ -7,10 +7,7 @@
     "codeowners": [
         "@openkairo"
     ],
-    "requirements": [
-        "pyasic==0.78.1",
-        "pydantic>=2.0.0"
-    ],
+    "requirements": [],
     "platforms": [
         "sensor",
         "switch",

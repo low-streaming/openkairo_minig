@@ -7,8 +7,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
-import pyasic
-
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,6 +23,9 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str, str]:
     """Validate the user input allows us to connect."""
+    # Lazy import to avoid startup issues
+    import pyasic
+    
     # Clean up whitespace
     ip_address = data["ip_address"].strip()
     username = data.get("username", "root")
@@ -39,7 +40,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
     for attempt in range(max_retries):
         try:
             _LOGGER.debug(f"[{ip_address}] Miner-Suche Versuch {attempt + 1}/{max_retries}...")
-            # Use Factory directly with a slightly longer timeout matching hass-miner context
+            # Replicate hass-miner: Simple get_miner without constructor credentials
             miner = await pyasic.get_miner(ip_address)
             if miner:
                 _LOGGER.info(f"[{ip_address}] Miner erkannt: {miner.make} ({miner.model})")
@@ -54,12 +55,10 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
     if miner is None:
         _LOGGER.info(f"[{ip_address}] Automatische Suche fehlgeschlagen. Versuche Direkt-Verbindung für Braiins OS...")
         try:
-            # We try to force a BOSMiner instance as we see it in user browser
-            # Correct import path for pyasic 0.78.10
             from pyasic.miners.backends.braiins_os import BOSMiner
             miner = BOSMiner(ip_address)
-            # Basic check if it responds on 4028 or 80
-            data_test = await miner.get_data()
+            # Basic check if it responds
+            data_test = await asyncio.wait_for(miner.get_data(), timeout=10)
             if not data_test:
                 miner = None
         except Exception as e:
@@ -71,13 +70,18 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
         raise CannotConnect(
             f"Kein ASIC Miner unter {ip_address} gefunden. "
             "Bitte stelle sicher, dass der API-Port (4028) am Miner aktiviert ist. "
-            "Bei Braiins OS: Einstellungen -> Miner API -> Enabled."
         )
 
     try:
+        # Replicate hass-miner: Manual assignment of credentials
         if password:
-            miner.username = username
-            miner.pwd = password
+            miner.api.pwd = password
+            # Some miners use web auth too
+            try:
+                miner.web.username = username
+                miner.web.pwd = password
+            except Exception:
+                pass
             
         if ssh_password:
             try:
@@ -88,11 +92,11 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
 
         # Versuche Daten abzurufen, um Login zu testen
         _LOGGER.debug(f"[{ip_address}] Teste Login/Datenabruf...")
-        miner_data = await miner.get_data()
+        miner_data = await asyncio.wait_for(miner.get_data(), timeout=15)
         if not miner_data:
-            raise InvalidAuth("Login fehlgeschlagen oder Miner liefert keine Daten (API-Antwort leer).")
+            raise InvalidAuth("Login fehlgeschlagen oder Miner liefert keine Daten.")
             
-        model = miner.make or "ASIC"
+        model = miner.model or "ASIC"
         return {"title": f"{model} ({ip_address})", "model": model}
 
     except InvalidAuth:

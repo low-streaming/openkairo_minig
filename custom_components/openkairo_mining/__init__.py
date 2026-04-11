@@ -32,10 +32,17 @@ PLATFORMS: list[Platform] = [
 from homeassistant.components.frontend import async_register_built_in_panel, async_remove_panel
 
 async def async_setup(hass: HomeAssistant, config: dict):
+    # Ensure pyasic is installed before anything else
+    from .patch import ensure_pyasic
+    await hass.async_add_executor_job(ensure_pyasic)
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     _LOGGER.info(f"Setting up OpenKairo Mining Integration: {entry.title}")
+    
+    # Reload pyasic if needed
+    from .patch import ensure_pyasic
+    await hass.async_add_executor_job(ensure_pyasic)
     
     hass.data.setdefault(DOMAIN, {})
     

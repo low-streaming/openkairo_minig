@@ -2,45 +2,47 @@ import logging
 import asyncio
 from datetime import timedelta
 
-import pyasic
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.core import HomeAssistant
+from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
 class MinerDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching Miner data from an ASIC."""
 
-    def __init__(self, hass: HomeAssistant, miner_ip: str, name: str, user: str = None, password: str = None, ssh_user: str = None, ssh_password: str = None):
+    def __init__(self, hass: HomeAssistant, miner_ip: str, name: str, user: str = "root", password: str = ""):
         """Initialize the coordinator."""
-        self.miner_ip = miner_ip
-        self.miner_name = name
-        self.miner_user = user
-        self.miner_password = password
-        self.ssh_user = ssh_user
-        self.ssh_password = ssh_password
-        self.miner_obj = None
+        # Lazy import inside the class
+        import pyasic
         
         super().__init__(
             hass,
             _LOGGER,
-            name=f"OpenKairo Miner {name} ({miner_ip})",
-            update_interval=timedelta(seconds=15),
+            name=DOMAIN,
+            update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL),
         )
+        self.miner_ip = miner_ip
+        self.miner_name = name
+        self.miner_user = user
+        self.miner_password = password
+        self.miner_obj = None
+        self.miner_model = None
+        self.miner_make = None
 
     async def _async_update_data(self):
-        """Fetch data from the miner."""
+        """Fetch data from the ASIC."""
+        import pyasic
+        import asyncio
+        
         try:
             if self.miner_obj is None:
-                _LOGGER.debug(f"[{self.miner_ip}] Suche Miner...")
+                # Replicate hass-miner: get_miner without credentials
                 self.miner_obj = await pyasic.get_miner(self.miner_ip)
-                
                 if self.miner_obj:
-                    # Update credentials if provided
+                    # Manual credential assignment
                     if self.miner_password:
-                        self.miner_obj.username = self.miner_user or "root"
-                        self.miner_obj.pwd = self.miner_password
-                    if self.ssh_password:
+                        self.miner_obj.api.pwd = self.miner_password
                         try:
                             self.miner_obj.ssh_username = self.ssh_user or "root"
                             self.miner_obj.ssh_pwd = self.ssh_password
