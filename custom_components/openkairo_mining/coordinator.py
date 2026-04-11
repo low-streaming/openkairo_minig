@@ -77,18 +77,31 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                 data = await asyncio.wait_for(self.miner_obj.get_data(), timeout=20)
                 if not data:
                      raise UpdateFailed("Miner lieferte leere Daten.")
+                
+                # Normalize Hashrate (Industry Standard: always TH/s)
+                raw_hashrate = getattr(data, "hashrate", 0) or 0
+                if raw_hashrate > 1000000: # Clearly H/s
+                    data.hashrate = round(raw_hashrate / 1000000000000, 2)
+                elif raw_hashrate > 500: # Likely GH/s (unlikely for S9 but possible for others)
+                    data.hashrate = round(raw_hashrate / 1000, 2)
+
                 return data
             except (asyncio.TimeoutError, Exception) as e:
-                _LOGGER.warning(f"[{self.miner_ip}] Datenabruf fehlgeschlagen: {e}")
+                # Silently fail if it's just a timeout/offline issue to keep logs clean
+                msg = str(e)
+                if "LUCI" in msg or "Connection" in msg or "timeout" in msg.lower():
+                    _LOGGER.info(f"[{self.miner_ip}] Miner ist offline oder beschäftigt: {msg}")
+                else:
+                    _LOGGER.warning(f"[{self.miner_ip}] Datenabruf fehlgeschlagen: {e}")
+                
                 self.miner_obj = None
-                raise UpdateFailed(f"Kommunikationsfehler: {e}")
+                raise UpdateFailed(f"Miner offline: {e}")
 
         except Exception as err:
-            _LOGGER.debug(f"[{self.miner_ip}] Globaler Fehler: {err}")
-            # Reset on connection errors
-            if "Connection" in str(err) or "timeout" in str(err).lower():
-                self.miner_obj = None
-            raise UpdateFailed(f"Fehler: {err}")
+            # We don't log this as error to keep the system log clean when devices are off
+            _LOGGER.debug(f"[{self.miner_ip}] Globaler Update-Info: {err}")
+            self.miner_obj = None
+            raise UpdateFailed(f"Offline: {err}")
 
 async def async_get_miner_coordinator(hass, domain, miner_ip, miner_name, user="root", password="", ssh_user="root", ssh_password=""):
     """Retrieve or create a coordinator for a specific miner."""

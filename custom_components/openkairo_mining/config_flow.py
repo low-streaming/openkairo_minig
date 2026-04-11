@@ -18,6 +18,8 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Optional("password", default=""): str,
         vol.Optional("ssh_username", default="root"): str,
         vol.Optional("ssh_password", default=""): str,
+        vol.Optional("min_power", default=400): int,
+        vol.Optional("max_power", default=1400): int,
     }
 )
 

@@ -30,8 +30,6 @@ class MinerPowerLimitNumber(CoordinatorEntity, NumberEntity):
     _attr_device_class = NumberDeviceClass.POWER
     _attr_native_unit_of_measurement = UnitOfPower.WATT
     _attr_native_step = 10
-    _attr_native_min_value = 100
-    _attr_native_max_value = 4000
 
     def __init__(self, coordinator):
         super().__init__(coordinator)
@@ -39,6 +37,11 @@ class MinerPowerLimitNumber(CoordinatorEntity, NumberEntity):
         self._attr_unique_id = f"{self.coordinator.miner_ip}_power_limit"
         self._attr_name = "Power Limit"
         self._attr_icon = "mdi:speedometer"
+        
+        # [NEW] Dynamic limits from config entry
+        entry = self.coordinator.config_entry
+        self._attr_native_min_value = float(entry.data.get("min_power", 400))
+        self._attr_native_max_value = float(entry.data.get("max_power", 1400))
 
     @property
     def device_info(self):

@@ -73,6 +73,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                     "miner_password": entry.data.get("password", ""),
                     "priority": "10",
                     "mode": "manual",
+                    "min_power": entry.data.get("min_power", 400),
+                    "max_power": entry.data.get("max_power", 1400),
                 }
                 config["miners"].append(new_miner)
                 await hass.async_add_executor_job(_save_config, hass, config)
@@ -259,7 +261,18 @@ async def _mining_loop(hass):
                     password = miner.get("miner_password")
                     from .coordinator import async_get_miner_coordinator
                     # Coordinator erstellen / aktualisieren. Er holt automatisch Daten im Hintergrund.
-                    await async_get_miner_coordinator(hass, DOMAIN, miner_ip, name, user, password)
+                    coord = await async_get_miner_coordinator(hass, DOMAIN, miner_ip, name, user, password)
+                    
+                    # [NEU] Daten für das Dashboard synchronisieren
+                    if coord and coord.data:
+                        try:
+                            # Wir nutzen die bereits normalisierten Daten vom Coordinator
+                            miner_states[miner_id]["hashrate"] = getattr(coord.data, "hashrate", 0)
+                            miner_states[miner_id]["power"] = getattr(coord.data, "wattage", 0) or getattr(coord.data, "power", 0)
+                            miner_states[miner_id]["temp"] = getattr(coord.data, "temperature_avg", 0) or getattr(coord.data, "temperature", 0)
+                            miner_states[miner_id]["is_mining"] = getattr(coord.data, "is_mining", False)
+                        except Exception as data_err:
+                            _LOGGER.debug(f"[{miner_name}] Erro syncing dashboard data: {data_err}")
                 
                 if not miner_switch:
                     continue
