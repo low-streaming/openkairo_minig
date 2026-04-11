@@ -818,8 +818,27 @@ class OpenKairoMiningPanel extends LitElement {
 
   toggleMiner(miner) {
     if (!this.hass) return;
-    const entityId = typeof miner === 'string' ? miner : miner.switch;
-    if (!entityId) return;
+    let entityId = typeof miner === 'string' ? miner : miner.switch;
+    
+    // Auto-Discovery Fallback if no switch is configured
+    if (!entityId && typeof miner === 'object' && miner.miner_ip) {
+        const ipSlug = miner.miner_ip.replace(/\./g, '_');
+        // Versuche den Standardnamen der Integration
+        const discovered = `switch.openkairo_mining_${ipSlug}_switch`;
+        if (this.hass.states[discovered]) {
+            entityId = discovered;
+        } else {
+            // Alternativer Name (mining_switch unique_id suffix)
+            const alt = `switch.openkairo_mining_${ipSlug}_mining_aktiv`;
+             if (this.hass.states[alt]) entityId = alt;
+        }
+    }
+
+    if (!entityId) {
+        console.warn("Could not find a switch to toggle for miner:", miner);
+        return;
+    }
+    
     this.hass.callService("switch", "toggle", { entity_id: entityId });
   }
 
@@ -1561,7 +1580,13 @@ class OpenKairoMiningPanel extends LitElement {
             
             let effectiveSwitch = miner.switch;
             if (!effectiveSwitch && _ipSlug) {
-                effectiveSwitch = `switch.${domain}_${_ipSlug}_switch`;
+                const domain = 'openkairo_mining';
+                // Try multiple patterns
+                const p1 = `switch.${domain}_${_ipSlug}_switch`;
+                const p2 = `switch.${domain}_${_ipSlug}_mining_aktiv`;
+                if (this.hass.states[p1]) effectiveSwitch = p1;
+                else if (this.hass.states[p2]) effectiveSwitch = p2;
+                else effectiveSwitch = p1; // Fallback
             }
 
             let switchState = 'Unbekannt';
@@ -1676,15 +1701,23 @@ class OpenKairoMiningPanel extends LitElement {
             const powerState = powerObj ? powerObj.state : '-';
             const powerUnit = powerObj?.attributes?.unit_of_measurement || 'W';
 
-            const friendlySwitchName = this.hass && this.hass.states[miner.switch] && this.hass.states[miner.switch].attributes?.friendly_name
-              ? this.hass.states[miner.switch].attributes.friendly_name
-              : miner.switch;
+            const friendlySwitchName = this.hass && this.hass.states[effectiveSwitch] && this.hass.states[effectiveSwitch].attributes?.friendly_name
+              ? this.hass.states[effectiveSwitch].attributes.friendly_name
+              : (effectiveSwitch || 'Nicht gesetzt');
             
             const friendlySwitchName2 = miner.switch_2 && this.hass && this.hass.states[miner.switch_2] && this.hass.states[miner.switch_2].attributes?.friendly_name
               ? this.hass.states[miner.switch_2].attributes.friendly_name
               : miner.switch_2;
 
             let stateObj = this.states ? this.states[miner.id] : null;
+
+            const pSensorState = this.hass?.states[pSensor];
+            const hSensorState = this.hass?.states[hSensor];
+            const currentWatts = pSensorState ? parseFloat(pSensorState.state) || 0 : 0;
+            const currentHash = hSensorState ? parseFloat(hSensorState.state) || 0 : 0;
+            
+            const isActuallyMining = switchState === 'on' && (currentWatts > 10 || currentHash > 0.1);
+            const isStandby = switchState === 'on' && !isActuallyMining;
 
             return html`
               <div class="miner-card">
@@ -1698,10 +1731,10 @@ class OpenKairoMiningPanel extends LitElement {
                 </div>
                 
                 <div class="miner-status">
-                  <span class="status-badge ${switchState === 'on' ? 'on' : switchState === 'off' ? 'off' : ''} ${stateObj && stateObj.ramping ? 'pulse-orange' : ''}">
+                  <span class="status-badge ${isActuallyMining ? 'on' : isStandby ? 'standby' : 'off'} ${stateObj && stateObj.ramping ? 'pulse-orange' : ''}">
                     ${stateObj && stateObj.ramping === 'up' ? `HOCHFAHREN ${stateObj.ramping_total ? `(${stateObj.ramping_step}/${stateObj.ramping_total})` : ''} ⚡` : 
                       stateObj && stateObj.ramping === 'down' ? `HERUNTERFAHREN ${stateObj.ramping_total ? `(${stateObj.ramping_step}/${stateObj.ramping_total})` : ''} 💤` : 
-                      (switchState === 'on' ? 'MINING 🚀' : switchState === 'off' ? 'STANDBY 💤' : switchState)}
+                      (isActuallyMining ? 'MINING 🚀' : isStandby ? 'STANDBY 💤' : 'AUS 🌑')}
                   </span>
                   <button class="btn-power ${switchState === 'on' ? 'on' : ''}" ?disabled="${stateObj && stateObj.hardware_error}" @click="${() => this.toggleMiner(miner)}" title="Manuell ein/ausschalten">
                     ⏻
@@ -3350,6 +3383,11 @@ class OpenKairoMiningPanel extends LitElement {
         border-color: rgba(var(--theme-accent-2-rgb), 0.5); 
         box-shadow: inset 0 2px 15px rgba(var(--theme-accent-2-rgb), 0.1), 0 0 15px rgba(var(--theme-accent-2-rgb), 0.15);
         text-shadow: 0 0 8px rgba(var(--theme-accent-2-rgb), 0.6); 
+      }
+      .status-badge.standby { 
+        background: rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.15); color: var(--theme-accent-3, #ffcc00); 
+        border-color: rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.4); 
+        box-shadow: inset 0 2px 10px rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.1);
       }
       .status-badge.off { 
         background: rgba(231, 76, 60, 0.1); color: #e74c3c; 

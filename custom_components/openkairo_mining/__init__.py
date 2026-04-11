@@ -241,63 +241,48 @@ async def _mining_loop(hass):
             
             # Nach Priorität sortieren (1 = höchste Priorität)
             sorted_miners = sorted(miners, key=lambda x: int(x.get("priority", 99)))
-            
             for miner in sorted_miners:
+                miner_id = str(miner.get("id", miner.get("name", "Unknown")))
+                if "miner_states" not in hass.data[DOMAIN]:
+                    hass.data[DOMAIN]["miner_states"] = {}
+                miner_states = hass.data[DOMAIN]["miner_states"]
+                if miner_id not in miner_states:
+                    miner_states[miner_id] = {"on_since": None, "off_since": None, "standby_since": None}
+                
+                state = miner_states[miner_id]
+                current_time = time.time()
+                
                 mode = miner.get("mode", "manual")
                 miner_name = miner.get("name", "Unknown Miner")
-                
-                miner_switch = miner.get("switch")
-                miner_switch_2 = miner.get("switch_2")
                 miner_ip = miner.get("miner_ip")
                 
-                # Auto-Switch Fallback für Hardware-Treiber
+                # --- Smart Switch Discovery ---
+                miner_switch = miner.get("switch")
+                miner_switch_2 = miner.get("switch_2")
                 if not miner_switch and miner_ip:
-                    miner_switch = f"switch.{DOMAIN}_{miner_ip.replace('.', '_')}_switch"
-                    
-                # Setup Hardware-Coordinator für diesen Miner, falls IP existiert
-                if miner_ip:
-                    name = miner.get("name", "Unknown Miner")
-                    user = miner.get("miner_user")
-                    password = miner.get("miner_password")
-                    from .coordinator import async_get_miner_coordinator
-                    # Coordinator erstellen / aktualisieren. Er holt automatisch Daten im Hintergrund.
-                    coord = await async_get_miner_coordinator(hass, DOMAIN, miner_ip, name, user, password)
-                    
-                    # [NEU] Daten für das Dashboard synchronisieren - Immer ausführen, um alte Werte zu nullen
-                    try:
-                        if coord and coord.data:
-                            # Wir nutzen die bereits normalisierten Daten vom Coordinator
-                            miner_states[miner_id]["hashrate"] = getattr(coord.data, "hashrate", 0) or 0
-                            miner_states[miner_id]["power"] = getattr(coord.data, "wattage", 0) or getattr(coord.data, "power", 0) or 0
-                            miner_states[miner_id]["temp"] = getattr(coord.data, "temperature_avg", 0) or getattr(coord.data, "temperature", 0) or 0
-                            miner_states[miner_id]["is_mining"] = getattr(coord.data, "is_mining", False)
-                        else:
-                            # Wenn offline, Werte auf 0 setzen
-                            miner_states[miner_id]["hashrate"] = 0
-                            miner_states[miner_id]["power"] = 0
-                            miner_states[miner_id]["is_mining"] = False
-                    except Exception as data_err:
-                        _LOGGER.debug(f"[{miner_name}] Error syncing dashboard data: {data_err}")
-                
-                # Hardware-Schalter Identifikation verbessern
-                if not miner_switch and miner_ip:
-                    # Der Name wird in Home Assistant oft mit Unterstrichen statt Punkten generiert
                     safe_ip = miner_ip.replace('.', '_')
-                    miner_switch = f"switch.{safe_ip}_mining_aktiv"
-                    
-                    # Falls der Schalter nicht existiert, versuchen wir den Domain-Präfix
-                    if not hass.states.get(miner_switch):
-                        miner_switch = f"switch.{DOMAIN}_{safe_ip}_mining_aktiv"
-                    
+                    # List of patterns to try
+                    patterns = [
+                        f"switch.{DOMAIN}_{safe_ip}_switch",
+                        f"switch.{DOMAIN}_{safe_ip}_mining_aktiv",
+                        f"switch.{safe_ip}_mining_aktiv"
+                    ]
+                    for p in patterns:
+                        if hass.states.get(p):
+                            miner_switch = p
+                            break
+                    if not miner_switch:
+                         miner_switch = patterns[0] # Fallback
+                
                 switches = [miner_switch]
                 if miner_switch_2:
                     switches.append(miner_switch_2)
-                    
+                
+                # --- State Detection ---
                 # Basis-Check: Sind alle konfigurierten Schalter an?
                 is_on = all(hass.states.get(s).state == "on" if hass.states.get(s) else False for s in switches)
 
                 # Erweiterter Check: Wenn der Miner Strom verbraucht (> 50W), behandeln wir ihn als EIN.
-                # Dies verhindert Endlos-Loops beim Soft-Start, falls der Miner-Status (is_mining) noch nicht aktualisiert wurde.
                 p_sensor = miner.get("power_consumption_sensor")
                 if not is_on and p_sensor:
                     p_state = hass.states.get(p_sensor)
@@ -309,16 +294,23 @@ async def _mining_loop(hass):
                         except (ValueError, TypeError):
                             pass
 
-                if "miner_states" not in hass.data[DOMAIN]:
-                    hass.data[DOMAIN]["miner_states"] = {}
-                miner_states = hass.data[DOMAIN]["miner_states"]
-                
-                miner_id = str(miner.get("id", miner_name))
-                if miner_id not in miner_states:
-                    miner_states[miner_id] = {"on_since": None, "off_since": None, "standby_since": None}
-                
-                state = miner_states[miner_id]
-                current_time = time.time()
+                # --- Coordinator / Data Sync ---
+                coord = None
+                if miner_ip:
+                    from .coordinator import async_get_miner_coordinator
+                    coord = await async_get_miner_coordinator(hass, DOMAIN, miner_ip, miner_name, miner.get("miner_user"), miner.get("miner_password"))
+                    try:
+                        if coord and coord.data:
+                            state["hashrate"] = getattr(coord.data, "hashrate", 0) or 0
+                            state["power"] = getattr(coord.data, "wattage", 0) or getattr(coord.data, "power", 0) or 0
+                            state["temp"] = getattr(coord.data, "temperature_avg", 0) or getattr(coord.data, "temperature", 0) or 0
+                            state["is_mining"] = getattr(coord.data, "is_mining", False)
+                        else:
+                            state["hashrate"] = 0
+                            state["power"] = 0
+                            state["is_mining"] = False
+                    except Exception as data_err:
+                        _LOGGER.debug(f"[{miner_name}] Error syncing dashboard data: {data_err}")
 
                 # Standby-Watchdog (for all modes)
                 if miner.get("standby_watchdog_enabled"):
@@ -344,14 +336,31 @@ async def _mining_loop(hass):
                                 standby_delay_secs = standby_delay_mins * 60
                                 
                                 if current_value < standby_threshold:
-                                    if state.get("standby_since") is None:
-                                        state["standby_since"] = current_time
-                                    elif current_time - state["standby_since"] >= standby_delay_secs:
-                                        msg = f"Watchdog an {miner_name} ausgelöst ({watchdog_type})! Wert {current_value} zu niedrig. Schalte Steckdose AUS."
-                                        _LOGGER.warning(f"[{miner_name}] {msg}")
-                                        _add_log_entry(hass, f"🛡️ {msg}")
-                                        await hass.services.async_call("switch", "turn_off", {"entity_id": standby_switches}, blocking=False)
+                                    # [NEU] Sicherheits-Check: Falls der Miner HASHT, setzen wir den Watchdog zurück.
+                                    # Hilft gegen BOS+ Sensor-Bugs (0 Watt Anzeige).
+                                    current_hash = 0
+                                    h_sensor = miner.get("hashrate_sensor")
+                                    if h_sensor:
+                                        h_state = hass.states.get(h_sensor)
+                                        if h_state and h_state.state not in ["unknown", "unavailable"]:
+                                            try:
+                                                current_hash = float(h_state.state)
+                                            except ValueError: pass
+
+                                    if current_hash > 0.1:
+                                        if state.get("standby_since") is not None:
+                                            _LOGGER.debug(f"[{miner_name}] Watchdog unterdrückt: 0W gemeldet, aber Miner hasht ({current_hash} TH/s)!")
                                         state["standby_since"] = None
+                                    else:
+                                        if state.get("standby_since") is None:
+                                            state["standby_since"] = current_time
+                                            _LOGGER.info(f"[{miner_name}] Watchdog Countdown gestartet: Wert {current_value} < {standby_threshold}")
+                                        elif current_time - state["standby_since"] >= standby_delay_secs:
+                                            msg = f"Watchdog an {miner_name} ausgelöst ({watchdog_type})! Wert {current_value} zu niedrig. Schalte Steckdose AUS."
+                                            _LOGGER.warning(f"[{miner_name}] {msg}")
+                                            _add_log_entry(hass, f"🛡️ {msg}")
+                                            await hass.services.async_call("switch", "turn_off", {"entity_id": standby_switches}, blocking=False)
+                                            state["standby_since"] = None
                                 else:
                                     state["standby_since"] = None
                             except ValueError:
@@ -432,16 +441,21 @@ async def _mining_loop(hass):
                             state["on_since"] = current_time
                         elif current_time - state["on_since"] >= delay_seconds:
                             
+                            # [NEU] Direktes Einschalten via Hardware-Treiber (Bypass HA Switches)
+                            if coord and coord.miner_obj:
+                                try:
+                                    _LOGGER.info(f"[{miner_name}] Direktes Einschalten via API (Resume)")
+                                    await coord.miner_obj.resume_mining()
+                                except Exception as e:
+                                    _LOGGER.error(f"[{miner_name}] API Einschalten fehlgeschlagen: {e}")
+
                             # Standby-Switch (Hard Plug) automatically turn ON if it was hard-off
                             if miner.get("standby_watchdog_enabled"):
                                 standby_switches = []
-                                if miner.get("standby_switch"):
-                                    standby_switches.append(miner.get("standby_switch"))
-                                if miner.get("standby_switch_2"):
-                                    standby_switches.append(miner.get("standby_switch_2"))
+                                if miner.get("standby_switch"): standby_switches.append(miner.get("standby_switch"))
+                                if miner.get("standby_switch_2"): standby_switches.append(miner.get("standby_switch_2"))
 
                                 if standby_switches:
-                                    # Wieder einschalten wenn nötig (mindestens einer AUS)
                                     any_off = any(hass.states.get(s).state == "off" if hass.states.get(s) else False for s in standby_switches)
                                     if any_off:
                                         msg = f"Watchdog-Erholung für {miner_name}: Schalte Steckdose(n) wieder EIN."
@@ -458,8 +472,15 @@ async def _mining_loop(hass):
                                     state["ramping_last_time"] = 0 # trigger immediately
                                 else:
                                     _add_log_entry(hass, f"⚡ {miner_name} wird eingeschaltet (PV/SOC).")
-                                    _LOGGER.info(f"[{miner_name}] Turn ON condition met for >= {delay_minutes} min, turning ON {switches}")
+                                    _LOGGER.info(f"[{miner_name}] Turn ON condition met, turning ON {switches}")
                                     await hass.services.async_call("switch", "turn_on", {"entity_id": switches}, blocking=False)
+                                    
+                                    # [NEU] Ziel-Wattzahl sofort setzen wenn kein Soft-Start
+                                    target_p = miner.get("soft_target_power")
+                                    p_ent = miner.get("power_entity")
+                                    if target_p and p_ent:
+                                        _LOGGER.info(f"[{miner_name}] Setze Ziel-Leistung auf {target_p}W")
+                                        await hass.services.async_call("number", "set_value", {"entity_id": p_ent, "value": float(target_p)}, blocking=False)
                     else:
                         state["on_since"] = None
 
@@ -467,6 +488,15 @@ async def _mining_loop(hass):
                         if state["off_since"] is None:
                             state["off_since"] = current_time
                         elif current_time - state["off_since"] >= delay_seconds:
+                            
+                            # [NEU] Direktes Ausschalten via Hardware-Treiber (Bypass HA Switches)
+                            if coord and coord.miner_obj:
+                                try:
+                                    _LOGGER.info(f"[{miner_name}] Direktes Ausschalten via API (Stop)")
+                                    await coord.miner_obj.stop_mining()
+                                except Exception as e:
+                                    _LOGGER.error(f"[{miner_name}] API Ausschalten fehlgeschlagen: {e}")
+
                             if is_on and state.get("ramping") != "down":
                                 if miner.get("soft_stop_enabled") and miner.get("power_entity"):
                                     _add_log_entry(hass, f"🎢 {miner_name}: Soft-Stop (Herunterfahren) gestartet.")
@@ -476,7 +506,7 @@ async def _mining_loop(hass):
                                     state["ramping_last_time"] = 0 # trigger immediately
                                 else:
                                     _add_log_entry(hass, f"💤 {miner_name} wird ausgeschaltet (PV/SOC).")
-                                    _LOGGER.info(f"[{miner_name}] Turn OFF condition met for >= {delay_minutes} min, turning OFF {switches}")
+                                    _LOGGER.info(f"[{miner_name}] Turn OFF condition met, turning OFF {switches}")
                                     await hass.services.async_call("switch", "turn_off", {"entity_id": switches}, blocking=False)
                     else:
                         state["off_since"] = None
@@ -487,43 +517,41 @@ async def _mining_loop(hass):
                         interval = float(miner.get("soft_interval", 60))
                         if current_time - state.get("ramping_last_time", 0) >= interval:
                             power_entity = miner.get("power_entity")
-                            if ramping == "up":
+                            if ramping == "up" and power_entity:
                                 steps = [s.strip() for s in str(miner.get("soft_start_steps", "100,500,1000")).split(",")]
                                 target_power = float(miner.get("soft_target_power", 1200))
                                 total_steps = len(steps)
                                 if state["ramping_step"] < total_steps:
                                     state["ramping_total"] = total_steps
-                                    # Capping: Never exceed target_power during ramping steps
                                     val = min(float(steps[state["ramping_step"]]), target_power)
-                                    _LOGGER.info(f"[{miner_name}] Soft-Start step {state['ramping_step'] + 1}/{total_steps}: Setting power to {val}W")
+                                    _LOGGER.info(f"[{miner_name}] Soft-Start step {state['ramping_step'] + 1}/{total_steps}: {val}W")
                                     await hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val}, blocking=False)
-                                    if state["ramping_step"] == 0 and not is_on:
+                                    
+                                    # Immer Schalter prüfen beim ersten Schritt
+                                    if state["ramping_step"] == 0:
                                         await hass.services.async_call("switch", "turn_on", {"entity_id": switches}, blocking=False)
+                                    
                                     state["ramping_step"] += 1
                                     state["ramping_last_time"] = current_time
                                 else:
                                     _add_log_entry(hass, f"✅ {miner_name}: Soft-Start abgeschlossen ({target_power}W).")
-                                    _LOGGER.info(f"[{miner_name}] Soft-Start complete. Final power: {target_power}W")
                                     await hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": target_power}, blocking=False)
                                     state["ramping"] = None
-                                    state["ramping_step"] = 0
-                                    state["ramping_total"] = 0
-                            elif ramping == "down":
+                            elif ramping == "down" and power_entity:
                                 steps = [s.strip() for s in str(miner.get("soft_stop_steps", "1000,500,100")).split(",")]
+                                target_power = float(miner.get("soft_target_power", 1200))
                                 total_steps = len(steps)
                                 if state["ramping_step"] < total_steps:
                                     state["ramping_total"] = total_steps
                                     val = float(steps[state["ramping_step"]])
-                                    _LOGGER.info(f"[{miner_name}] Soft-Stop step {state['ramping_step'] + 1}/{total_steps}: Setting power to {val}W")
+                                    _LOGGER.info(f"[{miner_name}] Soft-Stop step {state['ramping_step'] + 1}/{total_steps}: {val}W")
                                     await hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val}, blocking=False)
                                     state["ramping_step"] += 1
                                     state["ramping_last_time"] = current_time
                                 else:
-                                    _LOGGER.info(f"[{miner_name}] Soft-Stop complete. Turning OFF {switches}")
+                                    _LOGGER.info(f"[{miner_name}] Soft-Stop complete. Turning OFF switches.")
                                     await hass.services.async_call("switch", "turn_off", {"entity_id": switches}, blocking=False)
                                     state["ramping"] = None
-                                    state["ramping_step"] = 0
-                                    state["ramping_total"] = 0
                 
                 # Manual mode might also need to stop ramping if state changed manually?
                 # For now let's hope the user doesn't mess with it.

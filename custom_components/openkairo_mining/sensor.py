@@ -33,6 +33,13 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     
     coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name, user, password, ssh_user, ssh_password)
     
+    # [NEU] Warten auf den ersten erfolgreichen Daten-Abruf
+    # Damit wir wissen, wie viele Lüfter und Boards der Miner hat!
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except Exception as e:
+        _LOGGER.debug(f"First refresh failed for {ip}: {e}")
+
     entities = [
         MinerHashrateSensor(coordinator),
         MinerExpectedHashrateSensor(coordinator),
@@ -45,11 +52,13 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     # Dynamically add fan sensors
     data = coordinator.data
     if data and hasattr(data, "fans") and data.fans:
+        _LOGGER.debug(f"[{ip}] Adding {len(data.fans)} fan sensors")
         for i, _ in enumerate(data.fans):
             entities.append(MinerFanSensor(coordinator, i))
 
     # Dynamically add board sensors
     if data and hasattr(data, "hashboards") and data.hashboards:
+        _LOGGER.debug(f"[{ip}] Adding {len(data.hashboards)} board sensors")
         for i, _ in enumerate(data.hashboards):
             entities.append(MinerBoardHashrateSensor(coordinator, i))
             entities.append(MinerBoardTempSensor(coordinator, i))
