@@ -1,4 +1,4 @@
-"""OpenKairo Miner Sensors - Force 19+ Entity Registration."""
+"""OpenKairo Miner Sensors - Final Consolidated Version."""
 import logging
 
 from homeassistant.components.sensor import (
@@ -15,10 +15,10 @@ from homeassistant.const import (
     REVOLUTIONS_PER_MINUTE,
 )
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.helpers import entity as entity_helper
 
 from .const import DOMAIN
 from .coordinator import MinerDataUpdateCoordinator
+from .utils import get_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -124,18 +124,17 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     from .coordinator import async_get_miner_coordinator
     coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name)
 
-    # Initial data fetch
     try:
         await coordinator.async_config_entry_first_refresh()
     except: pass
 
     sensors = []
 
-    # Main sensors (7)
+    # Main sensors
     for key, desc in MINER_SENSOR_DESCRIPTIONS.items():
         sensors.append(MinerSensor(coordinator, key, desc))
 
-    # Board sensors (Fixed 3 for S9 if not detected, to avoid 11 vs 19 discrepancy)
+    # Board sensors (Always 3 for stability)
     num_boards = 3
     if coordinator.data and coordinator.data.get("board_sensors"):
          num_boards = max(len(coordinator.data["board_sensors"]), 3)
@@ -144,7 +143,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         for key, desc in BOARD_SENSOR_DESCRIPTIONS.items():
             sensors.append(MinerBoardSensor(coordinator, i, key, desc))
 
-    # Fan sensors (Fixed 4 for S9 if not detected)
+    # Fan sensors (Always 4 for stability)
     num_fans = 4
     if coordinator.data and coordinator.data.get("fan_sensors"):
          num_fans = max(len(coordinator.data["fan_sensors"]), 4)
@@ -153,21 +152,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         sensors.append(MinerFanSensor(coordinator, i, "fan_speed", FAN_SENSOR_DESCRIPTIONS["fan_speed"]))
 
     async_add_entities(sensors)
-
-
-def _device_info(coordinator: MinerDataUpdateCoordinator):
-    """Build device info."""
-    data = coordinator.data or {}
-    mac = data.get("mac")
-    identifier = mac if mac else coordinator.miner_ip
-    return entity_helper.DeviceInfo(
-        identifiers={(DOMAIN, identifier)},
-        manufacturer=data.get("make") or "OpenKairo",
-        model=data.get("model") or "ASIC Miner",
-        sw_version=data.get("fw_ver"),
-        name=coordinator.miner_name,
-        configuration_url=f"http://{coordinator.miner_ip}",
-    )
 
 
 class MinerSensor(CoordinatorEntity, SensorEntity):
@@ -185,12 +169,8 @@ class MinerSensor(CoordinatorEntity, SensorEntity):
         return self.coordinator.data.get("miner_sensors", {}).get(self._sensor)
 
     @property
-    def available(self) -> bool:
-        return self.coordinator.available
-
-    @property
     def device_info(self):
-        return _device_info(self.coordinator)
+        return get_device_info(DOMAIN, self.coordinator)
 
 
 class MinerBoardSensor(CoordinatorEntity, SensorEntity):
@@ -211,12 +191,8 @@ class MinerBoardSensor(CoordinatorEntity, SensorEntity):
         return board_data.get(self._sensor) if board_data else None
 
     @property
-    def available(self) -> bool:
-        return self.coordinator.available
-
-    @property
     def device_info(self):
-        return _device_info(self.coordinator)
+        return get_device_info(DOMAIN, self.coordinator)
 
 
 class MinerFanSensor(CoordinatorEntity, SensorEntity):
@@ -237,9 +213,5 @@ class MinerFanSensor(CoordinatorEntity, SensorEntity):
         return fan_data.get(self._sensor) if fan_data else None
 
     @property
-    def available(self) -> bool:
-        return self.coordinator.available
-
-    @property
     def device_info(self):
-        return _device_info(self.coordinator)
+        return get_device_info(DOMAIN, self.coordinator)

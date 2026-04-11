@@ -17,3 +17,14 @@ def _safe_get(data, keys):
             if val is not None:
                 return val
     return None
+def get_device_info(DOMAIN, coordinator):
+    """Unified device info for all entities."""
+    data = coordinator.data or {}
+    return {
+        "identifiers": {(DOMAIN, coordinator.miner_ip)},
+        "manufacturer": data.get("make") or getattr(coordinator, "miner_make", "OpenKairo"),
+        "model": data.get("model") or getattr(coordinator, "miner_model", "ASIC Miner"),
+        "sw_version": data.get("fw_ver"),
+        "name": coordinator.miner_name,
+        "configuration_url": f"http://{coordinator.miner_ip}",
+    }

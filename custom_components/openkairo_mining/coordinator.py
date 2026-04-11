@@ -1,4 +1,4 @@
-"""OpenKairo Mining DataUpdateCoordinator - Highly Robust Version for BOS+."""
+"""OpenKairo Mining DataUpdateCoordinator - Final Stabilization."""
 import logging
 import asyncio
 from datetime import timedelta
@@ -29,6 +29,8 @@ DEFAULT_DATA = {
         "miner_consumption": 0,
         "efficiency": 0.0,
         "uptime": 0,
+        "mode": "normal",
+        "fault": False,
     },
     "board_sensors": {},
     "fan_sensors": {},
@@ -49,8 +51,7 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         """Initialize the coordinator."""
         super().__init__(
             hass=hass,
-            # Use name of the miner for better logging
-            logger=logging.getLogger(f"{__name__}.{name}"),
+            logger=logging.getLogger(f"{__name__}.{miner_ip}"),
             config_entry=entry,
             name=name,
             update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL),
@@ -67,8 +68,7 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def available(self):
         """Return if device is available."""
-        # Consider available if we have data and we haven't failed too many times
-        return self.data is not None and self.data.get("ip") is not None
+        return self.data is not None and self._failure_count <= 3
 
     async def _get_miner(self):
         """Get or refresh the miner object."""
@@ -78,15 +78,12 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             return self.miner_obj
 
         try:
-            # We use a shorter timeout for discovery
             miner = await asyncio.wait_for(pyasic.get_miner(self.miner_ip), timeout=10)
             if miner:
                 self.miner_obj = miner
-                # Initial model/make cache
                 self.miner_model = getattr(miner, "model", "ASIC Miner")
                 self.miner_make = getattr(miner, "make", "OpenKairo")
                 
-                # Apply Credentials
                 entry = self.config_entry
                 if entry:
                     pwd = entry.data.get("password")
@@ -100,7 +97,7 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                         miner.ssh.pwd = entry.data.get("ssh_password") or ""
             return self.miner_obj
         except Exception as e:
-            _LOGGER.debug(f"[{self.miner_ip}] Miner object creation failed: {e}")
+            _LOGGER.debug(f"[{self.miner_ip}] Miner connection failed: {e}")
             return None
 
     async def _async_update_data(self):
@@ -113,9 +110,8 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         if miner is None:
             self._failure_count += 1
             if self._failure_count <= 2:
-                _LOGGER.info(f"[{self.miner_ip}] Miner unreachable (offline?)...")
                 return {**DEFAULT_DATA, "ip": self.miner_ip}
-            raise UpdateFailed(f"Miner at {self.miner_ip} offline.")
+            raise UpdateFailed(f"Miner at {self.miner_ip} unreachable.")
 
         data_options = [
             pyasic.DataOptions.IS_MINING,
@@ -132,25 +128,30 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         ]
 
         try:
-            # High timeout for get_data to be robust
             miner_data = await asyncio.wait_for(miner.get_data(include=data_options), timeout=25)
             self._failure_count = 0 
             
-            # Extract Hashrate (Normalize to TH/s)
+            # [FIX] Hashrate Scaling for BOS+
+            # pyasic's hashrate is usually TH/s for modern backends.
+            # If it's a huge number (> 1.000.000), it's H/s.
+            # Otherwise, keep it as it is (it's likely TH/s).
             raw_hr = float(getattr(miner_data, "hashrate", 0) or 0)
-            if raw_hr > 1e9: # H/s
+            if raw_hr > 1000000: 
                  hr = round(raw_hr / 1e12, 2)
-            elif raw_hr > 500: # GH/s
-                 hr = round(raw_hr / 1000, 2)
             else:
                  hr = round(raw_hr, 2)
 
-            # Extract expected/ideal hashrate
             raw_exp = float(getattr(miner_data, "expected_hashrate", 0) or 0)
-            if raw_exp > 1e9: exp_hr = round(raw_exp / 1e12, 2)
+            if raw_exp > 1000000: exp_hr = round(raw_exp / 1e12, 2)
             else: exp_hr = round(raw_exp, 2)
             
-            # Build Board Map
+            # [FIX] Efficiency Fallback
+            wattage = float(getattr(miner_data, "wattage", 0) or 0)
+            efficiency = getattr(miner_data, "efficiency", 0) or getattr(miner_data, "efficiency_fract", 0)
+            if (not efficiency or efficiency == 0) and hr > 0:
+                 efficiency = round(wattage / hr, 1)
+
+            # Build Board/Fan Maps
             board_sensors = {}
             for board in getattr(miner_data, "hashboards", []):
                 slot = getattr(board, "slot", -1)
@@ -161,14 +162,12 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                         "board_hashrate": round(float(getattr(board, "hashrate", 0) or 0), 2),
                     }
             
-            # Build Fan Map
             fan_sensors = {}
             for idx, fan in enumerate(getattr(miner_data, "fans", [])):
                 fan_sensors[idx] = {
                     "fan_speed": getattr(fan, "speed", 0) or getattr(fan, "rpm", 0)
                 }
 
-            # Final Data Construct
             return {
                 "hostname": getattr(miner_data, "hostname", self.miner_name),
                 "mac": getattr(miner_data, "mac", None),
@@ -182,8 +181,8 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                     "ideal_hashrate": exp_hr,
                     "temperature": getattr(miner_data, "temperature_avg", 0),
                     "power_limit": getattr(miner_data, "wattage_limit", 0),
-                    "miner_consumption": getattr(miner_data, "wattage", 0),
-                    "efficiency": getattr(miner_data, "efficiency", 0) or getattr(miner_data, "efficiency_fract", 0),
+                    "miner_consumption": wattage,
+                    "efficiency": efficiency,
                     "uptime": getattr(miner_data, "uptime", 0),
                     "mode": getattr(miner_data, "mode", "normal"),
                     "fault": any(not getattr(b, "expected_chips", 0) == getattr(b, "chips", 0) for b in getattr(miner_data, "hashboards", [])),
@@ -193,12 +192,12 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             }
 
         except Exception as e:
-            _LOGGER.warning(f"[{self.miner_ip}] Update failed: {e}")
-            self.miner_obj = None # Try rediscover next time
+            _LOGGER.error(f"[{self.miner_ip}] Data collection failed: {e}")
+            self.miner_obj = None # Try rediscover
             self._failure_count += 1
-            if self._failure_count <= 1:
+            if self._failure_count <= 2:
                 return {**DEFAULT_DATA, "ip": self.miner_ip}
-            raise UpdateFailed(f"Miner offline: {e}")
+            raise UpdateFailed(f"Miner error: {e}")
 
 
 async def async_get_miner_coordinator(hass, domain, miner_ip, miner_name, user="root", password="", ssh_user="root", ssh_password=""):
