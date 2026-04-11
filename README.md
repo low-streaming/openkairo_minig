@@ -1,71 +1,85 @@
-# OpenKairo Mining 🚀 — Das Ultimative Mining Command Center
+# OpenKairo Mining 🚀 — Das Ultimative "Command Center" v1.3.5
 
-[![OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg)](https://openkairo.de)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg)](https://home-assistant.io)
-[![Version](https://img.shields.io/badge/Version-1.3.5%20Command%20Center-magenta.svg)](#)
+[![OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg?style=for-the-badge)](https://home-assistant.io)
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://hacs.xyz)
 
-Verwandle dein Home Assistant in eine professionelle Mining-Schaltzentrale. Mit **OpenKairo Mining** kannst du deine Miner intelligent automatisieren, überwachen und basierend auf PV-Ertrag, Batteriestatus und Echtzeit-Bitcoin-Netzwerkdaten optimieren.
+Verwandle deinen Home Assistant in eine professionelle **Mining-Schaltzentrale**. Mit **OpenKairo Mining** steuerst du deine ASICs intelligent basierend auf PV-Überschuss, Batteriestatus und Bitcoin-Netzwerkdaten.
 
 ---
 
-## 🆕 Das "Command Center" Update (v1.3+)
+## 💎 Highlights der v1.3.5
 
-Wir haben die Integration auf ein neues Level gehoben. Das System arbeitet nun **nativ** und benötigt keine externen Schnittstellen mehr, um direkt mit deinen ASICs zu kommunizieren.
+Das **"Command Center Update"** macht dein Dashboard so lebendig und sicher wie nie zuvor.
+
+> [!TIP]
+> **Echtzeit-Dashboard**: Alle Miner-Zustände (Status, Ramping-Fortschritt, Power) aktualisieren sich nun alle 30 Sekunden im Hintergrund. Kein manueller Refresh mehr nötig!
 
 ### 🎨 Ultra-Premium Design Engine
-Wähle aus exklusiven Design-Presets, die dein Dashboard zum Leuchten bringen (Midnight Glow, Atlantis, Matrix, Solar, Lava, Crystal Ice & Deep Abyss). Inklusive der **☀️ Gladbeck Edition** für Solarmodule Gladbeck.
+Wähle aus exklusiven Design-Presets direkt im Dashboard:
+| Theme | Stil | Besonderheit |
+| :--- | :--- | :--- |
+| **Midnight & Atlantis** | Deep Blue | Klassischer High-Tech Look |
+| **Matrix & Solar** | Cyberpunk | Maximaler Kontrast & Retro-Vibe |
+| **Lava Field** | Dynamic Red | Energie pur 🔥 |
+| **Gladbeck Edition** | Brand Overdrive | Spezial-Design für **Solarmodule Gladbeck** ☀️ |
 
 ### ⚡ Native Hardware-Anbindung
-OpenKairo Mining bringt eine eigene, tiefe Integration für ASIC-Miner mit. Du kannst deine Miner nun direkt als Home Assistant Geräte hinzufügen.
-- **Nativ via pyasic:** Direkte Abfrage von Hashrate, Temperatur und Lüftern ohne Umwege.
-- **Volle Kontrolle:** Power-Limits setzen, Reboots durchführen und Modi wechseln.
+Vergiss komplizierte Setups. OpenKairo Mining arbeitet jetzt vollständig **nativ via pyasic**.
+- **Direkt-Anbindung**: Miner einfach per IP-Adresse hinzufügen.
+- **Volle Kontrolle**: Power-Limits, Reboots und Modus-Wechsel direkt aus HA.
+- **Kompatibilität**: Unterstützt Antminer (S9, S19, S21), Whatsminer, Avalon, Bitaxe und viele mehr.
 
-### 🛡️ Hardware-Wächter 2.0 (Duale Steckdosen)
-Maximale Sicherheit durch automatische Erkennung eingefrorener Miner am verringerten Stromverbrauch. Inklusive Unterstützung für Miner mit **zwei Netzkabeln** sowohl für die Steuerung als auch für den Watchdog-Reset.
+### 🛡️ Hardware-Wächter 2.0 (Dual-Socket)
+Maximale Sicherheit für deine Hardware:
+- **Frozen Detection**: Erkennt aufgehängte Miner am verringerten Stromverbrauch.
+- **Dual-Power Support**: Unterstützung für Miner mit **zwei Netzkabeln**. Beide Steckdosen werden synchron geschaltet – sowohl beim Ramping als auch beim Watchdog-Reset.
 
 ---
 
-## 🚀 Installation & Einrichtung
+## 🛠️ Installation & Einrichtung
 
-### 1. OpenKairo Mining installieren
+### 1. Installation via HACS
 1. In Home Assistant: **HACS** > **Integrationen** > drei Punkte > **Benutzerdefinierte Repositories**.
 2. URL: `https://github.com/openkairo/openKairo_Mining` > Kategorie: **Integration** hinzufügen.
 3. Herunterladen und Home Assistant **neu starten**.
-4. Unter **Geräte & Dienste** -> **Integration hinzufügen** nach "OpenKairo Mining" suchen und das **Dashboard (Zentrale)** hinzufügen.
 
-### 2. Miner hinzufügen (Native Methode - Empfohlen)
-Um die Hardware-Daten und Steuerung zu nutzen, füge deine Miner nun direkt hinzu:
-1. Gehe zu **Geräte & Dienste** -> **Integration hinzufügen**.
-2. Suche erneut nach "OpenKairo Mining".
-3. Gib die **IP-Adresse**, Benutzername und Passwort deines Miners ein.
-4. Es werden automatisch alle Sensoren (Hashrate, Temp, Power) sowie Schalter und Nummern für die Steuerung angelegt.
-
-### 3. Optionale Anbindung: Hass-Miner
-Falls du bereits die `hass-miner` Integration nutzt, kannst du diese Entitäten weiterhin im Dashboard verknüpfen. Dies ist jedoch **optional**. Die native Anbindung von OpenKairo Mining bietet eine stabilere und tiefere Integration.
+### 2. Dashboard & Miner einrichten
+1. Gehe zu **Geräte & Dienste** -> **Integration hinzufügen** -> "OpenKairo Mining".
+2. Erstelle zuerst das **Dashboard (Zentrale)**.
+3. **Miner hinzufügen**: Wähle erneut "Integration hinzufügen" -> "OpenKairo Mining" und gib die **IP-Adresse** deines Miners ein.
 
 ---
 
 ## ⚙️ Kern-Funktionen
-- **PV- & SOC-Steuerung:** Automatisches Schalten basierend auf Solareinspeisung oder Hausakku.
-- **Sanfter Anlauf (Soft-Start / Soft-Stop):** Mehrstufiges Hochfahren zur Netzentlastung.
-- **Mempool Integration:** Live-Daten zum BTC-Preis, Gebühren und Halving-Countdown.
-- **Aktivitäts-Ticker:** Alle Ereignisse als Laufschrift für PC und Smartphone.
+
+> [!IMPORTANT]
+> **Sanfter Anlauf (Ramping)**: Schone dein Stromnetz und dein Netzteil. Dein Miner fährt stufenweise hoch (z.B. 100W -> 500W -> 1000W), anstatt sofort die volle Last zu ziehen.
+
+- **PV- & SOC-Automatik**: Schalte Miner basierend auf Solareinspeisung oder Hausakku.
+- **Profit-Rechner**: Live-Gewinnberechnung basierend auf Kurs und Netzwerk-Difficulty.
+- **Mempool Live-Ticker**: Bitcoin-Preis, Gebühren und Halving-Countdown direkt im Header.
 
 ---
 
-## 🛠️ Fehlerbehebung (Pydantic Fix)
+## ☕ Projekt unterstützen
+OpenKairo ist ein leidenschaftliches Community-Projekt. Wenn dir das Dashboard gefällt, freuen wir uns über deine Unterstützung!
 
-Aufgrund neuerer Home Assistant / Python-Versionen kann es bei der Kommunikation mit ASICs zu Fehlern kommen (`Invalid handler specified`). OpenKairo Mining enthält bereits einen automatischen Fix. Sollten dennoch Probleme beim Laden von Hardware-Entitäten auftreten, hilft dieser Patch:
-
-1. Öffne `/config/custom_components/openkairo_mining/__init__.py` im Editor.
-2. Prüfe, ob die ersten Zeilen so aussehen:
-   ```python
-   import pydantic
-   pydantic.BaseModel.model_config = {"arbitrary_types_allowed": True}
-   ```
-3. Alternativ wende den Fix auf die Datei `/config/custom_components/miner/__init__.py` an, falls du die `hass-miner` Integration optional nutzt.
+- **PayPal**: [info@low-streaming.de](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=info@low-streaming.de&currency_code=EUR&source=url)
+- **Bitcoin**: `37KAus3ABc6krJ5T4jZyLKVB3uzbfQZGWD`
 
 ---
 
-**Entwickelt für die Mining-Community.**
-Besuche uns auf [openkairo.de](https://openkairo.de) für Support und weitere Innovationen.
+## 💡 Fehlerbehebung (Pydantic Fix)
+
+Sollte es bei neueren Python-Versionen zu Startproblemen kommen (`Invalid handler specified`), enthält OpenKairo Mining bereits einen automatischen Fix. Falls dennoch Hardware-Daten fehlen, prüfe bitte folgendes:
+
+> [!NOTE]
+> Der Fix ist in der `__init__.py` bereits vorgemerkt:
+> ```python
+> import pydantic
+> pydantic.BaseModel.model_config = {"arbitrary_types_allowed": True}
+> ```
+
+---
+**Powered by OpenKairo** | [openkairo.de](https://openkairo.de)
