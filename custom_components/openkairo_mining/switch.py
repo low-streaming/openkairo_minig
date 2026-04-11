@@ -30,7 +30,8 @@ class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{self.coordinator.miner_ip}_mining_switch"
+        ip_slug = coordinator.miner_ip.replace(".", "_")
+        self._attr_unique_id = f"{DOMAIN}_{ip_slug}_mining_aktiv"
         self._attr_name = "Mining Aktiv"
         self._attr_icon = "mdi:hammer-pick"
 

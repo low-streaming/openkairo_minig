@@ -34,7 +34,8 @@ class MinerPowerLimitNumber(CoordinatorEntity, NumberEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{coordinator.miner_ip}_power_limit"
+        ip_slug = coordinator.miner_ip.replace(".", "_")
+        self._attr_unique_id = f"{DOMAIN}_{ip_slug}_power_limit"
         self._attr_name = "Power Limit"
         self._attr_icon = "mdi:speedometer"
         

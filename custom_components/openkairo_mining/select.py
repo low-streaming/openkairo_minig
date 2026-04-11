@@ -32,7 +32,8 @@ class MinerWorkModeSelect(CoordinatorEntity, SelectEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{self.coordinator.miner_ip}_work_mode"
+        ip_slug = coordinator.miner_ip.replace(".", "_")
+        self._attr_unique_id = f"{DOMAIN}_{ip_slug}_work_mode"
         self._attr_name = "Arbeitsmodus"
 
     @property
@@ -47,10 +48,14 @@ class MinerWorkModeSelect(CoordinatorEntity, SelectEntity):
         }
 
     @property
+    def available(self) -> bool:
+        return self.coordinator.available
+
+    @property
     def current_option(self):
-        # Result of pyasic MinerData check
-        if self.coordinator.data:
-            return getattr(self.coordinator.data, "mode", None)
+        # New dict-based coordinator data
+        if self.coordinator.data and isinstance(self.coordinator.data, dict):
+            return self.coordinator.data.get("miner_sensors", {}).get("mode")
         return None
 
     async def async_select_option(self, option: str) -> None:

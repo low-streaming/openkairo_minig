@@ -37,7 +37,8 @@ class MinerOnlineBinarySensor(CoordinatorEntity, BinarySensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{self.coordinator.miner_ip}_online"
+        ip_slug = coordinator.miner_ip.replace(".", "_")
+        self._attr_unique_id = f"{DOMAIN}_{ip_slug}_online"
         self._attr_name = "Online"
 
     @property
@@ -53,8 +54,7 @@ class MinerOnlineBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def is_on(self):
-        # If the coordinator has recent data, it is online
-        return self.coordinator.last_update_success
+        return self.coordinator.available
 
 class MinerFaultBinarySensor(CoordinatorEntity, BinarySensorEntity):
     """Binary sensor for miner faults."""
@@ -63,7 +63,8 @@ class MinerFaultBinarySensor(CoordinatorEntity, BinarySensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{self.coordinator.miner_ip}_fault"
+        ip_slug = coordinator.miner_ip.replace(".", "_")
+        self._attr_unique_id = f"{DOMAIN}_{ip_slug}_fault"
         self._attr_name = "Problem erkannt"
 
     @property
@@ -79,13 +80,6 @@ class MinerFaultBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def is_on(self):
-        # pyasic return faulty boards or errors
-        if not self.coordinator.data:
-            return False
-        
-        # Check for faulty boards
-        boards = getattr(self.coordinator.data, "hashboards", [])
-        for board in boards:
-            if not getattr(board, "expected_chips", 0) == getattr(board, "chips", 0):
-                return True
+        if self.coordinator.data and isinstance(self.coordinator.data, dict):
+             return self.coordinator.data.get("miner_sensors", {}).get("fault", False)
         return False
