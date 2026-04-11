@@ -44,19 +44,27 @@ class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
         return False
 
     async def async_turn_on(self, **kwargs):
-        if self.coordinator.miner_obj:
-            try:
-                _LOGGER.info(f"[{self.coordinator.miner_ip}] Resuming mining")
-                await self.coordinator.miner_obj.resume_mining()
-                await self.coordinator.async_request_refresh()
-            except Exception as e:
-                _LOGGER.error(f"Error starting mining: {e}")
+        """Turn the entity on."""
+        try:
+            _LOGGER.info(f"[{self.coordinator.miner_ip}] Resuming mining/on")
+            await self.hass.services.async_call(
+                DOMAIN,
+                "set_work_mode",
+                {"ip_address": self.coordinator.miner_ip, "mode": "normal"},
+                blocking=True
+            )
+        except Exception as e:
+            _LOGGER.error(f"Error starting mining: {e}")
 
     async def async_turn_off(self, **kwargs):
-        if self.coordinator.miner_obj:
-            try:
-                _LOGGER.info(f"[{self.coordinator.miner_ip}] Stopping mining")
-                await self.coordinator.miner_obj.stop_mining()
-                await self.coordinator.async_request_refresh()
-            except Exception as e:
-                _LOGGER.error(f"Error stopping mining: {e}")
+        """Turn the entity off."""
+        try:
+            _LOGGER.info(f"[{self.coordinator.miner_ip}] Stopping mining/off (standby)")
+            await self.hass.services.async_call(
+                DOMAIN,
+                "set_work_mode",
+                {"ip_address": self.coordinator.miner_ip, "mode": "standby"},
+                blocking=True
+            )
+        except Exception as e:
+            _LOGGER.error(f"Error stopping mining: {e}")

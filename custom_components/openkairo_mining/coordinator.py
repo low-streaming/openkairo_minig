@@ -130,7 +130,7 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         try:
             miner_data = await asyncio.wait_for(miner.get_data(include=data_options), timeout=25)
             self._failure_count = 0 
-            
+
             # [FIX] Hashrate Scaling for BOS+
             # pyasic's hashrate is usually TH/s for modern backends.
             # If it's a huge number (> 1.000.000), it's H/s.
@@ -150,6 +150,14 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             efficiency = getattr(miner_data, "efficiency", 0) or getattr(miner_data, "efficiency_fract", 0)
             if (not efficiency or efficiency == 0) and hr > 0:
                  efficiency = round(wattage / hr, 1)
+
+            # [FIX] Avalon Standby Detection
+            is_mining = getattr(miner_data, "is_mining", False)
+            if "Avalon" in self.miner_make:
+                if hr == 0 and wattage < 150:
+                    is_mining = False
+                elif hr > 0:
+                    is_mining = True
 
             # Build Board/Fan Maps
             board_sensors = {}
@@ -174,7 +182,7 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                 "make": getattr(miner_data, "make", self.miner_make),
                 "model": getattr(miner_data, "model", self.miner_model),
                 "ip": self.miner_ip,
-                "is_mining": getattr(miner_data, "is_mining", False),
+                "is_mining": is_mining,
                 "fw_ver": getattr(miner_data, "fw_ver", None),
                 "miner_sensors": {
                     "hashrate": hr,

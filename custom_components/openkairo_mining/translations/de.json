@@ -4,7 +4,7 @@
         "step": {
             "user": {
                 "title": "ASIC Miner hinzufügen",
-                "description": "Gib die Verbindungsdaten für deinen ASIC Miner ein. Das Gerät wird automatisch im Hintergrund abgefragt und eingerichtet.",
+                "description": "Gib die Verbindungsdaten für deinen ASIC Miner ein. Hinweis: Viele Miner (z.B. Avalon) nutzen Standard-Logins wie 'root' / 'root' oder 'admin' / 'admin'. Gültige Arbeitsmodi: low, normal, high, standby.",
                 "data": {
                     "ip_address": "IP-Adresse",
                     "username": "Benutzername (Optional)",

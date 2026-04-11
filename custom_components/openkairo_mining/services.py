@@ -7,14 +7,25 @@ from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 SERVICE_REBOOT = "reboot"
-SERVICE_RESTART = "restart"
-SERVICE_STOP_MINING = "stop_mining"
-SERVICE_RESUME_MINING = "resume_mining"
+SERVICE_RESTART = "restart_backend"
+SERVICE_SET_WORK_MODE = "set_work_mode"
 SERVICE_SET_POWER_LIMIT = "set_power_limit"
 
-SERVICE_SCHEMA = vol.Schema({
+# Base schema for simple IP-only calls
+SERVICE_BASE_SCHEMA = vol.Schema({
     vol.Required("ip_address"): cv.string,
-    vol.Optional("value"): vol.Coerce(int),
+})
+
+# Schema for power limit
+SERVICE_POWER_LIMIT_SCHEMA = vol.Schema({
+    vol.Required("ip_address"): cv.string,
+    vol.Required("limit"): vol.Coerce(int),
+})
+
+# Schema for work mode
+SERVICE_WORK_MODE_SCHEMA = vol.Schema({
+    vol.Required("ip_address"): cv.string,
+    vol.Required("mode"): cv.string, # low, normal, high
 })
 
 async def async_setup_services(hass):
@@ -28,6 +39,7 @@ async def async_setup_services(hass):
         coord = await get_coord(call)
         if coord and coord.miner_obj:
             try:
+                _LOGGER.info(f"[{coord.miner_ip}] Rebooting miner...")
                 await coord.miner_obj.reboot()
             except Exception as e:
                 _LOGGER.error(f"Reboot failed: {e}")
@@ -36,41 +48,68 @@ async def async_setup_services(hass):
         coord = await get_coord(call)
         if coord and coord.miner_obj:
             try:
+                _LOGGER.info(f"[{coord.miner_ip}] Restarting miner backend...")
                 # pyasic handles different restart types depending on backend
                 await coord.miner_obj.restart_backend()
             except Exception as e:
                 _LOGGER.error(f"Restart failed: {e}")
 
-    async def handle_stop_mining(call):
+    async def handle_set_work_mode(call):
+        import time
         coord = await get_coord(call)
+        mode = call.data.get("mode", "normal").lower()
         if coord and coord.miner_obj:
             try:
-                await coord.miner_obj.stop_mining()
+                miner = coord.miner_obj
+                _LOGGER.info(f"[{coord.miner_ip}] Setting work mode to {mode}")
+                
+                # Avalon specific handling (Nano 3 / Q)
+                if "Avalon" in str(type(miner)) or "Avalon" in coord.miner_make:
+                    now = int(time.time()) + 5
+                    
+                    if mode == "standby":
+                        _LOGGER.info(f"[{coord.miner_ip}] Sending Avalon to standby (softoff)")
+                        await miner.api.send_command("ascset", parameter=f"0,softoff,1:{now}")
+                    else:
+                        # If we want to set a mode, check if we need to wake up first
+                        # We can check is_mining or hashrate
+                        is_mining = coord.data.get("is_mining", True) if coord.data else True
+                        if not is_mining or mode == "restart":
+                            _LOGGER.info(f"[{coord.miner_ip}] Waking Avalon from standby (softon)")
+                            await miner.api.send_command("ascset", parameter=f"0,softon,1:{now}")
+                            await asyncio.sleep(2) # Short wait before setting mode
+                        
+                        if mode != "restart":
+                            mode_map = {"low": "0", "normal": "1", "high": "2"}
+                            mode_val = mode_map.get(mode, "1")
+                            await miner.api.send_command("ascset", parameter=f"0,workmode,set,{mode_val}")
+                else:
+                    # Non-Avalon miners (e.g. BOS+)
+                    if mode == "standby":
+                        await miner.stop_mining()
+                    else:
+                        if not coord.data.get("is_mining", True):
+                            await miner.resume_mining()
+                        
+                        if hasattr(miner, "set_work_mode"):
+                            await miner.set_work_mode(mode)
+                
                 await coord.async_request_refresh()
             except Exception as e:
-                _LOGGER.error(f"Stop failed: {e}")
-
-    async def handle_resume_mining(call):
-        coord = await get_coord(call)
-        if coord and coord.miner_obj:
-            try:
-                await coord.miner_obj.resume_mining()
-                await coord.async_request_refresh()
-            except Exception as e:
-                _LOGGER.error(f"Resume failed: {e}")
+                _LOGGER.error(f"Set work mode failed: {e}")
 
     async def handle_set_power_limit(call):
         coord = await get_coord(call)
-        value = call.data.get("value")
-        if coord and coord.miner_obj and value:
+        limit = call.data.get("limit")
+        if coord and coord.miner_obj and limit:
             try:
-                await coord.miner_obj.set_power_limit(int(value))
+                _LOGGER.info(f"[{coord.miner_ip}] Setting power limit to {limit}W")
+                await coord.miner_obj.set_power_limit(int(limit))
                 await coord.async_request_refresh()
             except Exception as e:
                 _LOGGER.error(f"Set Power Limit failed: {e}")
 
-    hass.services.async_register(DOMAIN, SERVICE_REBOOT, handle_reboot, schema=SERVICE_SCHEMA)
-    hass.services.async_register(DOMAIN, SERVICE_RESTART, handle_restart, schema=SERVICE_SCHEMA)
-    hass.services.async_register(DOMAIN, SERVICE_STOP_MINING, handle_stop_mining, schema=SERVICE_SCHEMA)
-    hass.services.async_register(DOMAIN, SERVICE_RESUME_MINING, handle_resume_mining, schema=SERVICE_SCHEMA)
-    hass.services.async_register(DOMAIN, SERVICE_SET_POWER_LIMIT, handle_set_power_limit, schema=SERVICE_SCHEMA)
+    hass.services.async_register(DOMAIN, SERVICE_REBOOT, handle_reboot, schema=SERVICE_BASE_SCHEMA)
+    hass.services.async_register(DOMAIN, SERVICE_RESTART, handle_restart, schema=SERVICE_BASE_SCHEMA)
+    hass.services.async_register(DOMAIN, SERVICE_SET_WORK_MODE, handle_set_work_mode, schema=SERVICE_WORK_MODE_SCHEMA)
+    hass.services.async_register(DOMAIN, SERVICE_SET_POWER_LIMIT, handle_set_power_limit, schema=SERVICE_POWER_LIMIT_SCHEMA)

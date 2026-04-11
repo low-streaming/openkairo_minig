@@ -111,8 +111,8 @@ class OpenKairoMiningConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(title="OpenKairo Dashboard", data={})
 
         if user_input is not None:
-            # Check if this IP is already configured
-            await self.async_set_unique_id(user_input["ip_address"])
+            # Check if this IP is already configured, without failing if a flow is already in progress
+            await self.async_set_unique_id(user_input["ip_address"], raise_on_progress=False)
             self._abort_if_unique_id_configured()
 
             try:
