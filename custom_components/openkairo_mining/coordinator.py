@@ -151,9 +151,24 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             if (not efficiency or efficiency == 0) and hr > 0:
                  efficiency = round(wattage / hr, 1)
 
-            # [FIX] Avalon Standby Detection
+            # [FIX] Avalon Standby & Power Detection
             is_mining = getattr(miner_data, "is_mining", False)
             if "Avalon" in self.miner_make:
+                # Fallback for missing/zero wattage on some Avalon models
+                if wattage == 0:
+                    try:
+                         raw_summary = await miner.api.send_command("summary")
+                         # Avalon summary is often comma-separated string like '...,Cur Load=816,...'
+                         if raw_summary and isinstance(raw_summary, str):
+                              import re
+                              match = re.search(r"Cur Load=(\d+)", raw_summary)
+                              if not match: match = re.search(r"Power=(\d+)", raw_summary)
+                              if match:
+                                   wattage = float(match.group(1))
+                                   _LOGGER.debug(f"[{self.miner_ip}] Extracted raw wattage: {wattage}W")
+                    except Exception as e:
+                         _LOGGER.debug(f"[{self.miner_ip}] Avalon raw summary extraction failed: {e}")
+
                 if hr == 0 and wattage < 150:
                     is_mining = False
                 elif hr > 0:

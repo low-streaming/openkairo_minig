@@ -50,6 +50,7 @@ MINER_SENSOR_DESCRIPTIONS: dict[str, SensorEntityDescription] = {
     ),
     "power_limit": SensorEntityDescription(
         key="power_limit",
+        name="Leistung (Limit)",
         translation_key="power_limit",
         native_unit_of_measurement=UnitOfPower.WATT,
         state_class=SensorStateClass.MEASUREMENT,
@@ -58,6 +59,7 @@ MINER_SENSOR_DESCRIPTIONS: dict[str, SensorEntityDescription] = {
     ),
     "miner_consumption": SensorEntityDescription(
         key="miner_consumption",
+        name="Leistung (Aktuell)",
         translation_key="miner_consumption",
         native_unit_of_measurement=UnitOfPower.WATT,
         state_class=SensorStateClass.MEASUREMENT,
