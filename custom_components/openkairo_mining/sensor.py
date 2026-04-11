@@ -9,18 +9,10 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import async_get_miner_coordinator
+from .utils import _safe_get
 
 _LOGGER = logging.getLogger(__name__)
 
-def _safe_get(data, keys):
-    if not data:
-        return None
-    for key in keys:
-        if isinstance(data, dict) and key in data and data[key] is not None:
-            return data[key]
-        elif hasattr(data, key) and getattr(data, key) is not None:
-            return getattr(data, key)
-    return None
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up OpenKairo Miner sensors based on a config entry."""

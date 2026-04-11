@@ -235,7 +235,21 @@ async def _mining_loop(hass):
                 if miner_switch_2:
                     switches.append(miner_switch_2)
                     
+                # Basis-Check: Sind alle konfigurierten Schalter an?
                 is_on = all(hass.states.get(s).state == "on" if hass.states.get(s) else False for s in switches)
+
+                # Erweiterter Check: Wenn der Miner Strom verbraucht (> 50W), behandeln wir ihn als EIN.
+                # Dies verhindert Endlos-Loops beim Soft-Start, falls der Miner-Status (is_mining) noch nicht aktualisiert wurde.
+                p_sensor = miner.get("power_consumption_sensor")
+                if not is_on and p_sensor:
+                    p_state = hass.states.get(p_sensor)
+                    if p_state and p_state.state not in ["unknown", "unavailable"]:
+                        try:
+                            if float(p_state.state) > 50:
+                                is_on = True
+                                _LOGGER.debug(f"[{miner_name}] Schalter ist AUS, aber Stromverbrauch erkannt ({p_state.state}W). Behandle als EIN.")
+                        except (ValueError, TypeError):
+                            pass
 
                 if "miner_states" not in hass.data[DOMAIN]:
                     hass.data[DOMAIN]["miner_states"] = {}

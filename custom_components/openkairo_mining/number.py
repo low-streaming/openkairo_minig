@@ -4,6 +4,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import async_get_miner_coordinator
+from .utils import _safe_get
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,10 +50,7 @@ class MinerPowerLimit(CoordinatorEntity, NumberEntity):
 
     @property
     def native_value(self):
-        data = self.coordinator.data
-        if data and "wattage_limit" in data:
-            return data["wattage_limit"]
-        return None
+        return _safe_get(self.coordinator.data, ["wattage_limit"])
 
     async def async_set_native_value(self, value):
         """Update the power limit."""

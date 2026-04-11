@@ -4,6 +4,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import async_get_miner_coordinator
+from .utils import _safe_get
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,10 +45,7 @@ class MinerSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def is_on(self):
-        data = self.coordinator.data
-        if data and "is_mining" in data:
-            return data["is_mining"]
-        return False
+        return _safe_get(self.coordinator.data, ["is_mining"]) is True
 
     async def async_turn_on(self, **kwargs):
         """Turn the miner on."""
