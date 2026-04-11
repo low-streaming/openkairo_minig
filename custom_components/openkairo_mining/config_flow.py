@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import voluptuous as vol
 
@@ -24,7 +25,8 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str, str]:
     """Validate the user input allows us to connect."""
-    ip_address = data["ip_address"]
+    # Clean up whitespace
+    ip_address = data["ip_address"].strip()
     username = data.get("username", "root")
     password = data.get("password", "")
     ssh_username = data.get("ssh_username", "root")
@@ -37,6 +39,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
     for attempt in range(max_retries):
         try:
             _LOGGER.debug(f"[{ip_address}] Miner-Suche Versuch {attempt + 1}/{max_retries}...")
+            # Use Factory directly with a slightly longer timeout matching hass-miner context
             miner = await pyasic.get_miner(ip_address)
             if miner:
                 _LOGGER.info(f"[{ip_address}] Miner erkannt: {miner.make} ({miner.model})")
@@ -46,6 +49,22 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
         
         if attempt < max_retries - 1:
             await asyncio.sleep(retry_delay)
+
+    # Fallback für Braiins OS (BOSMiner) falls get_miner fehlschlägt
+    if miner is None:
+        _LOGGER.info(f"[{ip_address}] Automatische Suche fehlgeschlagen. Versuche Direkt-Verbindung für Braiins OS...")
+        try:
+            # We try to force a BOSMiner instance as we see it in user browser
+            # Correct import path for pyasic 0.78.10
+            from pyasic.miners.backends.braiins_os import BOSMiner
+            miner = BOSMiner(ip_address)
+            # Basic check if it responds on 4028 or 80
+            data_test = await miner.get_data()
+            if not data_test:
+                miner = None
+        except Exception as e:
+            _LOGGER.debug(f"[{ip_address}] BOS-Fallback fehlgeschlagen: {e}")
+            miner = None
 
     if miner is None:
         _LOGGER.error(f"[{ip_address}] Kein ASIC Miner nach {max_retries} Versuchen gefunden.")

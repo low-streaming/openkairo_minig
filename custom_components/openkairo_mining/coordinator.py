@@ -54,8 +54,15 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             if self.miner_obj is None:
                 raise UpdateFailed(f"Miner an {self.miner_ip} nicht gefunden.")
 
-            # Fetch basic data
-            data = await self.miner_obj.get_data()
+            # Fetch basic data with timeout
+            data = None
+            try:
+                # Add explicit timeout for slow responding miners
+                data = await asyncio.wait_for(self.miner_obj.get_data(), timeout=15)
+            except asyncio.TimeoutError:
+                _LOGGER.warning(f"[{self.miner_ip}] Zeitüberschreitung beim Datenabruf.")
+                self.miner_obj = None
+                raise UpdateFailed(f"Zeitüberschreitung beim Miner an {self.miner_ip}")
             
             if not data:
                 # If data is empty, we might need to rediscover
