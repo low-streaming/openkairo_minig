@@ -40,36 +40,37 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
     for attempt in range(max_retries):
         try:
             _LOGGER.debug(f"[{ip_address}] Miner-Suche Versuch {attempt + 1}/{max_retries}...")
-            # Replicate hass-miner: Simple get_miner without constructor credentials
-            miner = await pyasic.get_miner(ip_address)
+            # Replicate hass-miner: Simple get_miner with shielding and a dedicated timeout
+            miner = await asyncio.wait_for(pyasic.get_miner(ip_address), timeout=15)
             if miner:
                 _LOGGER.info(f"[{ip_address}] Miner erkannt: {miner.make} ({miner.model})")
                 break
         except Exception as e:
             _LOGGER.warning(f"[{ip_address}] Verbindungsversuch {attempt + 1} fehlgeschlagen: {e}")
         
-        if attempt < max_retries - 1:
-            await asyncio.sleep(retry_delay)
+        # Manuelle Sockel-Prüfung als letzter Ausweg (Port 4028)
+        if attempt == max_retries - 1 and miner is None:
+            _LOGGER.info(f"[{ip_address}] get_miner fehlgeschlagen. Versuche manuellen Port-Check auf 4028...")
+            try:
+                # Prüfe ob Port 4028 offen ist via asyncio
+                conn = asyncio.open_connection(ip_address, 4028)
+                reader, writer = await asyncio.wait_for(conn, timeout=5)
+                writer.close()
+                await writer.wait_closed()
+                _LOGGER.info(f"[{ip_address}] Port 4028 ist offen! Erzwungene Verbindung für Braiins OS...")
+                from pyasic.miners.backends.braiins_os import BOSMiner
+                miner = BOSMiner(ip_address)
+            except Exception as e:
+                _LOGGER.debug(f"[{ip_address}] Manueller Port-Check fehlgeschlagen: {e}")
 
-    # Fallback für Braiins OS (BOSMiner) falls get_miner fehlschlägt
-    if miner is None:
-        _LOGGER.info(f"[{ip_address}] Automatische Suche fehlgeschlagen. Versuche Direkt-Verbindung für Braiins OS...")
-        try:
-            from pyasic.miners.backends.braiins_os import BOSMiner
-            miner = BOSMiner(ip_address)
-            # Basic check if it responds
-            data_test = await asyncio.wait_for(miner.get_data(), timeout=10)
-            if not data_test:
-                miner = None
-        except Exception as e:
-            _LOGGER.debug(f"[{ip_address}] BOS-Fallback fehlgeschlagen: {e}")
-            miner = None
+        if miner is None and attempt < max_retries - 1:
+            await asyncio.sleep(retry_delay)
 
     if miner is None:
         _LOGGER.error(f"[{ip_address}] Kein ASIC Miner nach {max_retries} Versuchen gefunden.")
         raise CannotConnect(
             f"Kein ASIC Miner unter {ip_address} gefunden. "
-            "Bitte stelle sicher, dass der API-Port (4028) am Miner aktiviert ist. "
+            "Bitte stelle sicher, dass der Miner im selben Netzwerk ist wie Home Assistant. "
         )
 
     try:

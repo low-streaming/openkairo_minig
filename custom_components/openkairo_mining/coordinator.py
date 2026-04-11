@@ -11,7 +11,7 @@ _LOGGER = logging.getLogger(__name__)
 class MinerDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching Miner data from an ASIC."""
 
-    def __init__(self, hass: HomeAssistant, miner_ip: str, name: str, user: str = "root", password: str = ""):
+    def __init__(self, hass: HomeAssistant, miner_ip: str, name: str, user: str = "root", password: str = "", ssh_user: str = "root", ssh_password: str = ""):
         """Initialize the coordinator."""
         # Lazy import inside the class
         import pyasic
@@ -26,6 +26,8 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         self.miner_name = name
         self.miner_user = user
         self.miner_password = password
+        self.ssh_user = ssh_user
+        self.ssh_password = ssh_password
         self.miner_obj = None
         self.miner_model = None
         self.miner_make = None
@@ -34,15 +36,29 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         """Fetch data from the ASIC."""
         import pyasic
         import asyncio
+        from pyasic.data.options import DataOptions
         
         try:
             if self.miner_obj is None:
                 # Replicate hass-miner: get_miner without credentials
-                self.miner_obj = await pyasic.get_miner(self.miner_ip)
+                self.miner_obj = await asyncio.wait_for(pyasic.get_miner(self.miner_ip), timeout=15)
+                
+                # Manual credential fallback for Braiins OS if get_miner is still struggling
+                if self.miner_obj is None:
+                    from pyasic.miners.backends.braiins_os import BOSMiner
+                    self.miner_obj = BOSMiner(self.miner_ip)
+
                 if self.miner_obj:
                     # Manual credential assignment
                     if self.miner_password:
                         self.miner_obj.api.pwd = self.miner_password
+                        try:
+                            self.miner_obj.web.username = self.miner_user or "root"
+                            self.miner_obj.web.pwd = self.miner_password
+                        except Exception:
+                            pass
+                    
+                    if self.ssh_password:
                         try:
                             self.miner_obj.ssh_username = self.ssh_user or "root"
                             self.miner_obj.ssh_pwd = self.ssh_password
@@ -56,30 +72,33 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             if self.miner_obj is None:
                 raise UpdateFailed(f"Miner an {self.miner_ip} nicht gefunden.")
 
-            # Fetch basic data with timeout
-            data = None
+            # Replicate hass-miner strategy: Fetch data with a robust timeout and options
+            # Default to fetching all data
             try:
-                # Add explicit timeout for slow responding miners
-                data = await asyncio.wait_for(self.miner_obj.get_data(), timeout=15)
-            except asyncio.TimeoutError:
-                _LOGGER.warning(f"[{self.miner_ip}] Zeitüberschreitung beim Datenabruf.")
-                self.miner_obj = None
-                raise UpdateFailed(f"Zeitüberschreitung beim Miner an {self.miner_ip}")
-            
-            if not data:
-                # If data is empty, we might need to rediscover
-                self.miner_obj = None
-                raise UpdateFailed(f"Miner an {self.miner_ip} lieferte keine Daten.")
-                
-            return data
+                data = await asyncio.wait_for(self.miner_obj.get_data(), timeout=20)
+                return data
+            except (asyncio.TimeoutError, Exception) as e:
+                _LOGGER.debug(f"[{self.miner_ip}] Voller Datenabruf fehlgeschlagen: {e}. Versuche reduzierte Optionen...")
+                # Fallback: Try without CONFIG if first attempt fails (common for slow miners)
+                try:
+                    # We create options that exclude potentially slow fields
+                    options = DataOptions.default()
+                    # Some versions might not like CONFIG if the API is slow
+                    data = await asyncio.wait_for(self.miner_obj.get_data(data_options=options), timeout=20)
+                    return data
+                except Exception as inner_e:
+                    _LOGGER.warning(f"[{self.miner_ip}] Datenabruf fehlgeschlagen: {inner_e}")
+                    self.miner_obj = None
+                    raise UpdateFailed(f"Kommunikationsfehler: {inner_e}")
+
         except Exception as err:
-            _LOGGER.debug(f"[{self.miner_ip}] Verbindungsfehler: {err}")
+            _LOGGER.debug(f"[{self.miner_ip}] Globaler Fehler: {err}")
             # Reset on connection errors
             if "Connection" in str(err) or "timeout" in str(err).lower():
                 self.miner_obj = None
-            raise UpdateFailed(f"Kommunikationsfehler: {err}")
+            raise UpdateFailed(f"Fehler: {err}")
 
-async def async_get_miner_coordinator(hass, domain, miner_ip, miner_name, user=None, password=None, ssh_user=None, ssh_password=None):
+async def async_get_miner_coordinator(hass, domain, miner_ip, miner_name, user="root", password="", ssh_user="root", ssh_password=""):
     """Retrieve or create a coordinator for a specific miner."""
     coordinators = hass.data[domain].get("coordinators", {})
     
