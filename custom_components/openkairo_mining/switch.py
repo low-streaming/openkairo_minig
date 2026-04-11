@@ -22,39 +22,48 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     
     coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name, user, password, ssh_user, ssh_password)
     
-    miner_config = {"id": config_entry.entry_id}
-    entities = [MinerSwitch(coordinator, miner_config)]
-             
+    entities = [MinerMiningSwitch(coordinator)]
     async_add_entities(entities)
 
-class MinerSwitch(CoordinatorEntity, SwitchEntity):
-    """Switch representation for a Miner."""
-    def __init__(self, coordinator, miner_config):
+class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
+    """Switch representation for mining status."""
+    def __init__(self, coordinator):
         super().__init__(coordinator)
-        self.miner_id = miner_config.get("id")
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{self.coordinator.miner_ip}_switch"
-        self._attr_name = f"{self.coordinator.miner_name} Status"
+        self._attr_unique_id = f"{self.coordinator.miner_ip}_mining_switch"
+        self._attr_name = "Mining Aktiv"
+        self._attr_icon = "mdi:hammer-pick"
 
     @property
     def device_info(self):
+        make = getattr(self.coordinator, "miner_make", "OpenKairo")
+        model = getattr(self.coordinator, "miner_model", "ASIC Miner")
         return {
             "identifiers": {(DOMAIN, self.coordinator.miner_ip)},
             "name": self.coordinator.miner_name,
+            "manufacturer": make,
+            "model": model,
         }
 
     @property
     def is_on(self):
-        return _safe_get(self.coordinator.data, ["is_mining"]) is True
+        # pyasic return True/False for is_mining
+        return self.coordinator.data.is_mining if self.coordinator.data else False
 
     async def async_turn_on(self, **kwargs):
-        """Turn the miner on."""
+        """Resume mining."""
         if self.coordinator.miner_obj:
-            await self.coordinator.miner_obj.resume_mining()
-            await self.coordinator.async_request_refresh()
+            try:
+                await self.coordinator.miner_obj.resume_mining()
+                await self.coordinator.async_request_refresh()
+            except Exception as e:
+                _LOGGER.error(f"Fehler beim Starten des Minings: {e}")
 
     async def async_turn_off(self, **kwargs):
-        """Turn the miner off."""
+        """Stop mining."""
         if self.coordinator.miner_obj:
-            await self.coordinator.miner_obj.stop_mining()
-            await self.coordinator.async_request_refresh()
+            try:
+                await self.coordinator.miner_obj.stop_mining()
+                await self.coordinator.async_request_refresh()
+            except Exception as e:
+                _LOGGER.error(f"Fehler beim Stoppen des Minings: {e}")

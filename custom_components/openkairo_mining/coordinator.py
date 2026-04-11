@@ -32,36 +32,43 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         """Fetch data from the miner."""
         try:
             if self.miner_obj is None:
-                _LOGGER.info(f"[{self.miner_name}] Searching for miner at {self.miner_ip}...")
+                _LOGGER.debug(f"[{self.miner_ip}] Suche Miner...")
                 self.miner_obj = await pyasic.get_miner(self.miner_ip)
-                if self.miner_obj and self.miner_password:
-                    # Setze Anmeldedaten falls vorhanden
-                    self.miner_obj.username = self.miner_user or "root"
-                    self.miner_obj.pwd = self.miner_password
-                if self.miner_obj and self.ssh_password:
-                    try:
-                        self.miner_obj.ssh_username = self.ssh_user or "root"
-                        self.miner_obj.ssh_pwd = self.ssh_password
-                    except Exception:
-                        pass
+                
+                if self.miner_obj:
+                    # Update credentials if provided
+                    if self.miner_password:
+                        self.miner_obj.username = self.miner_user or "root"
+                        self.miner_obj.pwd = self.miner_password
+                    if self.ssh_password:
+                        try:
+                            self.miner_obj.ssh_username = self.ssh_user or "root"
+                            self.miner_obj.ssh_pwd = self.ssh_password
+                        except Exception:
+                            pass
+                    
+                    # Store static info
+                    self.miner_model = self.miner_obj.model
+                    self.miner_make = self.miner_obj.make
             
             if self.miner_obj is None:
-                _LOGGER.error(f"[{self.miner_name}] Miner not found at {self.miner_ip}!")
-                raise UpdateFailed(f"Could not find miner at {self.miner_ip}")
+                raise UpdateFailed(f"Miner an {self.miner_ip} nicht gefunden.")
 
-            _LOGGER.debug(f"[{self.miner_name}] Fetching data...")
             # Fetch basic data
             data = await self.miner_obj.get_data()
-            _LOGGER.debug(f"[{self.miner_name}] Data received: {data.hashrate if data else 'None'} TH/s")
             
-            # Additional logic: can the miner be reached?
             if not data:
-                raise UpdateFailed(f"Miner at {self.miner_ip} returned no data")
+                # If data is empty, we might need to rediscover
+                self.miner_obj = None
+                raise UpdateFailed(f"Miner an {self.miner_ip} lieferte keine Daten.")
                 
             return data
         except Exception as err:
-            _LOGGER.debug(f"[{self.miner_name}] Detailed error: {err}")
-            raise UpdateFailed(f"Communication error with miner at {self.miner_ip}: {err}")
+            _LOGGER.debug(f"[{self.miner_ip}] Verbindungsfehler: {err}")
+            # Reset on connection errors
+            if "Connection" in str(err) or "timeout" in str(err).lower():
+                self.miner_obj = None
+            raise UpdateFailed(f"Kommunikationsfehler: {err}")
 
 async def async_get_miner_coordinator(hass, domain, miner_ip, miner_name, user=None, password=None, ssh_user=None, ssh_password=None):
     """Retrieve or create a coordinator for a specific miner."""

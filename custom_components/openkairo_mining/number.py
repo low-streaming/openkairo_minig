@@ -1,10 +1,10 @@
 import logging
-from homeassistant.components.number import NumberEntity
+from homeassistant.components.number import NumberEntity, NumberDeviceClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.const import UnitOfPower
 
 from .const import DOMAIN
 from .coordinator import async_get_miner_coordinator
-from .utils import _safe_get
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,38 +22,48 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     
     coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name, user, password, ssh_user, ssh_password)
     
-    miner_config = {"id": config_entry.entry_id}
-    entities = [MinerPowerLimit(coordinator, miner_config)]
-             
+    entities = [MinerPowerLimitNumber(coordinator)]
     async_add_entities(entities)
 
-class MinerPowerLimit(CoordinatorEntity, NumberEntity):
-    """Number entity for Miner Power Limit."""
+class MinerPowerLimitNumber(CoordinatorEntity, NumberEntity):
+    """Number entity to set miner power limit."""
+    _attr_device_class = NumberDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_native_step = 10
     _attr_native_min_value = 100
     _attr_native_max_value = 4000
-    _attr_native_step = 10
-    _attr_native_unit_of_measurement = "W"
 
-    def __init__(self, coordinator, miner_config):
+    def __init__(self, coordinator):
         super().__init__(coordinator)
-        self.miner_id = miner_config.get("id")
         self._attr_has_entity_name = True
         self._attr_unique_id = f"{self.coordinator.miner_ip}_power_limit"
-        self._attr_name = f"{self.coordinator.miner_name} Power-Limit"
+        self._attr_name = "Power Limit"
+        self._attr_icon = "mdi:speedometer"
 
     @property
     def device_info(self):
+        make = getattr(self.coordinator, "miner_make", "OpenKairo")
+        model = getattr(self.coordinator, "miner_model", "ASIC Miner")
         return {
             "identifiers": {(DOMAIN, self.coordinator.miner_ip)},
             "name": self.coordinator.miner_name,
+            "manufacturer": make,
+            "model": model,
         }
 
     @property
     def native_value(self):
-        return _safe_get(self.coordinator.data, ["wattage_limit"])
+        # pyasic MinerData usually has wattage_limit
+        if self.coordinator.data:
+            return getattr(self.coordinator.data, "wattage_limit", None)
+        return None
 
-    async def async_set_native_value(self, value):
+    async def async_set_native_value(self, value: float) -> None:
         """Update the power limit."""
         if self.coordinator.miner_obj:
-            await self.coordinator.miner_obj.set_power_limit(int(value))
-            await self.coordinator.async_request_refresh()
+            try:
+                _LOGGER.info(f"[{self.coordinator.miner_ip}] Setze Power Limit auf {value}W")
+                await self.coordinator.miner_obj.set_power_limit(int(value))
+                await self.coordinator.async_request_refresh()
+            except Exception as e:
+                _LOGGER.error(f"Fehler beim Setzen des Power Limits: {e}")

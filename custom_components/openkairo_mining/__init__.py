@@ -24,6 +24,7 @@ CONFIG_FILE = "openkairo_mining_config.json"
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.SWITCH,
+    Platform.BINARY_SENSOR,
     Platform.NUMBER,
     Platform.SELECT,
 ]

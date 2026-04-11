@@ -30,11 +30,32 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
     ssh_username = data.get("ssh_username", "root")
     ssh_password = data.get("ssh_password", "")
 
-    try:
-        miner = await pyasic.get_miner(ip_address)
-        if miner is None:
-            raise CannotConnect("Kein ASIC Miner unter dieser IP-Adresse gefunden.")
+    max_retries = 3
+    retry_delay = 2
+    miner = None
 
+    for attempt in range(max_retries):
+        try:
+            _LOGGER.debug(f"[{ip_address}] Miner-Suche Versuch {attempt + 1}/{max_retries}...")
+            miner = await pyasic.get_miner(ip_address)
+            if miner:
+                _LOGGER.info(f"[{ip_address}] Miner erkannt: {miner.make} ({miner.model})")
+                break
+        except Exception as e:
+            _LOGGER.warning(f"[{ip_address}] Verbindungsversuch {attempt + 1} fehlgeschlagen: {e}")
+        
+        if attempt < max_retries - 1:
+            await asyncio.sleep(retry_delay)
+
+    if miner is None:
+        _LOGGER.error(f"[{ip_address}] Kein ASIC Miner nach {max_retries} Versuchen gefunden.")
+        raise CannotConnect(
+            f"Kein ASIC Miner unter {ip_address} gefunden. "
+            "Bitte stelle sicher, dass der API-Port (4028) am Miner aktiviert ist. "
+            "Bei Braiins OS: Einstellungen -> Miner API -> Enabled."
+        )
+
+    try:
         if password:
             miner.username = username
             miner.pwd = password
@@ -47,17 +68,19 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
                 pass
 
         # Versuche Daten abzurufen, um Login zu testen
+        _LOGGER.debug(f"[{ip_address}] Teste Login/Datenabruf...")
         miner_data = await miner.get_data()
         if not miner_data:
-            raise InvalidAuth("Login fehlgeschlagen oder Miner liefert keine Daten.")
+            raise InvalidAuth("Login fehlgeschlagen oder Miner liefert keine Daten (API-Antwort leer).")
             
         model = miner.make or "ASIC"
-        
         return {"title": f"{model} ({ip_address})", "model": model}
 
+    except InvalidAuth:
+        raise
     except Exception as err:
-        _LOGGER.error("Fehler beim Verbinden mit ASIC am %s: %s", ip_address, err)
-        raise CannotConnect(f"Verbindungsfehler: {err}")
+        _LOGGER.error("Fehler beim Datenabruf von ASIC am %s: %s", ip_address, err)
+        raise CannotConnect(f"Verbindungsfehler während Datenabruf: {err}")
 
 
 class OpenKairoMiningConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):

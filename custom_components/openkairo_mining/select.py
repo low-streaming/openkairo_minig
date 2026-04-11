@@ -21,37 +21,44 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     
     coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name, user, password, ssh_user, ssh_password)
     
-    miner_config = {"id": config_entry.entry_id}
-    entities = [MinerWorkModeSelect(coordinator, miner_config)]
-             
+    # Not all miners support work modes, but we'll try
+    entities = [MinerWorkModeSelect(coordinator)]
     async_add_entities(entities)
 
 class MinerWorkModeSelect(CoordinatorEntity, SelectEntity):
     """Select entity for Miner Work Mode."""
     _attr_options = ["low", "normal", "high"]
 
-    def __init__(self, coordinator, miner_config):
+    def __init__(self, coordinator):
         super().__init__(coordinator)
-        self.miner_id = miner_config.get("id")
         self._attr_has_entity_name = True
         self._attr_unique_id = f"{self.coordinator.miner_ip}_work_mode"
-        self._attr_name = f"{self.coordinator.miner_name} Arbeitsmodus"
+        self._attr_name = "Arbeitsmodus"
 
     @property
     def device_info(self):
+        make = getattr(self.coordinator, "miner_make", "OpenKairo")
+        model = getattr(self.coordinator, "miner_model", "ASIC Miner")
         return {
             "identifiers": {(DOMAIN, self.coordinator.miner_ip)},
             "name": self.coordinator.miner_name,
+            "manufacturer": make,
+            "model": model,
         }
 
     @property
     def current_option(self):
-        # Implementation depends on miner ability to report mode
+        # Result of pyasic MinerData check
+        if self.coordinator.data:
+            return getattr(self.coordinator.data, "mode", None)
         return None
 
-    async def async_select_option(self, option):
+    async def async_select_option(self, option: str) -> None:
         """Change the work mode."""
         if self.coordinator.miner_obj:
             if hasattr(self.coordinator.miner_obj, "set_work_mode"):
-                await self.coordinator.miner_obj.set_work_mode(option)
-                await self.coordinator.async_request_refresh()
+                try:
+                    await self.coordinator.miner_obj.set_work_mode(option)
+                    await self.coordinator.async_request_refresh()
+                except Exception as e:
+                    _LOGGER.error(f"Fehler beim Setzen des Arbeitsmodus: {e}")
