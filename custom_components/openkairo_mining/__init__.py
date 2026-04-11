@@ -55,6 +55,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         # We need to ensure the coordinators dict exists
         hass.data[DOMAIN].setdefault("coordinators", {})
         
+        # [NEW] Sync with internal dashboard config
+        async def sync_with_config():
+            from .__init__ import _load_config, _save_config
+            config = await hass.async_add_executor_job(_load_config, hass)
+            
+            # Check if this IP is already in the dashboard config
+            exists = any(m.get("miner_ip") == entry.data["ip_address"] for m in config.get("miners", []))
+            
+            if not exists:
+                import uuid
+                new_miner = {
+                    "id": str(uuid.uuid4()),
+                    "name": entry.title,
+                    "miner_ip": entry.data["ip_address"],
+                    "miner_user": entry.data.get("username", "root"),
+                    "miner_password": entry.data.get("password", ""),
+                    "priority": "10",
+                    "mode": "manual",
+                }
+                config["miners"].append(new_miner)
+                await hass.async_add_executor_job(_save_config, hass, config)
+                _LOGGER.info(f"Added miner {entry.title} ({entry.data['ip_address']}) to dashboard config")
+
+        hass.async_create_task(sync_with_config())
+
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         return True
     

@@ -184,7 +184,8 @@ class MinerFanSensor(MinerBaseEntity, SensorEntity):
         if not data or not hasattr(data, "fans") or len(data.fans) <= self.fan_idx:
             return None
         fan = data.fans[self.fan_idx]
-        return getattr(fan, "speed", None) or getattr(fan, "rpm", None)
+        val = getattr(fan, "speed", None) or getattr(fan, "rpm", None)
+        return int(val) if val is not None else None
 
 class MinerBoardHashrateSensor(MinerBaseEntity, SensorEntity):
     """Sensor for Board Hashrate."""
@@ -202,7 +203,8 @@ class MinerBoardHashrateSensor(MinerBaseEntity, SensorEntity):
         data = self.coordinator.data
         if not data or not hasattr(data, "hashboards") or len(data.hashboards) <= self.board_idx:
             return None
-        return getattr(data.hashboards[self.board_idx], "hashrate", None)
+        val = getattr(data.hashboards[self.board_idx], "hashrate", None)
+        return round(float(val), 2) if val is not None else None
 
 class MinerBoardTempSensor(MinerBaseEntity, SensorEntity):
     """Sensor for Board Temperature."""
@@ -221,5 +223,6 @@ class MinerBoardTempSensor(MinerBaseEntity, SensorEntity):
         data = self.coordinator.data
         if not data or not hasattr(data, "hashboards") or len(data.hashboards) <= self.board_idx:
             return None
-        return getattr(data.hashboards[self.board_idx], "temp", None)
+        val = getattr(data.hashboards[self.board_idx], "temp", None)
+        return round(float(val), 1) if val is not None else None
 
