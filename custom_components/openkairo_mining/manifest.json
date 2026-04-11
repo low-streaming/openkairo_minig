@@ -7,7 +7,9 @@
     "codeowners": [
         "@openkairo"
     ],
-    "requirements": [],
+    "requirements": [
+        "pyasic>=0.23.0"
+    ],
     "platforms": [
         "sensor",
         "switch",

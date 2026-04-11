@@ -42,34 +42,16 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
     for attempt in range(max_retries):
         try:
             _LOGGER.debug(f"[{ip_address}] Miner-Suche Versuch {attempt + 1}/{max_retries}...")
-            # Replicate hass-miner: Simple get_miner with shielding and a dedicated timeout
-            miner = await asyncio.wait_for(pyasic.get_miner(ip_address), timeout=15)
+            # Increase timeout specifically for Avalon miners which can be slow on Wi-Fi
+            miner = await asyncio.wait_for(pyasic.get_miner(ip_address), timeout=30)
             if miner:
                 _LOGGER.info(f"[{ip_address}] Miner erkannt: {miner.make} ({miner.model})")
                 break
         except Exception as e:
             _LOGGER.warning(f"[{ip_address}] Verbindungsversuch {attempt + 1} fehlgeschlagen: {e}")
         
-        # Manuelle Sockel-Prüfung als letzter Ausweg (Port 4028)
-        if attempt == max_retries - 1 and miner is None:
-            _LOGGER.info(f"[{ip_address}] get_miner fehlgeschlagen. Versuche blockierenden Port-Check auf 4028 (Executor)...")
-            try:
-                # Wir nutzen einen echten blockierenden Socket im Thread-Pool
-                # Das ist immun gegen Verzögerungen im Event-Loop!
-                def check_port():
-                    import socket
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                        s.settimeout(3)
-                        return s.connect_ex((ip_address, 4028)) == 0
-                
-                port_open = await hass.async_add_executor_job(check_port)
-                
-                if port_open:
-                    _LOGGER.info(f"[{ip_address}] Port 4028 ist offen! Erzwungene Verbindung für Braiins OS...")
-                    from pyasic.miners.backends.braiins_os import BOSMiner
-                    miner = BOSMiner(ip_address)
-            except Exception as e:
-                _LOGGER.debug(f"[{ip_address}] Manueller Port-Check fehlgeschlagen: {e}")
+        # No more hardcoded Braiins OS fallback here. 
+        # get_miner() should be robust enough with pyasic >= 0.23.0
 
         if miner is None and attempt < max_retries - 1:
             await asyncio.sleep(retry_delay)
@@ -78,31 +60,29 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
         _LOGGER.error(f"[{ip_address}] Kein ASIC Miner nach {max_retries} Versuchen gefunden.")
         raise CannotConnect(
             f"Kein ASIC Miner unter {ip_address} gefunden. "
-            "Bitte stelle sicher, dass der Miner im selben Netzwerk ist wie Home Assistant. "
+            "Überprüfe die IP und stelle sicher, dass der Port 4028 oder 80 offen ist."
         )
 
     try:
-        # Replicate hass-miner: Manual assignment of credentials
+        # Replicate credentials to the miner object
         if password:
-            miner.api.pwd = password
-            # Some miners use web auth too
-            try:
+            if hasattr(miner, "api") and miner.api:
+                 miner.api.pwd = password
+            
+            if hasattr(miner, "web") and miner.web:
                 miner.web.username = username
                 miner.web.pwd = password
-            except Exception:
-                pass
             
         if ssh_password:
-            try:
-                miner.ssh_username = ssh_username
-                miner.ssh_pwd = ssh_password
-            except Exception:
-                pass
+            miner.ssh_username = ssh_username
+            miner.ssh_pwd = ssh_password
 
-        # Versuche Daten abzurufen, um Login zu testen
+        # Test login/data retrieval
         _LOGGER.debug(f"[{ip_address}] Teste Login/Datenabruf...")
-        miner_data = await asyncio.wait_for(miner.get_data(), timeout=15)
+        miner_data = await asyncio.wait_for(miner.get_data(), timeout=20)
+        
         if not miner_data:
+            # If get_data returns None it's usually an auth issue or firmware lock
             raise InvalidAuth("Login fehlgeschlagen oder Miner liefert keine Daten.")
             
         model = miner.model or "ASIC"
@@ -112,7 +92,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
         raise
     except Exception as err:
         _LOGGER.error("Fehler beim Datenabruf von ASIC am %s: %s", ip_address, err)
-        raise CannotConnect(f"Verbindungsfehler während Datenabruf: {err}")
+        raise CannotConnect(f"Miner gefunden, aber Datenabruf fehlgeschlagen: {err}")
 
 
 class OpenKairoMiningConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
