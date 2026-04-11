@@ -1,1 +1,2 @@
 DOMAIN = "openkairo_mining"
+DEFAULT_UPDATE_INTERVAL = 30
