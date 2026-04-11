@@ -1,10 +1,10 @@
-# OpenKairo Mining 🚀 — The Ultimate Mining Command Center
+# OpenKairo Mining 🚀 — Das Ultimative Mining Command Center
 
 [![OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg)](https://openkairo.de)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg)](https://home-assistant.io)
 [![Version](https://img.shields.io/badge/Version-1.3.5%20Command%20Center-magenta.svg)](#)
 
-Transform your Home Assistant into a professional-grade Mining Control Center. **OpenKairo Mining** allows you to automate, monitor, and optimize your miners based on PV yield, battery state, and real-time Bitcoin network data.
+Verwandle dein Home Assistant in eine professionelle Mining-Schaltzentrale. Mit **OpenKairo Mining** kannst du deine Miner intelligent automatisieren, überwachen und basierend auf PV-Ertrag, Batteriestatus und Echtzeit-Bitcoin-Netzwerkdaten optimieren.
 
 ---
 
@@ -20,32 +20,32 @@ Wähle aus exklusiven Design-Presets, die dein Dashboard zum Leuchten bringen:
 - **Crystal Ice & Deep Abyss:** Unsere neuesten v1.3 Ergänzungen mit flüssigen Animationen.
 - **☀️ Gladbeck Edition:** Spezial-Branding für Solarmodule Gladbeck ("Brand Overdrive").
 
-### 📊 Bitcoin Network Intelligence (Mempool Integration)
+### 📊 Bitcoin Netzwerk-Intelligenz (Mempool Integration)
 Kein Raten mehr. Dein Dashboard zieht Live-Daten direkt von `mempool.space`:
-- **Real-time BTC Price:** Hochpräziser Kurs in Euro.
-- **Mining Fees:** Aktuelle Gebühren (Fast/Medium/Low) in sat/vB.
-- **Network Status:** Aktuelle Blockhöhe und Difficulty-Adjustment Prognose.
-- **Halving Countdown:** Behalte das wichtigste Event im Blick.
+- **Echtzeit-BTC-Preis:** Hochpräziser Kurs in Euro.
+- **Mining-Gebühren:** Aktuelle Gebühren (Schnell/Mittel/Niedrig) in sat/vB.
+- **Netzwerk-Status:** Aktuelle Blockhöhe und Difficulty-Adjustment Prognose.
+- **Halving-Countdown:** Behalte das wichtigste Event im Blick.
 
-### 🛡️ Hardware Watchdog 2.0 (Dual-Socket Support)
+### 🛡️ Hardware-Wächter 2.0 (Duale Steckdosen-Unterstützung)
 Maximale Sicherheit für deine Hardware:
-- **Frozen Detection:** Erkennt hängengeblieben Miner am verringerten Stromverbrauch.
-- **Hard-Reset Cycle:** Schaltet die Steckdose (z.B. Shelly Plug) komplett ab und wieder an.
-- **Dual-Socket Support:** Unterstützung für Miner mit zwei Netzkabeln. Beide Dosen werden synchron geschaltet.
+- **Eingefrorene Miner erkennen:** Erkennt hängengebliebene Miner am verringerten Stromverbrauch.
+- **Hard-Reset-Zyklus:** Schaltet die Steckdose (z.B. Shelly Plug) komplett ab und wieder an.
+- **Duale Steckdosen:** Unterstützung für Miner mit zwei Netzkabeln. Beide Dosen werden synchron geschaltet.
 
 ---
 
-## ⚙️ Kern-Features
+## ⚙️ Kern-Funktionen
 
 - **Intelligente PV-Steuerung:** Automatisches Schalten basierend auf Solareinspeisung oder Überschuss.
 - **Batterie SOC-Steuerung:** Steuere deine Miner basierend auf dem Hausakku (z.B. Start >90%, Stop <30%).
-- **Soft Start / Soft Stop (Ramping):** Schonendes, mehrstufiges Hochfahren der Leistung zur Entlastung von Netzteil und Stromnetz.
-- **Echtzeit-Profit-Rechner:** Automatische Berechnung von Umsatz und Kosten basierend auf Live-Netzwerkdaten und deinem Strompreis.
+- **Sanfter Anlauf (Soft-Start / Soft-Stop):** Schonendes, mehrstufiges Hochfahren der Leistung zur Entlastung von Netzteil und Stromnetz.
+- **Echtzeit-Gewinnrechner:** Automatische Berechnung von Umsatz und Kosten basierend auf Live-Netzwerkdaten und deinem Strompreis.
 - **Native ASIC-Kontrolle:**
-  - **Power Limit Slider:** Stufenlose Watt-Regulierung direkt im Dashboard.
-  - **Modus-Switch:** Wechsel zwischen Low, Normal und High Power Modus.
-  - **Reboot & Backend-Restart:** Behebe Probleme per Knopfdruck ohne die ASIC-Weboberfläche zu öffnen.
-- **Activity Ticker:** Alle Systemereignisse im Blick – am Handy als flüssige Laufschrift optimiert.
+  - **Leistungslimit-Schieberegler:** Stufenlose Watt-Regulierung direkt im Dashboard.
+  - **Betriebsmodus-Wechsel:** Wechsel zwischen Spar- (Low), Normal- und Hochleistungs-Modus.
+  - **Neustart & Backend-Reset:** Behebe Probleme per Knopfdruck, ohne die ASIC-Weboberfläche zu öffnen.
+- **Aktivitäts-Ticker:** Alle Systemereignisse im Blick – am Smartphone als flüssige Laufschrift optimiert.
 
 ---
 
@@ -66,7 +66,7 @@ Diese Integration kommuniziert mit deinen Minern über die **Hass-Miner Integrat
 
 ## 🛠️ Fehlerbehebung (Pydantic Fix)
 
-Falls die `Hass-Miner` Integration aufgrund neuerer Python-Versionen Fehler wirft (`Invalid handler specified`), hilft dieser manuelle Patch:
+Falls die `Hass-Miner` Integration aufgrund neuerer Home Assistant / Python-Versionen Fehler wirft (`Invalid handler specified`), hilft dieser manuelle Patch:
 1. Öffne `/config/custom_components/miner/__init__.py` im Editor.
 2. Füge ganz oben in Zeile 1 ein:
    ```python
@@ -77,8 +77,8 @@ Falls die `Hass-Miner` Integration aufgrund neuerer Python-Versionen Fehler wirf
 
 ---
 
-## 🎯 Roadmap
-- [ ] **Dynamic Power-Scaling:** Vollautomatische Anpassung des Power-Limits an den PV-Überschuss.
+## 🎯 Ausblick (Roadmap)
+- [ ] **Dynamische Leistungsskalierung:** Vollautomatische Anpassung des Power-Limits an den exakten PV-Überschuss.
 - [ ] **Solcast Anbindung:** Ertrags-Vorschau zur proaktiven Planung der Mining-Zyklen.
 - [ ] **Push-Benachrichtigungen:** Warnungen bei Hashrate-Einbrüchen direkt aufs Handy.
 
