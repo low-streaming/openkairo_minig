@@ -263,19 +263,31 @@ async def _mining_loop(hass):
                     # Coordinator erstellen / aktualisieren. Er holt automatisch Daten im Hintergrund.
                     coord = await async_get_miner_coordinator(hass, DOMAIN, miner_ip, name, user, password)
                     
-                    # [NEU] Daten für das Dashboard synchronisieren
-                    if coord and coord.data:
-                        try:
+                    # [NEU] Daten für das Dashboard synchronisieren - Immer ausführen, um alte Werte zu nullen
+                    try:
+                        if coord and coord.data:
                             # Wir nutzen die bereits normalisierten Daten vom Coordinator
-                            miner_states[miner_id]["hashrate"] = getattr(coord.data, "hashrate", 0)
-                            miner_states[miner_id]["power"] = getattr(coord.data, "wattage", 0) or getattr(coord.data, "power", 0)
-                            miner_states[miner_id]["temp"] = getattr(coord.data, "temperature_avg", 0) or getattr(coord.data, "temperature", 0)
+                            miner_states[miner_id]["hashrate"] = getattr(coord.data, "hashrate", 0) or 0
+                            miner_states[miner_id]["power"] = getattr(coord.data, "wattage", 0) or getattr(coord.data, "power", 0) or 0
+                            miner_states[miner_id]["temp"] = getattr(coord.data, "temperature_avg", 0) or getattr(coord.data, "temperature", 0) or 0
                             miner_states[miner_id]["is_mining"] = getattr(coord.data, "is_mining", False)
-                        except Exception as data_err:
-                            _LOGGER.debug(f"[{miner_name}] Erro syncing dashboard data: {data_err}")
+                        else:
+                            # Wenn offline, Werte auf 0 setzen
+                            miner_states[miner_id]["hashrate"] = 0
+                            miner_states[miner_id]["power"] = 0
+                            miner_states[miner_id]["is_mining"] = False
+                    except Exception as data_err:
+                        _LOGGER.debug(f"[{miner_name}] Error syncing dashboard data: {data_err}")
                 
-                if not miner_switch:
-                    continue
+                # Hardware-Schalter Identifikation verbessern
+                if not miner_switch and miner_ip:
+                    # Der Name wird in Home Assistant oft mit Unterstrichen statt Punkten generiert
+                    safe_ip = miner_ip.replace('.', '_')
+                    miner_switch = f"switch.{safe_ip}_mining_aktiv"
+                    
+                    # Falls der Schalter nicht existiert, versuchen wir den Domain-Präfix
+                    if not hass.states.get(miner_switch):
+                        miner_switch = f"switch.{DOMAIN}_{safe_ip}_mining_aktiv"
                     
                 switches = [miner_switch]
                 if miner_switch_2:

@@ -80,10 +80,14 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                 
                 # Normalize Hashrate (Industry Standard: always TH/s)
                 raw_hashrate = getattr(data, "hashrate", 0) or 0
-                if raw_hashrate > 1000000: # Clearly H/s
-                    data.hashrate = round(raw_hashrate / 1000000000000, 2)
-                elif raw_hashrate > 500: # Likely GH/s (unlikely for S9 but possible for others)
-                    data.hashrate = round(raw_hashrate / 1000, 2)
+                try:
+                    numeric_hashrate = float(raw_hashrate)
+                    if numeric_hashrate > 1000000: # Clearly H/s
+                        data.hashrate = round(numeric_hashrate / 1000000000000, 2)
+                    elif numeric_hashrate > 500: # Likely GH/s (unlikely for S9 but possible for others)
+                        data.hashrate = round(numeric_hashrate / 1000, 2)
+                except (ValueError, TypeError):
+                    pass
 
                 return data
             except (asyncio.TimeoutError, Exception) as e:
