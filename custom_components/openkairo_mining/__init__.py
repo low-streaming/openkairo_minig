@@ -64,7 +64,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         config={
             "_panel_custom": {
                 "name": "openkairo-mining-panel",
-                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=1.2.7"
+                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=1.3.5"
             }
         },
         require_admin=True
