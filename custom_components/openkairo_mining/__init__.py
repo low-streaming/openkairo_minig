@@ -621,7 +621,7 @@ async def _mining_loop(hass):
         except Exception as e:
             _LOGGER.error(f"Mining loop error: {e}")
         
-        await asyncio.sleep(30)
+        await asyncio.sleep(15)
 
 async def _update_mempool_data(hass):
     try:
