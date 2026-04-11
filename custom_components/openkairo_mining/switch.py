@@ -46,9 +46,15 @@ class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
         }
 
     @property
+    def available(self) -> bool:
+        return self.coordinator.available
+
+    @property
     def is_on(self):
-        # pyasic return True/False for is_mining
-        return self.coordinator.data.is_mining if self.coordinator.data else False
+        # hass-miner style: data is a dict
+        if self.coordinator.data and isinstance(self.coordinator.data, dict):
+            return self.coordinator.data.get("is_mining", False)
+        return False
 
     async def async_turn_on(self, **kwargs):
         """Resume mining."""

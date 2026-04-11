@@ -60,25 +60,51 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             from .__init__ import _load_config, _save_config
             config = await hass.async_add_executor_job(_load_config, hass)
             
-            # Check if this IP is already in the dashboard config
-            exists = any(m.get("miner_ip") == entry.data["ip_address"] for m in config.get("miners", []))
+            ip = entry.data["ip_address"]
+            safe_ip = ip.replace('.', '_')
+            domain = DOMAIN
             
-            if not exists:
+            # Auto-generate entity IDs based on the integration naming convention
+            auto_entities = {
+                "switch":                  f"switch.{domain}_{safe_ip}_mining_aktiv",
+                "power_entity":            f"number.{domain}_{safe_ip}_power_limit",
+                "hashrate_sensor":         f"sensor.{domain}_{safe_ip}_hashrate",
+                "temp_sensor":             f"sensor.{domain}_{safe_ip}_durchschnittliche_temperatur",
+                "power_consumption_sensor": f"sensor.{domain}_{safe_ip}_verbrauch",
+            }
+            
+            # Check if this IP is already in the dashboard config
+            existing_idx = next((i for i, m in enumerate(config.get("miners", [])) if m.get("miner_ip") == ip), None)
+            
+            if existing_idx is None:
                 import uuid
                 new_miner = {
                     "id": str(uuid.uuid4()),
                     "name": entry.title,
-                    "miner_ip": entry.data["ip_address"],
+                    "miner_ip": ip,
                     "miner_user": entry.data.get("username", "root"),
                     "miner_password": entry.data.get("password", ""),
                     "priority": "10",
                     "mode": "manual",
                     "min_power": entry.data.get("min_power", 400),
                     "max_power": entry.data.get("max_power", 1400),
+                    **auto_entities,
                 }
                 config["miners"].append(new_miner)
                 await hass.async_add_executor_job(_save_config, hass, config)
-                _LOGGER.info(f"Added miner {entry.title} ({entry.data['ip_address']}) to dashboard config")
+                _LOGGER.info(f"Added miner {entry.title} ({ip}) to dashboard config with auto-entities")
+            else:
+                # Update existing entry: fill in any missing entity references
+                miner = config["miners"][existing_idx]
+                changed = False
+                for key, val in auto_entities.items():
+                    if not miner.get(key):
+                        miner[key] = val
+                        changed = True
+                if changed:
+                    config["miners"][existing_idx] = miner
+                    await hass.async_add_executor_job(_save_config, hass, config)
+                    _LOGGER.info(f"Updated miner {entry.title} ({ip}) with missing entity references")
 
         hass.async_create_task(sync_with_config())
 

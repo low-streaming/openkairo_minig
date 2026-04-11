@@ -34,14 +34,18 @@ class MinerPowerLimitNumber(CoordinatorEntity, NumberEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{self.coordinator.miner_ip}_power_limit"
+        self._attr_unique_id = f"{coordinator.miner_ip}_power_limit"
         self._attr_name = "Power Limit"
         self._attr_icon = "mdi:speedometer"
         
-        # [NEW] Dynamic limits from config entry
-        entry = self.coordinator.config_entry
-        self._attr_native_min_value = float(entry.data.get("min_power", 400))
-        self._attr_native_max_value = float(entry.data.get("max_power", 1400))
+        # Dynamic limits from config entry
+        entry = coordinator.config_entry
+        if entry:
+            self._attr_native_min_value = float(entry.data.get("min_power", 100))
+            self._attr_native_max_value = float(entry.data.get("max_power", 4000))
+        else:
+            self._attr_native_min_value = 100.0
+            self._attr_native_max_value = 4000.0
 
     @property
     def device_info(self):
@@ -55,10 +59,14 @@ class MinerPowerLimitNumber(CoordinatorEntity, NumberEntity):
         }
 
     @property
+    def available(self) -> bool:
+        return self.coordinator.available
+
+    @property
     def native_value(self):
-        # pyasic MinerData usually has wattage_limit
-        if self.coordinator.data:
-            return getattr(self.coordinator.data, "wattage_limit", None)
+        # New dict-based coordinator data
+        if self.coordinator.data and isinstance(self.coordinator.data, dict):
+            return self.coordinator.data["miner_sensors"].get("power_limit")
         return None
 
     async def async_set_native_value(self, value: float) -> None:
