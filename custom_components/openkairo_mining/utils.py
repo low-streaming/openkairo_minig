@@ -20,11 +20,19 @@ def _safe_get(data, keys):
 def get_device_info(DOMAIN, coordinator):
     """Unified device info for all entities."""
     data = coordinator.data or {}
+    
+    # Use hostname from API if available, else fallback to user-given name or IP
+    name = data.get("hostname")
+    if not name or name.lower() == "unknown":
+        name = coordinator.miner_name
+    if not name or name.lower() == "unknown (bos+)":
+        name = coordinator.miner_ip
+
     return {
         "identifiers": {(DOMAIN, coordinator.miner_ip)},
         "manufacturer": data.get("make") or getattr(coordinator, "miner_make", "OpenKairo"),
         "model": data.get("model") or getattr(coordinator, "miner_model", "ASIC Miner"),
         "sw_version": data.get("fw_ver"),
-        "name": coordinator.miner_name,
+        "name": name,
         "configuration_url": f"http://{coordinator.miner_ip}",
     }

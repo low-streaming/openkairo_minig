@@ -362,31 +362,15 @@ async def _mining_loop(hass):
                                 standby_delay_secs = standby_delay_mins * 60
                                 
                                 if current_value < standby_threshold:
-                                    # [NEU] Sicherheits-Check: Falls der Miner HASHT, setzen wir den Watchdog zurück.
-                                    # Hilft gegen BOS+ Sensor-Bugs (0 Watt Anzeige).
-                                    current_hash = 0
-                                    h_sensor = miner.get("hashrate_sensor")
-                                    if h_sensor:
-                                        h_state = hass.states.get(h_sensor)
-                                        if h_state and h_state.state not in ["unknown", "unavailable"]:
-                                            try:
-                                                current_hash = float(h_state.state)
-                                            except ValueError: pass
-
-                                    if current_hash > 0.1:
-                                        if state.get("standby_since") is not None:
-                                            _LOGGER.debug(f"[{miner_name}] Watchdog unterdrückt: 0W gemeldet, aber Miner hasht ({current_hash} TH/s)!")
+                                    if state.get("standby_since") is None:
+                                        state["standby_since"] = current_time
+                                        _LOGGER.info(f"[{miner_name}] Watchdog Countdown gestartet: Wert {current_value} < {standby_threshold}")
+                                    elif current_time - state["standby_since"] >= standby_delay_secs:
+                                        msg = f"Watchdog an {miner_name} ausgelöst ({watchdog_type})! Wert {current_value} zu niedrig. Schalte Steckdose AUS."
+                                        _LOGGER.warning(f"[{miner_name}] {msg}")
+                                        _add_log_entry(hass, f"🛡️ {msg}")
+                                        await hass.services.async_call("switch", "turn_off", {"entity_id": standby_switches}, blocking=False)
                                         state["standby_since"] = None
-                                    else:
-                                        if state.get("standby_since") is None:
-                                            state["standby_since"] = current_time
-                                            _LOGGER.info(f"[{miner_name}] Watchdog Countdown gestartet: Wert {current_value} < {standby_threshold}")
-                                        elif current_time - state["standby_since"] >= standby_delay_secs:
-                                            msg = f"Watchdog an {miner_name} ausgelöst ({watchdog_type})! Wert {current_value} zu niedrig. Schalte Steckdose AUS."
-                                            _LOGGER.warning(f"[{miner_name}] {msg}")
-                                            _add_log_entry(hass, f"🛡️ {msg}")
-                                            await hass.services.async_call("switch", "turn_off", {"entity_id": standby_switches}, blocking=False)
-                                            state["standby_since"] = None
                                 else:
                                     state["standby_since"] = None
                             except ValueError:
