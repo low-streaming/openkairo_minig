@@ -36,7 +36,6 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         """Fetch data from the ASIC."""
         import pyasic
         import asyncio
-        from pyasic.data.options import DataOptions
         
         try:
             if self.miner_obj is None:
@@ -72,24 +71,17 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             if self.miner_obj is None:
                 raise UpdateFailed(f"Miner an {self.miner_ip} nicht gefunden.")
 
-            # Replicate hass-miner strategy: Fetch data with a robust timeout and options
-            # Default to fetching all data
+            # Replicate hass-miner strategy: Fetch data with a robust timeout
             try:
+                # BOSMiner and others work best with standard get_data()
                 data = await asyncio.wait_for(self.miner_obj.get_data(), timeout=20)
+                if not data:
+                     raise UpdateFailed("Miner lieferte leere Daten.")
                 return data
             except (asyncio.TimeoutError, Exception) as e:
-                _LOGGER.debug(f"[{self.miner_ip}] Voller Datenabruf fehlgeschlagen: {e}. Versuche reduzierte Optionen...")
-                # Fallback: Try without CONFIG if first attempt fails (common for slow miners)
-                try:
-                    # We create options that exclude potentially slow fields
-                    options = DataOptions.default()
-                    # Some versions might not like CONFIG if the API is slow
-                    data = await asyncio.wait_for(self.miner_obj.get_data(data_options=options), timeout=20)
-                    return data
-                except Exception as inner_e:
-                    _LOGGER.warning(f"[{self.miner_ip}] Datenabruf fehlgeschlagen: {inner_e}")
-                    self.miner_obj = None
-                    raise UpdateFailed(f"Kommunikationsfehler: {inner_e}")
+                _LOGGER.warning(f"[{self.miner_ip}] Datenabruf fehlgeschlagen: {e}")
+                self.miner_obj = None
+                raise UpdateFailed(f"Kommunikationsfehler: {e}")
 
         except Exception as err:
             _LOGGER.debug(f"[{self.miner_ip}] Globaler Fehler: {err}")

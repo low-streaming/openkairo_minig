@@ -50,16 +50,22 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
         
         # Manuelle Sockel-Prüfung als letzter Ausweg (Port 4028)
         if attempt == max_retries - 1 and miner is None:
-            _LOGGER.info(f"[{ip_address}] get_miner fehlgeschlagen. Versuche manuellen Port-Check auf 4028...")
+            _LOGGER.info(f"[{ip_address}] get_miner fehlgeschlagen. Versuche blockierenden Port-Check auf 4028 (Executor)...")
             try:
-                # Prüfe ob Port 4028 offen ist via asyncio
-                conn = asyncio.open_connection(ip_address, 4028)
-                reader, writer = await asyncio.wait_for(conn, timeout=5)
-                writer.close()
-                await writer.wait_closed()
-                _LOGGER.info(f"[{ip_address}] Port 4028 ist offen! Erzwungene Verbindung für Braiins OS...")
-                from pyasic.miners.backends.braiins_os import BOSMiner
-                miner = BOSMiner(ip_address)
+                # Wir nutzen einen echten blockierenden Socket im Thread-Pool
+                # Das ist immun gegen Verzögerungen im Event-Loop!
+                def check_port():
+                    import socket
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.settimeout(3)
+                        return s.connect_ex((ip_address, 4028)) == 0
+                
+                port_open = await hass.async_add_executor_job(check_port)
+                
+                if port_open:
+                    _LOGGER.info(f"[{ip_address}] Port 4028 ist offen! Erzwungene Verbindung für Braiins OS...")
+                    from pyasic.miners.backends.braiins_os import BOSMiner
+                    miner = BOSMiner(ip_address)
             except Exception as e:
                 _LOGGER.debug(f"[{ip_address}] Manueller Port-Check fehlgeschlagen: {e}")
 
