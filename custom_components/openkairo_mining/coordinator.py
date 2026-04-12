@@ -79,6 +79,28 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
 
         try:
             miner = await asyncio.wait_for(pyasic.get_miner(self.miner_ip), timeout=10)
+            
+            if not miner:
+                # Robust discovery fallback: try port 4028 directly
+                try:
+                    _LOGGER.debug(f"[{self.miner_ip}] Coordinator standard discovery failed. Attempting robust probe...")
+                    reader, writer = await asyncio.wait_for(asyncio.open_connection(self.miner_ip, 4028), timeout=5)
+                    writer.write(b'{"command":"summary"}')
+                    await writer.drain()
+                    resp = await reader.read(1024)
+                    writer.close()
+                    await writer.wait_closed()
+                    
+                    if resp:
+                        try:
+                            from pyasic.miners.antminer import VNishS21
+                            miner = VNishS21(self.miner_ip)
+                        except ImportError:
+                            from pyasic.miners.antminer.bm_miner.S19 import AntminerS19
+                            miner = AntminerS19(self.miner_ip)
+                except Exception as e:
+                    _LOGGER.debug(f"[{self.miner_ip}] Coordinator robust probe failed: {e}")
+
             if miner:
                 self.miner_obj = miner
                 self.miner_model = getattr(miner, "model", "ASIC Miner")

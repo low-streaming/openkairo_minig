@@ -57,10 +57,35 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
             await asyncio.sleep(retry_delay)
 
     if miner is None:
+        _LOGGER.debug(f"[{ip_address}] Standard-Discovery fehlgeschlagen. Versuche robusten API-Check (Port 4028)...")
+        try:
+            # Versuche direkt die API auf 4028 anzufragen
+            reader, writer = await asyncio.wait_for(asyncio.open_connection(ip_address, 4028), timeout=5)
+            writer.write(b'{"command":"summary"}')
+            await writer.drain()
+            resp = await reader.read(4096)
+            writer.close()
+            await writer.wait_closed()
+            
+            if resp:
+                _LOGGER.info(f"[{ip_address}] API antwortet auf 4028. Versuche VNish S21 Initialisierung...")
+                # Wir versuchen den S21 VNish Typ zu erzwingen
+                try:
+                    from pyasic.miners.antminer import VNishS21
+                    miner = VNishS21(ip_address)
+                except ImportError:
+                    # Fallback auf S19 falls VNishS21 nicht in dieser pyasic Version ist
+                    from pyasic.miners.antminer.bm_miner.S19 import AntminerS19
+                    miner = AntminerS19(ip_address)
+        except Exception as e:
+            _LOGGER.debug(f"[{ip_address}] Robuster API-Check fehlgeschlagen: {e}")
+
+    if miner is None:
         _LOGGER.error(f"[{ip_address}] Kein ASIC Miner nach {max_retries} Versuchen gefunden.")
         raise CannotConnect(
             f"Kein ASIC Miner unter {ip_address} gefunden. "
-            "Überprüfe die IP und stelle sicher, dass der Port 4028 oder 80 offen ist."
+            "Überprüfe die IP und stelle sicher, dass der Port 4028 oder 80 offen ist, "
+            "und dass 'API Access' in VNish auf 'Open' oder 'Local' steht."
         )
 
     try:
