@@ -17,6 +17,21 @@ SERVICE_BASE_SCHEMA = vol.Schema({
 })
 
 # Schema for power limit
+import asyncio
+
+async def async_send_raw_command(ip, command):
+    try:
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(ip, 4028), timeout=5)
+        writer.write(f'{{"command":"{command}"}}'.encode())
+        await writer.drain()
+        resp = await reader.read(1024)
+        writer.close()
+        await writer.wait_closed()
+        return resp
+    except Exception as e:
+        _LOGGER.error(f"Raw socket command {command} to {ip} failed: {e}")
+        return None
+
 SERVICE_POWER_LIMIT_SCHEMA = vol.Schema({
     vol.Required("ip_address"): cv.string,
     vol.Required("limit"): vol.Coerce(int),
@@ -90,16 +105,16 @@ async def async_setup_services(hass):
                             _LOGGER.info(f"[{coord.miner_ip}] Stopping mining natively...")
                             await miner.stop_mining()
                         except Exception as e_stop:
-                            _LOGGER.warning(f"Native stop failed: {e_stop}. Trying raw API pause...")
-                            if hasattr(miner, "api"): await miner.api.send_command("pause")
+                            _LOGGER.warning(f"Native stop failed: {e_stop}. Trying absolute Raw Socket pause...")
+                            await async_send_raw_command(coord.miner_ip, "pause")
                     else:
                         if not coord.data.get("is_mining", True):
                             try:
                                 _LOGGER.info(f"[{coord.miner_ip}] Resuming mining natively...")
                                 await miner.resume_mining()
                             except Exception as e_res:
-                                _LOGGER.warning(f"Native resume failed: {e_res}. Trying raw API resume...")
-                                if hasattr(miner, "api"): await miner.api.send_command("resume")
+                                _LOGGER.warning(f"Native resume failed: {e_res}. Trying absolute Raw Socket resume...")
+                                await async_send_raw_command(coord.miner_ip, "resume")
                         
                         try:
                             if hasattr(miner, "set_work_mode"):
