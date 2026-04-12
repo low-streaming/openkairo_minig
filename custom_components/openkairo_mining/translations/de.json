@@ -3,8 +3,15 @@
     "config": {
         "step": {
             "user": {
+                "title": "Miner Finder",
+                "description": "Willkommen beim OpenKairo Mining-Assistenten. Das Netzwerk wird nun nach ASIC Minern durchsucht.",
+                "data": {
+                    "manual_entry": "Manuelle IP-Eingabe (Scan überspringen)"
+                }
+            },
+            "manual": {
                 "title": "ASIC Miner hinzufügen",
-                "description": "Gib die Verbindungsdaten für deinen ASIC Miner ein. Hinweis: Viele Miner (z.B. Avalon) nutzen Standard-Logins wie 'root' / 'root' oder 'admin' / 'admin'. Gültige Arbeitsmodi: low, normal, high, standby.",
+                "description": "Gib die Verbindungsdaten manuell ein.",
                 "data": {
                     "ip_address": "IP-Adresse",
                     "username": "Benutzername (Optional)",
@@ -12,11 +19,24 @@
                     "ssh_username": "SSH Benutzer",
                     "ssh_password": "SSH Passwort"
                 }
+            },
+            "discovery_select": {
+                "title": "Gefundene Miner",
+                "description": "Wähle den Miner aus, den du hinzufügen möchtest.",
+                "data": {
+                    "selected_miner": "Erkannte Hardware",
+                    "password": "Passwort (Optional)"
+                }
+            },
+            "scan_failed": {
+                "title": "Keine Miner gefunden",
+                "description": "Der Netzwerk-Scan war nicht erfolgreich. Möchtest du es manuell versuchen?"
             }
         },
         "error": {
             "cannot_connect": "Verbindung fehlgeschlagen. Überprüfe die IP-Adresse.",
             "invalid_auth": "Anmeldung fehlgeschlagen. Überprüfe Passwort & Benutzername.",
+            "no_miners_found": "Es wurden keine Miner im lokalen Netzwerk gefunden.",
             "unknown": "Ein unerwarteter Fehler ist aufgetreten."
         },
         "abort": {

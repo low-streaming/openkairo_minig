@@ -6,6 +6,7 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.components import network
 
 from .const import DOMAIN
 
@@ -135,11 +136,28 @@ class OpenKairoMiningConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # No ASIC config needed for the very first entry.
             return self.async_create_entry(title="OpenKairo Dashboard", data={})
 
+        # Suggest scanning first
+        if user_input is None:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=vol.Schema({
+                    vol.Optional("manual_entry", default=False): bool,
+                }),
+                description_placeholders={"info": "Scanner startet automatisch..."},
+                errors=errors
+            )
+        
+        if user_input.get("manual_entry"):
+            return await self.async_step_manual()
+            
+        return await self.async_step_scan()
+
+    async def async_step_manual(self, user_input=None) -> FlowResult:
+        """Manual IP entry step."""
+        errors = {}
         if user_input is not None:
-            # Check if this IP is already configured, without failing if a flow is already in progress
             await self.async_set_unique_id(user_input["ip_address"], raise_on_progress=False)
             self._abort_if_unique_id_configured()
-
             try:
                 info = await validate_input(self.hass, user_input)
                 return self.async_create_entry(title=info["title"], data=user_input)
@@ -152,8 +170,86 @@ class OpenKairoMiningConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "unknown"
 
         return self.async_show_form(
-            step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+            step_id="manual", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
         )
+
+    async def async_step_scan(self, user_input=None) -> FlowResult:
+        """Scan network for miners."""
+        if user_input is None:
+            # Run scan
+            miners = await self._async_scan_for_miners()
+            self._found_miners = { str(m.ip): m for m in miners }
+            
+            if not miners:
+                return self.async_show_form(
+                    step_id="scan_failed",
+                    errors={"base": "no_miners_found"}
+                )
+
+            options = { ip: f"{getattr(m, 'model', 'ASIC')} ({ip})" for ip, m in self._found_miners.items() }
+            return self.async_show_form(
+                step_id="discovery_select",
+                data_schema=vol.Schema({
+                    vol.Required("selected_miner"): vol.In(options),
+                    vol.Optional("password", default=""): str,
+                })
+            )
+        return await self.async_step_discovery_select(user_input)
+
+    async def async_step_discovery_select(self, user_input=None) -> FlowResult:
+        """Handle selection from discovery."""
+        if user_input:
+            ip = user_input["selected_miner"]
+            password = user_input.get("password", "")
+            
+            # Pre-fill data for validation
+            full_input = {
+                "ip_address": ip,
+                "password": password,
+                "username": "root", # Default
+            }
+            
+            try:
+                info = await validate_input(self.hass, full_input)
+                return self.async_create_entry(title=info["title"], data=full_input)
+            except Exception as e:
+                _LOGGER.error(f"Discovery selection failed for {ip}: {e}")
+                return await self.async_step_manual({"ip_address": ip, "password": password})
+                
+        return await self.async_step_scan()
+
+    async def _async_scan_for_miners(self):
+        """Dynamic network scan helper."""
+        import pyasic
+        from pyasic.network import MinerNetwork
+        
+        discovery_results = []
+        try:
+            adapters = await network.async_get_adapters(self.hass)
+            for adapter in adapters:
+                for ip_info in adapter.get("ipv4", []):
+                    # Skip loopback
+                    if ip_info.get("address", "").startswith("127."): continue
+                    
+                    local_ip = ip_info["address"]
+                    prefix = ip_info["network_prefix"]
+                    
+                    if not local_ip or not prefix: continue
+                    
+                    _LOGGER.debug(f"Scanning subnet: {local_ip}/{prefix}")
+                    miner_net = MinerNetwork.from_subnet(f"{local_ip}/{prefix}")
+                    # Parallel scan
+                    found = await miner_net.scan()
+                    if found:
+                        discovery_results.extend(found)
+        except Exception as e:
+            _LOGGER.error(f"Network scan failed: {e}")
+            
+        return discovery_results
+
+    async def async_step_scan_failed(self, user_input=None) -> FlowResult:
+        """Handle case where no miners are found."""
+        return await self.async_step_manual()
 
 class CannotConnect(HomeAssistantError):
     """Error to indicate we cannot connect."""
