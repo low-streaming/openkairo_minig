@@ -150,8 +150,24 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         ]
 
         try:
+            # First attempt with all requested options
             miner_data = await asyncio.wait_for(miner.get_data(include=data_options), timeout=25)
-            self._failure_count = 0 
+        except Exception as e:
+            _LOGGER.debug(f"[{self.miner_ip}] Full data fetch failed: {e}. Trying minimal summary-only fetch...")
+            # Fallback for miners that struggle with specific data points (like VNish 'config' endpoint)
+            try:
+                minimal_options = [
+                    pyasic.DataOptions.IS_MINING,
+                    pyasic.DataOptions.HASHRATE,
+                    pyasic.DataOptions.WATTAGE,
+                    pyasic.DataOptions.FANS,
+                ]
+                miner_data = await asyncio.wait_for(miner.get_data(include=minimal_options), timeout=20)
+            except Exception as e2:
+                _LOGGER.error(f"[{self.miner_ip}] Resilient update failed: {e2}")
+                raise
+
+        self._failure_count = 0 
 
             # [FIX] Enhanced Hashrate Scaling (BOS+, VNish, Stock)
             # 1. H/s (e.g. 200,000,000,000,000) -> Divide by 1e12

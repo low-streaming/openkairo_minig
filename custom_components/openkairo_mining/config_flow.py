@@ -89,46 +89,54 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
             "und dass 'API Access' in VNish auf 'Open' oder 'Local' steht."
         )
 
-    try:
-        # Replicate credentials to the miner object
-        if password:
-            _LOGGER.debug(f"[{ip_address}] Wende Passwort auf API und Web an...")
+    # Attempt data retrieval with different usernames (fallback probing)
+    usernames_to_try = [username, "admin", "root"]
+    # Filter duplicates and maintain order
+    usernames_to_try = list(dict.fromkeys(usernames_to_try))
+
+    last_error = None
+    for trial_user in usernames_to_try:
+        try:
+            _LOGGER.debug(f"[{ip_address}] Versuche Validierung mit Benutzer: {trial_user}...")
             if hasattr(miner, "api") and miner.api:
-                 miner.api.pwd = password
+                miner.api.pwd = password
             
             if hasattr(miner, "web") and miner.web:
-                miner.web.username = username
+                miner.web.username = trial_user
                 miner.web.pwd = password
+                
+            # [FIX] Lenient Data Retrieval
+            _LOGGER.debug(f"[{ip_address}] Rufe Miner-Daten ab...")
+            miner_data = None
             
-        if ssh_password:
-            miner.ssh_username = ssh_username
-            miner.ssh_pwd = ssh_password
-
-        # [FIX] Special handling for VNish units that might be slow to respond to the first get_data after auth
-        _LOGGER.debug(f"[{ip_address}] Rufe Miner-Daten ab (Modell: {miner.model})...")
-        miner_data = None
-        
-        # Try up to 2 times for data retrieval
-        for i in range(2):
+            # 1. Try full get_data (might fail on 'config' endpoint)
             try:
-                miner_data = await asyncio.wait_for(miner.get_data(), timeout=25)
-                if miner_data: break
+                miner_data = await asyncio.wait_for(miner.get_data(), timeout=20)
             except Exception as e:
-                _LOGGER.warning(f"[{ip_address}] Datenabruf-Versuch {i+1} fehlgeschlagen: {e}")
-                await asyncio.sleep(1)
-        
-        if not miner_data:
-            _LOGGER.error(f"[{ip_address}] Miner liefert keine Daten (Auth-Fehler oder API gesperrt).")
-            raise InvalidAuth("Anmeldung fehlgeschlagen oder API-Zugriff im Miner deaktiviert.")
+                _LOGGER.warning(f"[{ip_address}] Voller Datenabruf fehlgeschlagen: {e}. Versuche Light-Modus...")
+                # 2. Try partial get_data (only summary/fans/temp - avoids 'config' endpoint)
+                try:
+                    miner_data = await asyncio.wait_for(miner.get_data(include=["summary", "fans", "hashboards"]), timeout=20)
+                except Exception as e2:
+                    _LOGGER.error(f"[{ip_address}] Auch Light-Datenabruf fehlgeschlagen: {e2}")
             
-        model = miner.model or "ASIC"
-        return {"title": f"{model} ({ip_address})", "model": model}
+            if miner_data:
+                _LOGGER.info(f"[{ip_address}] Validierung erfolgreich (Benutzer: {trial_user})")
+                model = miner.model or "ASIC"
+                # Update data with the successful trial_user
+                data["username"] = trial_user
+                return {"title": f"{model} ({ip_address})", "model": model}
 
-    except InvalidAuth:
-        raise
-    except Exception as err:
-        _LOGGER.error("Kritischer Fehler beim Setup von ASIC am %s: %s", ip_address, err)
-        raise CannotConnect(f"Verbindung möglich, aber kein Datenzugriff: {err}")
+        except Exception as err:
+            last_error = err
+            _LOGGER.debug(f"[{ip_address}] Versuch mit {trial_user} fehlgeschlagen: {err}")
+            continue
+
+    # If we are here, everything failed
+    _LOGGER.error(f"[{ip_address}] Alle Validierungsversuche fehlgeschlagen.")
+    if "Anmeldung" in str(last_error) or "Unauthorized" in str(last_error):
+        raise InvalidAuth(f"Anmeldung fehlgeschlagen (root/admin). Bitte Passwort prüfen.")
+    raise CannotConnect(f"Miner gefunden, aber Datenzugriff verweigert: {last_error}")
 
 
 class OpenKairoMiningConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
