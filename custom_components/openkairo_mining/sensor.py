@@ -268,13 +268,33 @@ class MinerDynamicSensor(CoordinatorEntity, SensorEntity):
         raw = self.coordinator.data.get("raw_data", {})
         val = raw.get(self._key)
         
-        # Formatting hashrates
-        if isinstance(val, (int, float)) and "hashrate" in self._key.lower():
-            if val > 1000000000: return round(val / 1e12, 2)
-            if val > 5000: return round(val / 1000, 2)
-            return round(val, 2)
+        if val is None: return None
         
-        if isinstance(val, float): return round(val, 2)
+        # 1. Unpack pyasic objects (e.g., HashRate has .rate or similar, Enums have .name)
+        if hasattr(val, "rate"):
+            try: val = float(val.rate)
+            except: pass
+        elif hasattr(val, "name") and hasattr(val, "value"):
+            val = str(val.name)
+            
+        # Formatting hashrates natively
+        if isinstance(val, (int, float)):
+            val = float(val) # Strip pyasic.HashRate string overrides
+            if "hashrate" in self._key.lower():
+                if val > 1000000000: return round(val / 1e12, 2)
+                if val > 5000: return round(val / 1000, 2)
+                return round(val, 2)
+            return round(val, 2)
+            
+        # String fallback for unparsed custom python objects
+        if not isinstance(val, (str, int, float, bool)):
+            s = str(val)
+            # If pyasic returned a pyasic.Device object, just return a string format
+            if s.startswith("<") and ">" in s:
+                return "Objekt"
+            if len(s) > 250: return s[:247] + "..."
+            return s
+            
         return val
 
     @property
