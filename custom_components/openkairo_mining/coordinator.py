@@ -280,6 +280,16 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             if not fw_ver and "vnish" in miner_fw:
                 fw_ver = f"VNish {getattr(miner, 'version', '')}"
 
+            # [NEW] Extract raw generic properties for dynamic hass-miner style entities
+            import dataclasses
+            raw_data = {}
+            if dataclasses.is_dataclass(miner_data):
+                for k, v in dataclasses.asdict(miner_data).items():
+                    if not isinstance(v, (list, dict)):
+                        raw_data[k] = v
+            else:
+                raw_data = vars(miner_data)
+
             return {
                 "hostname": getattr(miner_data, "hostname", self.miner_name),
                 "mac": getattr(miner_data, "mac", None),
@@ -287,7 +297,7 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                 "model": getattr(miner_data, "model", self.miner_model),
                 "ip": self.miner_ip,
                 "is_mining": is_mining,
-                "fw_ver": getattr(miner_data, "fw_ver", None),
+                "fw_ver": fw_ver,
                 "miner_sensors": {
                     "hashrate": hr,
                     "ideal_hashrate": exp_hr,
@@ -301,6 +311,7 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                 },
                 "board_sensors": board_sensors,
                 "fan_sensors": fan_sensors,
+                "raw_data": raw_data,
             }
 
         except Exception as e:
