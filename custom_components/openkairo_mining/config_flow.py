@@ -90,20 +90,29 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
         )
 
     # Attempt data retrieval with different usernames (fallback probing)
-    usernames_to_try = [username, "admin", "root"]
+    # If no password is provided, we prioritize an anonymous check
+    if not password:
+        usernames_to_try = [None, "admin", "root"]
+    else:
+        usernames_to_try = [username, "admin", "root"]
+        
     # Filter duplicates and maintain order
     usernames_to_try = list(dict.fromkeys(usernames_to_try))
 
     last_error = None
     for trial_user in usernames_to_try:
         try:
-            _LOGGER.debug(f"[{ip_address}] Versuche Validierung mit Benutzer: {trial_user}...")
+            if trial_user is None:
+                _LOGGER.debug(f"[{ip_address}] Versuche anonyme Validierung (ohne Login)...")
+            else:
+                _LOGGER.debug(f"[{ip_address}] Versuche Validierung mit Benutzer: {trial_user}...")
+                
             if hasattr(miner, "api") and miner.api:
-                miner.api.pwd = password
+                miner.api.pwd = password or ""
             
             if hasattr(miner, "web") and miner.web:
-                miner.web.username = trial_user
-                miner.web.pwd = password
+                miner.web.username = trial_user or ""
+                miner.web.pwd = password or ""
                 
             # [FIX] Lenient Data Retrieval
             _LOGGER.debug(f"[{ip_address}] Rufe Miner-Daten ab...")
