@@ -92,6 +92,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
     try:
         # Replicate credentials to the miner object
         if password:
+            _LOGGER.debug(f"[{ip_address}] Wende Passwort auf API und Web an...")
             if hasattr(miner, "api") and miner.api:
                  miner.api.pwd = password
             
@@ -103,13 +104,22 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
             miner.ssh_username = ssh_username
             miner.ssh_pwd = ssh_password
 
-        # Test login/data retrieval
-        _LOGGER.debug(f"[{ip_address}] Teste Login/Datenabruf...")
-        miner_data = await asyncio.wait_for(miner.get_data(), timeout=20)
+        # [FIX] Special handling for VNish units that might be slow to respond to the first get_data after auth
+        _LOGGER.debug(f"[{ip_address}] Rufe Miner-Daten ab (Modell: {miner.model})...")
+        miner_data = None
+        
+        # Try up to 2 times for data retrieval
+        for i in range(2):
+            try:
+                miner_data = await asyncio.wait_for(miner.get_data(), timeout=25)
+                if miner_data: break
+            except Exception as e:
+                _LOGGER.warning(f"[{ip_address}] Datenabruf-Versuch {i+1} fehlgeschlagen: {e}")
+                await asyncio.sleep(1)
         
         if not miner_data:
-            # If get_data returns None it's usually an auth issue or firmware lock
-            raise InvalidAuth("Login fehlgeschlagen oder Miner liefert keine Daten.")
+            _LOGGER.error(f"[{ip_address}] Miner liefert keine Daten (Auth-Fehler oder API gesperrt).")
+            raise InvalidAuth("Anmeldung fehlgeschlagen oder API-Zugriff im Miner deaktiviert.")
             
         model = miner.model or "ASIC"
         return {"title": f"{model} ({ip_address})", "model": model}
@@ -117,8 +127,8 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
     except InvalidAuth:
         raise
     except Exception as err:
-        _LOGGER.error("Fehler beim Datenabruf von ASIC am %s: %s", ip_address, err)
-        raise CannotConnect(f"Miner gefunden, aber Datenabruf fehlgeschlagen: {err}")
+        _LOGGER.error("Kritischer Fehler beim Setup von ASIC am %s: %s", ip_address, err)
+        raise CannotConnect(f"Verbindung möglich, aber kein Datenzugriff: {err}")
 
 
 class OpenKairoMiningConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
