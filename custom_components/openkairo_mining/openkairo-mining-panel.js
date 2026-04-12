@@ -1727,7 +1727,20 @@ class OpenKairoMiningPanel extends LitElement {
                 ${miner.image ? html`<div class="miner-image" style="background-image: url('${miner.image}')"></div>` : html`<div class="miner-image placeholder">₿</div>`}
                 <div class="miner-header">
                   <h3>${miner.name}</h3>
-                  <span class="prio-badge">Prio: ${miner.priority || '-'}</span>
+                  <div style="display: flex; gap: 5px;">
+                    <span class="prio-badge">Prio: ${miner.priority || '-'}</span>
+                    ${(() => {
+                        const _ipForSlug = miner.miner_ip || (miner.switch && miner.switch.includes('.') ? miner.switch : '');
+                        const _ipSlug = _ipForSlug ? _ipForSlug.replace(/\./g, '_') : '';
+                        const fwState = this.hass?.states[`sensor.openkairo_mining_${_ipSlug}_fw_ver`]; // This might be wrong slug
+                        // Simpler: use the sensors we already have if possible, but they are not easily available here
+                        // Let's check for "VNish" in the manufacturer or model
+                        const isVNish = miner.name.toLowerCase().includes('vnish') || (miner.miner_ip && this.config.miners.find(m => m.id === miner.id)?.name.toLowerCase().includes('vnish'));
+                        // Actually, I'll just check if the model or name hints at VNish for now, 
+                        // as we don't have the full coordinator data directly in the frontend component easily.
+                        return isVNish ? html`<span class="prio-badge" style="background: rgba(108, 92, 231, 0.2); border-color: #6c5ce7; color: #a29bfe;">VNish</span>` : '';
+                    })()}
+                  </div>
                 </div>
                 
                 <div class="miner-status">

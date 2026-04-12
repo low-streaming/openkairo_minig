@@ -28,9 +28,13 @@ def get_device_info(DOMAIN, coordinator):
     if not name or name.lower() == "unknown (bos+)":
         name = coordinator.miner_ip
 
+    manufacturer = data.get("make") or getattr(coordinator, "miner_make", "OpenKairo")
+    if coordinator.data and "vnish" in str(coordinator.data.get("fw_ver", "")).lower():
+        manufacturer = "VNish (Bitmain)"
+
     return {
         "identifiers": {(DOMAIN, coordinator.miner_ip)},
-        "manufacturer": data.get("make") or getattr(coordinator, "miner_make", "OpenKairo"),
+        "manufacturer": manufacturer,
         "model": data.get("model") or getattr(coordinator, "miner_model", "ASIC Miner"),
         "sw_version": data.get("fw_ver"),
         "name": name,

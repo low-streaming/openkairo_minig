@@ -131,18 +131,21 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             miner_data = await asyncio.wait_for(miner.get_data(include=data_options), timeout=25)
             self._failure_count = 0 
 
-            # [FIX] Hashrate Scaling for BOS+
-            # pyasic's hashrate is usually TH/s for modern backends.
-            # If it's a huge number (> 1.000.000), it's H/s.
-            # Otherwise, keep it as it is (it's likely TH/s).
+            # [FIX] Enhanced Hashrate Scaling (BOS+, VNish, Stock)
+            # 1. H/s (e.g. 200,000,000,000,000) -> Divide by 1e12
+            # 2. GH/s (e.g. 200,000) -> Divide by 1000
+            # 3. TH/s (e.g. 200) -> Keep as is
             raw_hr = float(getattr(miner_data, "hashrate", 0) or 0)
-            if raw_hr > 1000000: 
+            if raw_hr > 1000000000: # > 1 GH/s in H/s
                  hr = round(raw_hr / 1e12, 2)
+            elif raw_hr > 5000:    # > 5 TH/s in GH/s
+                 hr = round(raw_hr / 1000, 2)
             else:
                  hr = round(raw_hr, 2)
 
             raw_exp = float(getattr(miner_data, "expected_hashrate", 0) or 0)
-            if raw_exp > 1000000: exp_hr = round(raw_exp / 1e12, 2)
+            if raw_exp > 1000000000: exp_hr = round(raw_exp / 1e12, 2)
+            elif raw_exp > 5000: exp_hr = round(raw_exp / 1000, 2)
             else: exp_hr = round(raw_exp, 2)
             
             # [FIX] Efficiency Fallback
@@ -151,8 +154,10 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             if (not efficiency or efficiency == 0) and hr > 0:
                  efficiency = round(wattage / hr, 1)
 
-            # [FIX] Avalon Standby & Power Detection
+            # [FIX] Avalon & VNish Standby/Power Detection
             is_mining = getattr(miner_data, "is_mining", False)
+            miner_fw = str(getattr(miner, "firmware", "")).lower()
+            
             if "Avalon" in self.miner_make:
                 # Fallback for missing/zero wattage on some Avalon models
                 if wattage == 0:
@@ -173,6 +178,11 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                     is_mining = False
                 elif hr > 0:
                     is_mining = True
+            
+            elif "vnish" in miner_fw:
+                # VNish specific: hashrate might be 0 while starting
+                if hr > 0: is_mining = True
+                if wattage < 100 and hr == 0: is_mining = False
 
             # Build Board/Fan Maps
             board_sensors = {}
@@ -190,6 +200,11 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                 fan_sensors[idx] = {
                     "fan_speed": getattr(fan, "speed", 0) or getattr(fan, "rpm", 0)
                 }
+
+            # Improved firmware version display
+            fw_ver = getattr(miner_data, "fw_ver", None)
+            if not fw_ver and "vnish" in miner_fw:
+                fw_ver = f"VNish {getattr(miner, 'version', '')}"
 
             return {
                 "hostname": getattr(miner_data, "hostname", self.miner_name),
