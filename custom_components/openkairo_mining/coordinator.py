@@ -106,14 +106,17 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                 self.miner_model = getattr(miner, "model", "ASIC Miner")
                 self.miner_make = getattr(miner, "make", "OpenKairo")
                 
-                entry = self.config_entry
                 if entry:
                     pwd = entry.data.get("password")
                     user = entry.data.get("username", "root")
-                    if miner.api and pwd: miner.api.pwd = pwd
-                    if miner.web:
+                    
+                    if pwd:
+                        if miner.api: miner.api.pwd = pwd
+                        if miner.web: miner.web.pwd = pwd
+                    
+                    if user and user != "root" and miner.web:
                         miner.web.username = user
-                        miner.web.pwd = pwd or ""
+                        
                     if miner.ssh:
                         miner.ssh.username = entry.data.get("ssh_username", "root")
                         miner.ssh.pwd = entry.data.get("ssh_password") or ""
@@ -151,23 +154,56 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
 
         try:
             # First attempt with all requested options
-            miner_data = await asyncio.wait_for(miner.get_data(include=data_options), timeout=25)
-        except Exception as e:
-            _LOGGER.debug(f"[{self.miner_ip}] Full data fetch failed: {e}. Trying minimal summary-only fetch...")
-            # Fallback for miners that struggle with specific data points (like VNish 'config' endpoint)
             try:
+                miner_data = await asyncio.wait_for(miner.get_data(include=data_options), timeout=25)
+            except Exception as e:
+                _LOGGER.debug(f"[{self.miner_ip}] Full data fetch failed: {e}. Trying minimal summary-only fetch...")
                 minimal_options = [
                     pyasic.DataOptions.IS_MINING,
                     pyasic.DataOptions.HASHRATE,
                     pyasic.DataOptions.WATTAGE,
                     pyasic.DataOptions.FANS,
                 ]
-                miner_data = await asyncio.wait_for(miner.get_data(include=minimal_options), timeout=20)
-            except Exception as e2:
-                _LOGGER.error(f"[{self.miner_ip}] Resilient update failed: {e2}")
-                raise
-
-        self._failure_count = 0 
+                try:
+                    miner_data = await asyncio.wait_for(miner.get_data(include=minimal_options), timeout=20)
+                except Exception as e2:
+                    _LOGGER.warning(f"[{self.miner_ip}] Resilient update failed: {e2}. Trying RAW Ultra-Fallback...")
+                    try:
+                        # 3. Ultra-Fallback: Raw API (Bypass Pyasic Parsing)
+                        from types import SimpleNamespace
+                        raw_summary = await asyncio.wait_for(miner.api.summary(), timeout=10)
+                        raw_stats = await asyncio.wait_for(miner.api.stats(), timeout=10)
+                        
+                        hr = 0
+                        is_mining = False
+                        if raw_summary and "SUMMARY" in raw_summary and len(raw_summary["SUMMARY"]) > 0:
+                            s_obj = raw_summary["SUMMARY"][0]
+                            hr = float(s_obj.get("GHS 5s", 0) or s_obj.get("GHS av", 0))
+                            is_mining = hr > 0
+                        
+                        wattage = 0
+                        temperature = 0
+                        if raw_stats and "STATS" in raw_stats and len(raw_stats["STATS"]) > 1:
+                            st_obj = raw_stats["STATS"][1]
+                            wattage = float(st_obj.get("power", 0) or st_obj.get("Power", 0))
+                            temperature = float(st_obj.get("temp1", 0) or st_obj.get("Temp", 0))
+                            
+                        # Package for the loop
+                        miner_data = SimpleNamespace(
+                            hashrate=hr,
+                            wattage=wattage,
+                            temperature_avg=temperature,
+                            is_mining=is_mining,
+                            expected_hashrate=0,
+                            fans=[],
+                            hashboards=[]
+                        )
+                        _LOGGER.info(f"[{self.miner_ip}] Ultra-Fallback successful! HR: {hr}, W: {wattage}")
+                    except Exception as e3:
+                        _LOGGER.error(f"[{self.miner_ip}] Ultra-Fallback also failed: {e3}")
+                        raise
+                
+            self._failure_count = 0
 
             # [FIX] Enhanced Hashrate Scaling (BOS+, VNish, Stock)
             # 1. H/s (e.g. 200,000,000,000,000) -> Divide by 1e12

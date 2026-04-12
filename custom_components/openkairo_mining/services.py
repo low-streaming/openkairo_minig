@@ -84,19 +84,32 @@ async def async_setup_services(hass):
                             mode_val = mode_map.get(mode, "1")
                             await miner.api.send_command("ascset", parameter=f"0,workmode,set,{mode_val}")
                 else:
-                    # Non-Avalon miners (e.g. BOS+)
+                    # Non-Avalon miners (e.g. VNish, BOS+)
                     if mode == "standby":
-                        await miner.stop_mining()
+                        try:
+                            _LOGGER.info(f"[{coord.miner_ip}] Stopping mining natively...")
+                            await miner.stop_mining()
+                        except Exception as e_stop:
+                            _LOGGER.warning(f"Native stop failed: {e_stop}. Trying raw API pause...")
+                            if hasattr(miner, "api"): await miner.api.send_command("pause")
                     else:
                         if not coord.data.get("is_mining", True):
-                            await miner.resume_mining()
+                            try:
+                                _LOGGER.info(f"[{coord.miner_ip}] Resuming mining natively...")
+                                await miner.resume_mining()
+                            except Exception as e_res:
+                                _LOGGER.warning(f"Native resume failed: {e_res}. Trying raw API resume...")
+                                if hasattr(miner, "api"): await miner.api.send_command("resume")
                         
-                        if hasattr(miner, "set_work_mode"):
-                            await miner.set_work_mode(mode)
+                        try:
+                            if hasattr(miner, "set_work_mode"):
+                                await miner.set_work_mode(mode)
+                        except Exception as e_mode:
+                            _LOGGER.error(f"Set work mode via api failed: {e_mode}")
                 
                 await coord.async_request_refresh()
             except Exception as e:
-                _LOGGER.error(f"Set work mode failed: {e}")
+                _LOGGER.error(f"Set work mode failed completely: {e}")
 
     async def handle_set_power_limit(call):
         coord = await get_coord(call)

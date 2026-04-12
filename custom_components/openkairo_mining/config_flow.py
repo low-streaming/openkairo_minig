@@ -107,12 +107,14 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
             else:
                 _LOGGER.debug(f"[{ip_address}] Versuche Validierung mit Benutzer: {trial_user}...")
                 
-            if hasattr(miner, "api") and miner.api:
-                miner.api.pwd = password or ""
+            if password:
+                if hasattr(miner, "api") and miner.api:
+                    miner.api.pwd = password
+                if hasattr(miner, "web") and miner.web:
+                    miner.web.pwd = password
             
-            if hasattr(miner, "web") and miner.web:
-                miner.web.username = trial_user or ""
-                miner.web.pwd = password or ""
+            if trial_user and hasattr(miner, "web") and miner.web:
+                miner.web.username = trial_user
                 
             # [FIX] Lenient Data Retrieval
             _LOGGER.debug(f"[{ip_address}] Rufe Miner-Daten ab...")
@@ -125,9 +127,33 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
                 _LOGGER.warning(f"[{ip_address}] Voller Datenabruf fehlgeschlagen: {e}. Versuche Light-Modus...")
                 # 2. Try partial get_data (only summary/fans/temp - avoids 'config' endpoint)
                 try:
-                    miner_data = await asyncio.wait_for(miner.get_data(include=["summary", "fans", "hashboards"]), timeout=20)
+                    import pyasic
+                    minimal_options = [
+                        pyasic.DataOptions.HASHRATE,
+                        pyasic.DataOptions.WATTAGE,
+                        pyasic.DataOptions.MAC,
+                    ]
+                    miner_data = await asyncio.wait_for(miner.get_data(include=minimal_options), timeout=20)
                 except Exception as e2:
                     _LOGGER.error(f"[{ip_address}] Auch Light-Datenabruf fehlgeschlagen: {e2}")
+            
+            if not miner_data:
+                # 3. Ultra-Fallback: Directly probe Port 4028
+                _LOGGER.debug(f"[{ip_address}] Versuche direkten API-Zugriff auf Port 4028...")
+                try:
+                    if hasattr(miner, "api") and miner.api:
+                        raw_summary = await miner.api.summary()
+                        if raw_summary and "STATUS" in raw_summary:
+                            _LOGGER.info(f"[{ip_address}] Direkter Port 4028 Zugriff erfolgreich!")
+                            miner_data = True  # Mark as success to add the miner
+                        else:
+                            # Also try raw send_command since some pyasic versions map it differently
+                            raw = await miner.api.send_command("summary")
+                            if raw:
+                                _LOGGER.info(f"[{ip_address}] Direkter command Zugriff erfolgreich!")
+                                miner_data = True
+                except Exception as e3:
+                    _LOGGER.error(f"[{ip_address}] Direkter API-Zugriff fehlgeschlagen: {e3}")
             
             if miner_data:
                 _LOGGER.info(f"[{ip_address}] Validierung erfolgreich (Benutzer: {trial_user})")

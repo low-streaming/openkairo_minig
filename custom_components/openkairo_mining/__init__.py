@@ -69,8 +69,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 "switch":                  f"switch.{domain}_{safe_ip}_mining_aktiv",
                 "power_entity":            f"number.{domain}_{safe_ip}_power_limit",
                 "hashrate_sensor":         f"sensor.{domain}_{safe_ip}_hashrate",
-                "temp_sensor":             f"sensor.{domain}_{safe_ip}_durchschnittliche_temperatur",
-                "power_consumption_sensor": f"sensor.{domain}_{safe_ip}_verbrauch",
+                "temp_sensor":             f"sensor.{domain}_{safe_ip}_temperatur",
+                "power_consumption_sensor": f"sensor.{domain}_{safe_ip}_leistung_aktuell",
             }
             
             # Check if this IP is already in the dashboard config
@@ -98,7 +98,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 miner = config["miners"][existing_idx]
                 changed = False
                 for key, val in auto_entities.items():
-                    if not miner.get(key):
+                    legacy_strings = ["_durchschnittliche_temperatur", "_verbrauch"]
+                    current_val = miner.get(key, "")
+                    if not current_val or any(ls in current_val for ls in legacy_strings):
                         miner[key] = val
                         changed = True
                 if changed:
