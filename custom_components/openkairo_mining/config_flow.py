@@ -4,7 +4,10 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResult
+try:
+    from homeassistant.config_entries import ConfigFlowResult
+except ImportError:
+    from homeassistant.data_entry_flow import FlowResult as ConfigFlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.components import network
 
@@ -179,7 +182,7 @@ class OpenKairoMiningConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(self, user_input=None) -> FlowResult:
+    async def async_step_user(self, user_input=None) -> ConfigFlowResult:
         """Handle the initial step."""
         
         errors: dict[str, str] = {}
@@ -205,7 +208,7 @@ class OpenKairoMiningConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
         return await self.async_step_scan()
 
-    async def async_step_manual(self, user_input=None) -> FlowResult:
+    async def async_step_manual(self, user_input=None) -> ConfigFlowResult:
         """Manual IP entry step."""
         errors = {}
         if user_input is not None:
@@ -226,7 +229,7 @@ class OpenKairoMiningConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="manual", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
         )
 
-    async def async_step_scan(self, user_input=None) -> FlowResult:
+    async def async_step_scan(self, user_input=None) -> ConfigFlowResult:
         """Scan network for miners."""
         if user_input is None:
             # Run scan
@@ -249,7 +252,7 @@ class OpenKairoMiningConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
         return await self.async_step_discovery_select(user_input)
 
-    async def async_step_discovery_select(self, user_input=None) -> FlowResult:
+    async def async_step_discovery_select(self, user_input=None) -> ConfigFlowResult:
         """Handle selection from discovery."""
         if user_input:
             ip = user_input["selected_miner"]
@@ -300,7 +303,7 @@ class OpenKairoMiningConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
         return discovery_results
 
-    async def async_step_scan_failed(self, user_input=None) -> FlowResult:
+    async def async_step_scan_failed(self, user_input=None) -> ConfigFlowResult:
         """Handle case where no miners are found."""
         return await self.async_step_manual()
 
