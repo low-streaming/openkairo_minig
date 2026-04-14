@@ -248,8 +248,8 @@ def _add_log_entry(hass, message):
     log_entry = f"[{timestamp}] {message}"
     
     hass.data[DOMAIN]["logs"].insert(0, log_entry)
-    # Keep only last 20 entries
-    hass.data[DOMAIN]["logs"] = hass.data[DOMAIN]["logs"][:20]
+    # Keep only last 100 entries
+    hass.data[DOMAIN]["logs"] = hass.data[DOMAIN]["logs"][:100]
     _LOGGER.info(f"[OpenKairo Log] {message}")
 
 

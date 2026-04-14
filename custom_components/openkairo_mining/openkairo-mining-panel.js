@@ -1203,6 +1203,7 @@ class OpenKairoMiningPanel extends LitElement {
         ${this.config.show_energy_tab ? html`<div class="tab ${this.activeTab === 'energy' ? 'active' : ''}" @click="${() => { this.activeTab = 'energy'; this.editingMinerId = null; }}">⚡ Rentabilität</div>` : ''}
         <div class="tab ${this.activeTab === 'settings' ? 'active' : ''}" @click="${() => { this.activeTab = 'settings'; this.editingMinerId = null; }}">Einstellungen</div>
         <div class="tab ${this.activeTab === 'info' ? 'active' : ''}" @click="${() => { this.activeTab = 'info'; this.editingMinerId = null; }}">Hilfe</div>
+        <div class="tab ${this.activeTab === 'logs' ? 'active' : ''}" @click="${() => { this.activeTab = 'logs'; this.editingMinerId = null; }}">📜 Logs</div>
       </div>
 
       <div class="content">
@@ -1217,6 +1218,7 @@ class OpenKairoMiningPanel extends LitElement {
             if (this.activeTab === 'design') return html`<div class="tab-content-anim">${this.renderDesignSettings()}</div>`;
             if (this.activeTab === 'settings') return html`<div class="tab-content-anim">${this.renderSettings()}</div>`;
             if (this.activeTab === 'info') return html`<div class="tab-content-anim">${this.renderInfo()}</div>`;
+            if (this.activeTab === 'logs') return html`<div class="tab-content-anim">${this.renderLogs()}</div>`;
             return '';
           } catch (e) {
             console.error("Dashboard Render Error:", e);
@@ -1237,6 +1239,67 @@ class OpenKairoMiningPanel extends LitElement {
       <div class="footer">
         <a href="https://openkairo.de" target="_blank">powered by OpenKAIRO</a>
       </div>
+      </div>
+    `;
+  }
+
+  renderLogs() {
+    if (!this.logs || this.logs.length === 0) {
+      return html`
+        <div class="card">
+          <h2>📜 System Logs</h2>
+          <div class="empty-state">Noch keine Logs vorhanden.</div>
+        </div>
+      `;
+    }
+
+    return html`
+      <div class="card" style="padding: 25px;">
+        <h2>📜 System Logs <span style="font-size: 0.5em; color: var(--theme-text-dim); margin-left: 10px;">Letzte ${this.logs.length} Einträge</span></h2>
+        
+        <div style="background: rgba(0,0,0,0.3); border-radius: var(--theme-radius); border: 1px solid var(--theme-border-color); overflow: hidden; max-height: 600px; display: flex; flex-direction: column;">
+          <div style="overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px;">
+            ${this.logs.map(log => {
+              const match = log.match(/^\\[(.*?)\] (.*)$/);
+              let time = '';
+              let msg = log;
+              if (match) {
+                time = match[1];
+                msg = match[2];
+              } else {
+                // If regex fails (e.g. log added without time prefix), fallback
+                msg = log;
+              }
+
+              let color = 'var(--theme-text-main)';
+              let border = 'rgba(255,255,255,0.05)';
+              let bg = 'rgba(255,255,255,0.02)';
+
+              if (msg.includes('Watchdog') || msg.includes('ausgelöst') || msg.includes('Fehler')) {
+                color = '#e74c3c';
+                border = 'rgba(231, 76, 60, 0.3)';
+                bg = 'rgba(231, 76, 60, 0.05)';
+              } else if (msg.includes('eingeschaltet') || msg.includes('✅') || msg.includes('erfolgreich')) {
+                color = 'var(--theme-accent-2)';
+                border = 'rgba(var(--theme-accent-2-rgb), 0.3)';
+                bg = 'rgba(var(--theme-accent-2-rgb), 0.05)';
+              } else if (msg.includes('ausgeschaltet') || msg.includes('💤') || msg.includes('Stop')) {
+                color = 'var(--theme-text-dim)';
+              } else if (msg.includes('Soft-Start') || msg.includes('🎢') || msg.includes('Soft-Stop')) {
+                color = 'var(--theme-primary)';
+                border = 'rgba(var(--theme-primary-rgb), 0.3)';
+                bg = 'rgba(var(--theme-primary-rgb), 0.05)';
+              }
+
+              return html\`
+                <div style="display: flex; gap: 15px; padding: 12px 15px; background: \${bg}; border-left: 3px solid \${border}; border-radius: 6px; font-family: monospace;">
+                  \${time ? html\`<span style="color: var(--theme-text-dim); font-size: 0.9em; white-space: nowrap; font-weight: bold;">[\${time}]</span>\` : ''}
+                  <span style="color: \${color}; line-height: 1.4; font-size: 0.95em;">\${msg}</span>
+                </div>
+              \`;
+            })}
+          </div>
+        </div>
       </div>
     `;
   }
