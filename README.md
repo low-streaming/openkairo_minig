@@ -10,10 +10,10 @@ Verwandle deinen Home Assistant in eine professionelle **Mining-Schaltzentrale**
 
 ## 💎 Highlights der v1.3.5
 
-Das **"Command Center Update"** macht dein Dashboard so lebendig und sicher wie nie zuvor.
+Das neueste Update bringt volle Kompatibilität mit den neuesten Home Assistant Core-Versionen und führt ein völlig neues Event-Protokoll ein.
 
 > [!TIP]
-> **Echtzeit-Dashboard**: Alle Miner-Zustände (Status, Ramping-Fortschritt, Power) aktualisieren sich nun alle 30 Sekunden im Hintergrund. Kein manueller Refresh mehr nötig!
+> **Neues "Logs" Tab**: Alle automatisierten Schaltvorgänge (Ramping, PV-Überschuss, Ausschalten, Watchdog-Fehler) werden nun in einem zentralen "Logs"-Tab im Dashboard inklusive Farbcodes übersichtlich chronologisch dokumentiert. Die Historie fasst nun die letzten 100 Aktionen umfänglich im RAM.
 
 ### 🎨 Ultra-Premium Design Engine
 Wähle aus exklusiven Design-Presets direkt im Dashboard:
@@ -30,10 +30,11 @@ Vergiss komplizierte Setups. OpenKairo Mining arbeitet jetzt vollständig **nati
 - **Volle Kontrolle**: Power-Limits, Reboots und Modus-Wechsel direkt aus HA.
 - **Kompatibilität**: Unterstützt Antminer (S9, S19, S21), Whatsminer, Avalon, Bitaxe und viele mehr.
 
-### 🛡️ Hardware-Wächter 2.0 (Dual-Socket)
+### 🛡️ Hardware-Wächter 2.0 (Dual-Socket) & Ramping
 Maximale Sicherheit für deine Hardware:
+- **Sanfter Anlauf (Ramping)**: Dein Miner fährt stufenweise hoch (z.B. 100W -> 500W -> 1000W), anstatt sofort die volle Last zu ziehen und dein Netzteil zu belasten.
 - **Frozen Detection**: Erkennt aufgehängte Miner am verringerten Stromverbrauch.
-- **Dual-Power Support**: Unterstützung für Miner mit **zwei Netzkabeln**. Beide Steckdosen werden synchron geschaltet – sowohl beim Ramping als auch beim Watchdog-Reset.
+- **Dual-Power Support**: Unterstützung für Miner mit **zwei Netzkabeln**. Beide Steckdosen werden synchron geschaltet.
 
 ---
 
@@ -41,7 +42,7 @@ Maximale Sicherheit für deine Hardware:
 
 ### 1. Installation via HACS
 1. In Home Assistant: **HACS** > **Integrationen** > drei Punkte > **Benutzerdefinierte Repositories**.
-2. URL: `https://github.com/openkairo/openKairo_Mining` > Kategorie: **Integration** hinzufügen.
+2. URL: `https://github.com/low-streaming/openkairo_minig` (bzw. das korrekte Repo) > Kategorie: **Integration** hinzufügen.
 3. Herunterladen und Home Assistant **neu starten**.
 
 ### 2. Dashboard & Miner einrichten
@@ -51,14 +52,12 @@ Maximale Sicherheit für deine Hardware:
 
 ---
 
-## ⚙️ Kern-Funktionen
+## 🚨 Troubleshooting & HA Core >= 2024.10 Kompatibilität
 
 > [!IMPORTANT]
-> **Sanfter Anlauf (Ramping)**: Schone dein Stromnetz und dein Netzteil. Dein Miner fährt stufenweise hoch (z.B. 100W -> 500W -> 1000W), anstatt sofort die volle Last zu ziehen.
-
-- **PV- & SOC-Automatik**: Schalte Miner basierend auf Solareinspeisung oder Hausakku.
-- **Profit-Rechner**: Live-Gewinnberechnung basierend auf Kurs und Netzwerk-Difficulty.
-- **Mempool Live-Ticker**: Bitcoin-Preis, Gebühren und Halving-Countdown direkt im Header.
+> **Update v1.3.5:** Dieses Release beinhaltet weitreichende Patches für neuere Home Assistant-Editionen.
+> - **500 Config Flow Error Fixed**: Problem mit fehlendem `FlowResult` in Home Assistant > 2024.8 beseitigt (`ConfigFlowResult` wird nun dynamisch verwendet).
+> - **Pyasic Installation Fixed**: Mit der Einführung des `uv` Paketmanagers in HA wurden Pre-Release Abhängigkeiten geblockt. Das `betterproto==2.0.0b7` Problem wurde behoben und `pyasic` lädt nun wieder sauber.
 
 ---
 
@@ -67,19 +66,6 @@ OpenKairo ist ein leidenschaftliches Community-Projekt. Wenn dir das Dashboard g
 
 - **PayPal**: [info@openkairo.de](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=info@openkairo.de&currency_code=EUR&source=url)
 - **Bitcoin**: `37KAus3ABc6krJ5T4jZyLKVB3uzbfQZGWD`
-
----
-
-## 💡 Fehlerbehebung (Pydantic Fix)
-
-Sollte es bei neueren Python-Versionen zu Startproblemen kommen (`Invalid handler specified`), enthält OpenKairo Mining bereits einen automatischen Fix. Falls dennoch Hardware-Daten fehlen, prüfe bitte folgendes:
-
-> [!NOTE]
-> Der Fix ist in der `__init__.py` bereits vorgemerkt:
-> ```python
-> import pydantic
-> pydantic.BaseModel.model_config = {"arbitrary_types_allowed": True}
-> ```
 
 ---
 **Powered by OpenKairo** | [openkairo.de](https://openkairo.de)
