@@ -1260,7 +1260,7 @@ class OpenKairoMiningPanel extends LitElement {
         <div style="background: rgba(0,0,0,0.3); border-radius: var(--theme-radius); border: 1px solid var(--theme-border-color); overflow: hidden; max-height: 600px; display: flex; flex-direction: column;">
           <div style="overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px;">
             ${this.logs.map(log => {
-              const match = log.match(/^\\[(.*?)\] (.*)$/);
+              const match = log.match(/^\[(.*?)\] (.*)$/);
               let time = '';
               let msg = log;
               if (match) {
@@ -1291,12 +1291,12 @@ class OpenKairoMiningPanel extends LitElement {
                 bg = 'rgba(var(--theme-primary-rgb), 0.05)';
               }
 
-              return html\`
-                <div style="display: flex; gap: 15px; padding: 12px 15px; background: \${bg}; border-left: 3px solid \${border}; border-radius: 6px; font-family: monospace;">
-                  \${time ? html\`<span style="color: var(--theme-text-dim); font-size: 0.9em; white-space: nowrap; font-weight: bold;">[\${time}]</span>\` : ''}
-                  <span style="color: \${color}; line-height: 1.4; font-size: 0.95em;">\${msg}</span>
+              return html`
+                <div style="display: flex; gap: 15px; padding: 12px 15px; background: ${bg}; border-left: 3px solid ${border}; border-radius: 6px; font-family: monospace;">
+                  ${time ? html`<span style="color: var(--theme-text-dim); font-size: 0.9em; white-space: nowrap; font-weight: bold;">[${time}]</span>` : ''}
+                  <span style="color: ${color}; line-height: 1.4; font-size: 0.95em;">${msg}</span>
                 </div>
-              \`;
+              `;
             })}
           </div>
         </div>
