@@ -376,7 +376,10 @@ async def _mining_loop(hass):
                                 else:
                                     state["standby_since"] = None
                             except ValueError:
-                                pass
+                                state["standby_since"] = None
+                        else:
+                            # Reset watchdog if plug is off or sensor unavailable
+                            state["standby_since"] = None
 
                 if mode in ["pv", "soc"]:
                     delay_minutes = float(miner.get("delay_minutes", 0))

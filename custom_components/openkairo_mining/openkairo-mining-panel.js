@@ -328,10 +328,10 @@ class OpenKairoMiningPanel extends LitElement {
     this.fetchMarketData();
     this.fetchBtcPriceHistory();
     
-    // Refresh miner states/config every 30 seconds
+    // Refresh miner states/config every 15 seconds (matching backend loop)
     setInterval(() => {
       this.loadConfig();
-    }, 30 * 1000);
+    }, 15 * 1000);
 
     // Refresh market data every 10 minutes
     setInterval(() => {
@@ -1942,11 +1942,16 @@ class OpenKairoMiningPanel extends LitElement {
                         const isNumeric = sensorState !== 'unavailable' && sensorState !== 'unknown' && !isNaN(parseFloat(sensorState));
 
                         if (isNumeric && currentWatchValue < threshold) {
-                          const lastChanged = new Date(watchObj.last_changed).getTime();
+                          // Priorität: Backend Standby-Zeitstempel (Sekunden -> Millisekunden)
+                          // Falls das Backend noch keine Zeit hat, nehmen wir last_changed als Fallback
+                          const startMillis = (stateObj && stateObj.standby_since) 
+                                              ? (stateObj.standby_since * 1000) 
+                                              : new Date(watchObj.last_changed).getTime();
+                                              
                           const nowMillis = new Date().getTime();
-                          const elapsedMins = (nowMillis - lastChanged) / 60000;
+                          const elapsedMins = (nowMillis - startMillis) / 60000;
                           
-                          if (elapsedMins > 0) {
+                          if (elapsedMins >= 0) {
                             const remainingMins = Math.max(0, delayMins - elapsedMins);
                             watchdogProgress = Math.min(100, (elapsedMins / delayMins) * 100);
 
@@ -1962,7 +1967,7 @@ class OpenKairoMiningPanel extends LitElement {
                       return html`
                         <div class="tech-box" style="margin-top: 15px; border-color: rgba(231, 76, 60, 0.4); background: rgba(231, 76, 60, 0.05); position: relative; overflow: hidden;">
                           ${watchdogWarning ? html`
-                              <div style="position: absolute; top: 0; left: 0; height: 100%; width: ${watchdogProgress}%; background: rgba(231, 76, 60, 0.1); z-index: 0; transition: width 5s linear;"></div>
+                              <div style="position: absolute; top: 0; left: 0; height: 100%; width: ${watchdogProgress}%; background: rgba(231, 76, 60, 0.1); z-index: 0; transition: width 15s linear;"></div>
                           ` : ''}
                           <div style="position: relative; z-index: 1;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
