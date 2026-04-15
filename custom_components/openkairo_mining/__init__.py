@@ -632,12 +632,28 @@ async def _mining_loop(hass):
                                             best_step = target_power
                                             # If PV is less than target, find the highest fitting step
                                             if pv_val < target_power:
-                                                # Sort steps descending to find the first one that fits
-                                                fitting_steps = [s for s in steps if s <= pv_val]
-                                                if fitting_steps:
-                                                    best_step = max(fitting_steps)
+                                                allow_battery = miner.get("allow_battery", False)
+                                                battery_min_soc = float(miner.get("battery_min_soc", 100))
+                                                battery_soc = 0
+                                                bat_sensor = miner.get("battery_sensor")
+                                                if allow_battery and bat_sensor:
+                                                    b_state = hass.states.get(bat_sensor)
+                                                    if b_state and b_state.state not in ["unknown", "unavailable"]:
+                                                        try:
+                                                            battery_soc = float(b_state.state)
+                                                        except ValueError:
+                                                            pass
+                                                
+                                                # Falls Batterie-Unterstützung aktiv & genutzt werden kann, drossel nicht
+                                                if allow_battery and battery_soc >= battery_min_soc:
+                                                    best_step = target_power
                                                 else:
-                                                    best_step = min(steps) if steps else target_power
+                                                    # Normales PV-basiertes Herunterskalieren (Cloud-Tracking)
+                                                    fitting_steps = [s for s in steps if s <= pv_val]
+                                                    if fitting_steps:
+                                                        best_step = max(fitting_steps)
+                                                    else:
+                                                        best_step = min(steps) if steps else target_power
                                             
                                             target_power = best_step
 
