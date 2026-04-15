@@ -275,7 +275,12 @@ async def _mining_loop(hass):
                     hass.data[DOMAIN]["miner_states"] = {}
                 miner_states = hass.data[DOMAIN]["miner_states"]
                 if miner_id not in miner_states:
-                    miner_states[miner_id] = {"on_since": None, "off_since": None, "standby_since": None}
+                    miner_states[miner_id] = {
+                        "on_since": None, 
+                        "off_since": None, 
+                        "standby_since": None,
+                        "last_sensor_update": current_time
+                    }
                 
                 state = miner_states[miner_id]
                 current_time = time.time()
@@ -393,6 +398,7 @@ async def _mining_loop(hass):
                         if pv_sensor:
                             pv_state = hass.states.get(pv_sensor)
                             if pv_state and pv_state.state not in ["unknown", "unavailable"]:
+                                state["last_sensor_update"] = current_time
                                 try:
                                     pv_value = float(pv_state.state)
                                     on_threshold = float(miner.get("pv_on", 1000))
@@ -409,9 +415,11 @@ async def _mining_loop(hass):
                                             battery_soc = float(bat_state.state)
                                     
                                     if pv_value >= on_threshold:
-                                        if not allow_battery or (allow_battery and battery_soc >= battery_min_soc):
+                                        # SOC Hysterese: Zum Einschalten muessen es 2% ueber dem Limit sein
+                                        safety_min_soc = battery_min_soc + 2 if not is_on else battery_min_soc
+                                        if not allow_battery or (allow_battery and battery_soc >= safety_min_soc):
                                             turn_on_condition = True
-                                            state["log_reason_on"] = f"(PV {pv_value}W >= {on_threshold}W" + (f", SOC {battery_soc}% >= {battery_min_soc}%)" if allow_battery else ")")
+                                            state["log_reason_on"] = f"(PV {pv_value}W >= {on_threshold}W" + (f", SOC {battery_soc}% >= {safety_min_soc}%)" if allow_battery else ")")
                                     
                                     # Wetter-Vorhersage Check (Optional)
                                     forecast_enabled = miner.get("forecast_enabled", True)
@@ -472,11 +480,19 @@ async def _mining_loop(hass):
                                 except ValueError:
                                     pass
                     
-
+                    # --- SENSOR WATCHDOG ---
+                    # Wenn seit 5 Minuten keine gueltigen Sensordaten kamen -> Abschalten!
+                    if current_time - state.get("last_sensor_update", current_time) > 300:
+                        _LOGGER.warning(f"[{miner_name}] Sensor-Timeout (>5 Min)! Schalte sicherheitshalber AB.")
+                        turn_on_condition = False
+                        turn_off_condition = True
+                        state["log_reason_off"] = "(Sicherheits-Stopp: Sensor-Daten veraltet/tot)"
 
                     # Apply Hysterese and Ramping
                     if turn_on_condition:
-                        if state["on_since"] is None:
+                        if is_on or state.get("ramping") == "up":
+                            state["on_since"] = None
+                        elif state["on_since"] is None:
                             state["on_since"] = current_time
                         elif current_time - state["on_since"] >= delay_seconds:
                             
@@ -530,14 +546,6 @@ async def _mining_loop(hass):
                             state["off_since"] = current_time
                         elif current_time - state["off_since"] >= delay_seconds:
                             
-                            # [NEU] Direktes Ausschalten via Hardware-Treiber (Bypass HA Switches)
-                            if coord and coord.miner_obj:
-                                try:
-                                    _LOGGER.info(f"[{miner_name}] Direktes Ausschalten via API (Stop)")
-                                    await coord.miner_obj.stop_mining()
-                                except Exception as e:
-                                    _LOGGER.error(f"[{miner_name}] API Ausschalten fehlgeschlagen: {e}")
-
                             if is_on and state.get("ramping") != "down":
                                 if miner.get("soft_stop_enabled") and miner.get("power_entity"):
                                     reason = state.get("log_reason_off", "")
@@ -550,6 +558,15 @@ async def _mining_loop(hass):
                                     reason = state.get("log_reason_off", "")
                                     _add_log_entry(hass, f"💤 {miner_name} wird ausgeschaltet. {reason}")
                                     _LOGGER.info(f"[{miner_name}] Turn OFF condition met, turning OFF {switches} {reason}")
+                                    
+                                    # Hardware API Stop ausfuehren
+                                    if coord and coord.miner_obj:
+                                        try:
+                                            _LOGGER.info(f"[{miner_name}] Direktes Ausschalten via API (Stop)")
+                                            await coord.miner_obj.stop_mining()
+                                        except Exception as e:
+                                            _LOGGER.error(f"[{miner_name}] API Ausschalten fehlgeschlagen: {e}")
+                                            
                                     await hass.services.async_call("switch", "turn_off", {"entity_id": switches}, blocking=False)
                     else:
                         state["off_since"] = None
@@ -557,7 +574,14 @@ async def _mining_loop(hass):
                     # Ramping Logic Execution
                     ramping = state.get("ramping")
                     if ramping:
-                        interval = float(miner.get("soft_interval", 60))
+                        # SAFETY CHECK: If the plug was turned off during ramping, abort ramping.
+                        if not is_on and ramping == "up":
+                            _LOGGER.warning(f"[{miner_name}] Soft-Start aborted: Smart Plug is OFF.")
+                            state["ramping"] = None
+                            ramping = None
+                        
+                        if ramping:
+                            interval = float(miner.get("soft_interval", 60))
                         if current_time - state.get("ramping_last_time", 0) >= interval:
                             power_entity = miner.get("power_entity")
                             if ramping == "up" and power_entity:
@@ -593,6 +617,15 @@ async def _mining_loop(hass):
                                     state["ramping_last_time"] = current_time
                                 else:
                                     _LOGGER.info(f"[{miner_name}] Soft-Stop complete. Turning OFF switches.")
+                                    
+                                    # Hardware API Stop ausfuehren am Ende des Soft-Stops
+                                    if coord and coord.miner_obj:
+                                        try:
+                                            _LOGGER.info(f"[{miner_name}] Direktes Ausschalten via API (Stop)")
+                                            await coord.miner_obj.stop_mining()
+                                        except Exception as e:
+                                            _LOGGER.error(f"[{miner_name}] API Ausschalten fehlgeschlagen: {e}")
+                                            
                                     await hass.services.async_call("switch", "turn_off", {"entity_id": switches}, blocking=False)
                                     state["ramping"] = None
                 
@@ -681,9 +714,10 @@ async def _mining_loop(hass):
                                             # Round to nearest integer (or steps if needed, but 1W granularity is usually fine for API)
                                             target_power = round(target_power)
 
-                                # Check if we need to adjust (with a small 5W tolerance to avoid jitter)
-                                if abs(current_power - target_power) > 5:
-                                    _LOGGER.info(f"[{miner_name}] Continuous Scaling: Adjusting {current_power}W -> {target_power}W (Interval: {continuous_interval}s)")
+                                # Check if we need to adjust (with a 50W deadband to avoid jitter/spam)
+                                deadband = 50.0
+                                if abs(current_power - target_power) > deadband:
+                                    _LOGGER.info(f"[{miner_name}] Continuous Scaling: Adjusting {current_power}W -> {target_power}W (Diff: {round(abs(current_power - target_power))}W > {deadband}W)")
                                     await hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": target_power}, blocking=False)
 
                             except (ValueError, TypeError):

@@ -965,9 +965,12 @@ class OpenKairoMiningPanel extends LitElement {
       .sort()
       .map(entityId => {
         const stateObj = this.hass.states[entityId];
+        const lastUpdate = stateObj.last_sensor_update || 0;
+        const isStale = lastUpdate > 0 && (Date.now() / 1000 - lastUpdate > 300);
         return {
           id: entityId,
-          name: stateObj.attributes?.friendly_name ? `${stateObj.attributes.friendly_name} (${entityId})` : entityId
+          name: stateObj.attributes?.friendly_name ? `${stateObj.attributes.friendly_name} (${entityId})` : entityId,
+          isStale: isStale
         };
       });
   }
@@ -1851,13 +1854,20 @@ class OpenKairoMiningPanel extends LitElement {
                 ${powerObj ? html`
                   <div class="power-limit-box" style="margin-top: 15px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                      <span style="font-size: 0.85em; color: var(--theme-text-dim);">Power Limit (S9/ASIC)</span>
+                      <span style="font-size: 0.85em; color: var(--theme-text-dim); display: flex; align-items: center; gap: 8px;">
+                        Power Limit (S9/ASIC)
+                        ${stateObj && stateObj.ramping ? html`
+                          <span class="badge" style="background: rgba(11, 196, 226, 0.1); color: #0bc4e2; font-size: 0.75em; padding: 2px 6px; border: 1px solid rgba(11, 196, 226, 0.3); animation: pulse 2s infinite;">
+                            ?? Auto-Ramping
+                          </span>
+                        ` : ''}
+                      </span>
                       <div style="display: flex; align-items: center; gap: 5px;">
                         <input type="number" 
                                .value="${powerObj.state}" 
                                min="${powerObj.attributes?.min || 0}" 
                                max="${powerObj.attributes?.max || 2500}"
-                               ?disabled="${stateObj && stateObj.hardware_error}"
+                               ?disabled="${(stateObj && stateObj.hardware_error) || (stateObj && stateObj.ramping)}"
                                @change="${(e) => this.setPowerLimit(miner.power_entity, e.target.value)}"
                                style="background: rgba(0,0,0,0.5); border: 1px solid rgba(11, 196, 226, 0.3); color: #0bc4e2; border-radius: 4px; padding: 2px 6px; width: 65px; text-align: right; font-weight: bold; font-family: monospace; outline: none;">
                         <span style="color: var(--theme-text-dim); font-size: 0.8em; font-weight: bold;">${powerUnit}</span>
@@ -1883,9 +1893,9 @@ class OpenKairoMiningPanel extends LitElement {
                              max="${((miner.soft_start_enabled || miner.soft_stop_enabled) && miner.soft_target_power) ? miner.soft_target_power : (powerObj.attributes?.max || 100)}" 
                              step="${powerObj.attributes?.step || 1}" 
                              .value="${powerObj.state}" 
-                             ?disabled="${stateObj && stateObj.hardware_error}"
+                             ?disabled="${(stateObj && stateObj.hardware_error) || (stateObj && stateObj.ramping)}"
                              @change="${(e) => this.setPowerLimit(miner.power_entity, e.target.value)}"
-                             style="width: 100%; accent-color: #0bc4e2; cursor: ${stateObj?.hardware_error ? 'not-allowed' : 'pointer'}; position: relative; z-index: 2; background: transparent;">
+                             style="width: 100%; accent-color: #0bc4e2; cursor: ${(stateObj?.hardware_error || stateObj?.ramping) ? 'not-allowed' : 'pointer'}; position: relative; z-index: 2; background: transparent;">
                     </div>
                   </div>
                 ` : ''}
@@ -1896,15 +1906,16 @@ class OpenKairoMiningPanel extends LitElement {
                   <p><b>Dose:</b> ${friendlySwitchName || 'Nicht gesetzt'} ${friendlySwitchName2 ? html` + ${friendlySwitchName2}` : ''}</p>
                   
                   ${miner.mode === 'pv' ? html`
-                    <div class="tech-box">
-                      <p><b>Aktueller PV-Wert:</b> <span class="highlight-val">${pvValue}</span></p>
+                    <div class="tech-box" style="${isStale ? 'border-color: #e67e22; background: rgba(230, 126, 34, 0.05);' : ''}">
+                      <p><b>Aktueller PV-Wert:</b> <span class="highlight-val" style="${isStale ? 'color: #e67e22; animation: pulse 2s infinite;' : ''}">${pvValue}</span></p>
+                      ${isStale ? html`<p style="color: #e67e22; font-size: 0.75em; margin-bottom: 5px;">⚠️ Sensordaten veraltet! (Timeout-Gefahr)</p>` : ''}
                       <div class="small-text mt-1" style="margin-bottom: 8px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
                         Regeln: An &ge; <input type="number" .value="${miner.pv_on}" @change="${(e) => this.quickUpdateMiner(miner.id, 'pv_on', e.target.value)}" style="width: 70px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #0bc4e2; border-radius: 4px; font-weight: bold;"> W 
                         | Aus &le; <input type="number" .value="${miner.pv_off}" @change="${(e) => this.quickUpdateMiner(miner.id, 'pv_off', e.target.value)}" style="width: 70px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #0bc4e2; border-radius: 4px; font-weight: bold;"> W
                       </div>
                       ${miner.allow_battery ? html`
                         <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px;">
-                          <p><b>Batterie (SOC):</b> <span class="highlight-val">${batteryValue || 'N/A'}</span></p>
+                          <p><b>Batterie (SOC):</b> <span class="highlight-val" style="${isStale ? 'color: #e67e22;' : ''}">${batteryValue || 'N/A'}</span></p>
                           <p class="small-text mt-1">🔋 Unterstützung erlaubt bis min. ${miner.battery_min_soc}%</p>
                         </div>
                       ` : ''}
@@ -1981,7 +1992,7 @@ class OpenKairoMiningPanel extends LitElement {
                         const sensorState = watchObj.state;
                         const isNumeric = sensorState !== 'unavailable' && sensorState !== 'unknown' && !isNaN(parseFloat(sensorState));
 
-                        if (isNumeric && currentWatchValue < threshold) {
+                        if ((isNumeric && currentWatchValue < threshold) || (stateObj && stateObj.standby_since)) {
                           // Priorität: Backend Standby-Zeitstempel (Sekunden -> Millisekunden)
                           // Falls das Backend noch keine Zeit hat, nehmen wir last_changed als Fallback
                           const startMillis = (stateObj && stateObj.standby_since) 
