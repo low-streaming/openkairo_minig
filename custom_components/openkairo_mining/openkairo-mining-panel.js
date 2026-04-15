@@ -3117,8 +3117,7 @@ class OpenKairoMiningPanel extends LitElement {
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(0, 120, 187, 0.1);
         animation: border-glow-cycle 8s infinite ease-in-out;
         position: relative;
-        /* iPad Fix: Dropdowns were clipped */
-        overflow: visible !important;
+        overflow: hidden;
       }
       :host([theme="gladbeck"]) .card::before,
       :host([theme="gladbeck"]) .miner-card::before {
@@ -3520,14 +3519,21 @@ class OpenKairoMiningPanel extends LitElement {
         backdrop-filter: blur(15px);
         -webkit-backdrop-filter: blur(15px);
         transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
-        /* iPad Fix: Dropdowns relative to miner card were clipped */
-        overflow: visible;
+        overflow: hidden;
       }
       .miner-card:hover { 
         border-color: var(--theme-primary); 
         transform: translateY(-5px) scale(1.015); 
         box-shadow: 0 15px 45px rgba(var(--theme-primary-rgb), 0.15);
       }
+      
+      /* Dynamischer Overflow für Dropdowns (iPad UI Fix) */
+      .card:focus-within, .miner-card:focus-within, .tech-box:focus-within,
+      .card:has(openkairo-entity-picker[open]), .miner-card:has(openkairo-entity-picker[open]), .tech-box:has(openkairo-entity-picker[open]) {
+        overflow: visible !important;
+        z-index: 999;
+      }
+
       .miner-card::before {
         content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
         background: linear-gradient(90deg, var(--theme-accent-1), var(--theme-accent-2)); border-radius: var(--theme-radius) var(--theme-radius) 0 0;
