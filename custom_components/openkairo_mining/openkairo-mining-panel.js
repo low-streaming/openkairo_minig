@@ -12,7 +12,7 @@ class OpenKairoEntityPicker extends LitElement {
       value: { type: String },
       entities: { type: Array },
       placeholder: { type: String },
-      open: { type: Boolean },
+      open: { type: Boolean, reflect: true },
       search: { type: String }
     };
   }
@@ -140,6 +140,10 @@ class OpenKairoEntityPicker extends LitElement {
         position: relative;
         width: 100%;
         color-scheme: dark;
+        z-index: 1;
+      }
+      :host([open]) {
+        z-index: 1000;
       }
       .picker-container {
         position: relative;
@@ -738,6 +742,7 @@ class OpenKairoMiningPanel extends LitElement {
       coin_price_sensor: '',
       power_consumption_sensor: '',
       electricity_price_sensor: '',
+      forecast_enabled: true,
       forecast_sensor: '',
       forecast_min: 0,
       soc_on: 90,
@@ -754,6 +759,11 @@ class OpenKairoMiningPanel extends LitElement {
       soft_stop_steps: '1000, 500, 100',
       soft_interval: 60,
       switch_2: '',
+      offgrid_soc_start: 90,
+      offgrid_soc_stop: 85,
+      offgrid_soc_max: 98,
+      offgrid_min_power: 400,
+      offgrid_max_power: 1400,
       watchdog_type: 'power'
     };
   }
@@ -1493,7 +1503,8 @@ class OpenKairoMiningPanel extends LitElement {
     const modeMap = {
       'manual': 'Manuell',
       'pv': 'PV-Überschuss',
-      'soc': 'Batterie SOC'
+      'soc': 'Batterie SOC',
+      'offgrid': 'Offgrid PV (SOC Kurve)'
     };
 
     // --- OVERVIEW AGGREGATION ---
@@ -1674,6 +1685,7 @@ class OpenKairoMiningPanel extends LitElement {
             let tempValue = this._formatValue(this.hass?.states[tSensor], '°C');
             let powerConsumptionValue = this._formatValue(this.hass?.states[pSensor], 'W');
             let batterySOCValue = this._formatValue(this.hass?.states[miner.battery_sensor], '%');
+            let forecastValue = this.hass && miner.forecast_sensor ? this.hass.states[miner.forecast_sensor] : null;
 
             // Profitabilitäts-Berechnung
             let dailyRevenue = 0;
@@ -1896,6 +1908,24 @@ class OpenKairoMiningPanel extends LitElement {
                           <p class="small-text mt-1">🔋 Unterstützung erlaubt bis min. ${miner.battery_min_soc}%</p>
                         </div>
                       ` : ''}
+                      ${miner.forecast_enabled && miner.forecast_sensor ? html`
+                        ${(() => {
+                           const fState = forecastValue ? forecastValue.state : 'N/A';
+                           const fMin = parseFloat(miner.forecast_min) || 0;
+                           const currentVal = parseFloat(fState) || 0;
+                           const isOk = !forecastValue || forecastValue.state === 'unavailable' || forecastValue.state === 'unknown' ? true : currentVal >= fMin;
+                           
+                           return html`
+                            <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px; margin-top: 8px;">
+                              <p style="display: flex; justify-content: space-between; align-items: center; margin: 0;">
+                                <span><b>⛅ Prognose heute:</b> <span class="highlight-val">${fState}</span></span>
+                                <span class="status-badge small ${isOk ? 'on' : 'off'}" style="padding: 2px 8px; font-size: 0.7em; width: auto; box-shadow: none;">${isOk ? 'OK' : 'ZU NIEDRIG'}</span>
+                              </p>
+                              <p class="small-text mt-1" style="color: ${isOk ? '#888' : '#e74c3c'};">Schaltet erst ein ab: ${fMin} kWh</p>
+                            </div>
+                           `;
+                        })()}
+                      ` : ''}
                     </div>
                   ` : ''}
                   
@@ -1905,6 +1935,16 @@ class OpenKairoMiningPanel extends LitElement {
                       <div class="small-text mt-1" style="margin-bottom: 8px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
                         Regeln: An &ge; <input type="number" .value="${miner.soc_on !== undefined ? miner.soc_on : 90}" @change="${(e) => this.quickUpdateMiner(miner.id, 'soc_on', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #0bc4e2; border-radius: 4px; font-weight: bold;"> % 
                         | Aus &le; <input type="number" .value="${miner.soc_off !== undefined ? miner.soc_off : 30}" @change="${(e) => this.quickUpdateMiner(miner.id, 'soc_off', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #0bc4e2; border-radius: 4px; font-weight: bold;"> %
+                      </div>
+                    </div>
+                  ` : ''}
+
+                  ${miner.mode === 'offgrid' ? html`
+                    <div class="tech-box" style="border-color: rgba(255, 152, 0, 0.3); background: rgba(255, 152, 0, 0.05);">
+                      <p><b>Offgrid SOC:</b> <span class="highlight-val" style="color: #ff9800;">${batterySOCValue || 'N/A'}</span></p>
+                      <div class="small-text mt-1" style="display: flex; flex-direction: column; gap: 4px;">
+                        <div>Kurve: ${miner.offgrid_soc_start}% (${miner.offgrid_min_power}W) &rarr; ${miner.offgrid_soc_max}% (${miner.offgrid_max_power}W)</div>
+                        <div style="color: #e74c3c;">Stopp bei: ${miner.offgrid_soc_stop}%</div>
                       </div>
                     </div>
                   ` : ''}
@@ -2383,6 +2423,7 @@ class OpenKairoMiningPanel extends LitElement {
             <option value="manual" ?selected="${this.editForm.mode === 'manual'}">Manuell (Nur Überwachung)</option>
             <option value="pv" ?selected="${this.editForm.mode === 'pv'}">PV-Überschuss (Einspeisung)</option>
             <option value="soc" ?selected="${this.editForm.mode === 'soc'}">Batterie SOC</option>
+            <option value="offgrid" ?selected="${this.editForm.mode === 'offgrid'}">Offgrid PV (SOC Kurve)</option>
           </select>
         </div>
 
@@ -2423,13 +2464,20 @@ class OpenKairoMiningPanel extends LitElement {
                     </div>
                 </div>
                 ` : html`
-                <p style="margin: 8px 0 0 30px; font-size: 0.85em; color: #888;">Schaltet den Miner auch bei zu wenig PV-Überschuss ein, solange die Batterie noch genügend (z.B. ≥ 95%) geladen ist.</p>
+                <p style="margin: 8px 0 0 30px; font-size: 0.85em; color: #888;">Der Miner startet normal bei erreichtem PV-Überschuss. Danach verhindert die Batterie das sofortige Abschalten bei Wolken/Einbrüchen, solange sie noch genügend (z.B. ≥ 60%) geladen ist.</p>
                 `}
             </div>
 
             <div style="margin-top: 20px; padding: 15px; border: 1px dashed rgba(52, 152, 219, 0.3); border-radius: 8px; background: rgba(52, 152, 219, 0.05);">
-                <h4 style="margin: 0 0 10px 0; color: #3498db; display: flex; align-items: center; gap: 8px;">🌤️ Solar-Vorhersage (Optional)</h4>
-                <div class="form-row">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                  <h4 style="margin: 0; color: #3498db; display: flex; align-items: center; gap: 8px;">🌤️ Solar-Vorhersage (Optional)</h4>
+                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" .checked="${this.editForm.forecast_enabled !== false}" @change="${(e) => this.handleFormInput({ target: { name: 'forecast_enabled', type: 'checkbox', checked: e.target.checked } })}" style="width: 16px; height: 16px; margin: 0; accent-color: #3498db;">
+                    <span style="font-size: 0.9em; font-weight: bold; color: var(--theme-text-main);">Aktiv</span>
+                  </label>
+                </div>
+                
+                <div class="form-row" style="opacity: ${this.editForm.forecast_enabled !== false ? '1' : '0.5'}; pointer-events: ${this.editForm.forecast_enabled !== false ? 'auto' : 'none'};">
                     <div class="form-group flex-2">
                         <label>Prognose-Sensor (z.B. Solcast Today)</label>
                         <openkairo-entity-picker name="forecast_sensor" placeholder="-- Wetter/Prognose Sensor suchen --" .value="${this.editForm.forecast_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
@@ -2440,7 +2488,7 @@ class OpenKairoMiningPanel extends LitElement {
                         <small>Nur starten, wenn Ertrag heute ≥ X.</small>
                     </div>
                 </div>
-                <small style="color: #888;">Schaltet den Miner erst ein, wenn die Tagesprognose diesen Wert erreicht. Ideal um Akkus bei schlechtem Wetter zu schonen.</small>
+                <small style="color: #888; display: block; margin-top: -5px;">Schaltet den Miner erst ein, wenn die Tagesprognose diesen Wert erreicht. Ideal um Akkus bei schlechtem Wetter zu schonen.</small>
             </div>
 
             <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
@@ -2472,6 +2520,53 @@ class OpenKairoMiningPanel extends LitElement {
                 <label>Verzögerung (Hysterese in Minuten)</label>
                 <input type="number" min="0" step="1" name="delay_minutes" .value="${this.editForm.delay_minutes !== undefined ? this.editForm.delay_minutes : 5}" @input="${this.handleFormInput}">
                 <small>Verhindert ständiges An/Aus. Miner schaltet erst nach X Minuten.</small>
+            </div>
+          </div>
+        ` : ''}
+
+        ${this.editForm.mode === 'offgrid' ? html`
+          <div class="mode-section btc-section" style="border-color: #ff9800; background: rgba(255, 152, 0, 0.05);">
+            <h3 style="color: #ff9800; margin-top: 0; margin-bottom: 20px;">🏝️ Offgrid PV (SOC Kurve)</h3>
+            <p style="font-size: 0.85em; color: #bbb; margin-bottom: 15px;">Ideal für Inselsysteme. Der Miner agiert als "Dump-Load" und erhöht seine Leistung linear zum Batteriefüllstand.</p>
+            
+            <div class="form-group">
+                <label>Batterie SOC-Sensor (Ladezustand in %)</label>
+                <openkairo-entity-picker name="battery_sensor" placeholder="-- Batterie % Sensor suchen --" .value="${this.editForm.battery_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label>Einschalten ab SOC (%)</label>
+                    <input type="number" name="offgrid_soc_start" min="0" max="100" .value="${this.editForm.offgrid_soc_start || 90}" @input="${this.handleFormInput}">
+                    <small>Startet mit Minimal-Leistung.</small>
+                </div>
+                <div class="form-group flex-1">
+                    <label>Ausschalten ab SOC (%)</label>
+                    <input type="number" name="offgrid_soc_stop" min="0" max="100" .value="${this.editForm.offgrid_soc_stop || 85}" @input="${this.handleFormInput}">
+                    <small>Sicherheits-Stopp.</small>
+                </div>
+            </div>
+
+            <div class="form-row mt-3">
+                <div class="form-group flex-1">
+                    <label>SOC für Max-Leistung (%)</label>
+                    <input type="number" name="offgrid_soc_max" min="0" max="100" .value="${this.editForm.offgrid_soc_max || 98}" @input="${this.handleFormInput}">
+                    <small>Punkt für maximale Leistung.</small>
+                </div>
+                <div class="form-group flex-1">
+                    <label>Minimal-Leistung (Watt)</label>
+                    <input type="number" name="offgrid_min_power" .value="${this.editForm.offgrid_min_power || 400}" @input="${this.handleFormInput}">
+                </div>
+                <div class="form-group flex-1">
+                    <label>Maximal-Leistung (Watt)</label>
+                    <input type="number" name="offgrid_max_power" .value="${this.editForm.offgrid_max_power || 1400}" @input="${this.handleFormInput}">
+                </div>
+            </div>
+
+            <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <label>Update-Intervall (Sekunden)</label>
+                <input type="number" min="15" step="1" name="soft_interval" .value="${this.editForm.soft_interval || 60}" @input="${this.handleFormInput}">
+                <small>Wie oft soll die Leistung angepasst werden?</small>
             </div>
           </div>
         ` : ''}
@@ -3022,7 +3117,8 @@ class OpenKairoMiningPanel extends LitElement {
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(0, 120, 187, 0.1);
         animation: border-glow-cycle 8s infinite ease-in-out;
         position: relative;
-        overflow: hidden;
+        /* iPad Fix: Dropdowns were clipped */
+        overflow: visible !important;
       }
       :host([theme="gladbeck"]) .card::before,
       :host([theme="gladbeck"]) .miner-card::before {
@@ -3424,7 +3520,8 @@ class OpenKairoMiningPanel extends LitElement {
         backdrop-filter: blur(15px);
         -webkit-backdrop-filter: blur(15px);
         transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
-        overflow: hidden;
+        /* iPad Fix: Dropdowns relative to miner card were clipped */
+        overflow: visible;
       }
       .miner-card:hover { 
         border-color: var(--theme-primary); 

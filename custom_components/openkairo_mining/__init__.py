@@ -381,7 +381,7 @@ async def _mining_loop(hass):
                             # Reset watchdog if plug is off or sensor unavailable
                             state["standby_since"] = None
 
-                if mode in ["pv", "soc"]:
+                if mode in ["pv", "soc", "offgrid"]:
                     delay_minutes = float(miner.get("delay_minutes", 0))
                     delay_seconds = delay_minutes * 60
                     
@@ -409,25 +409,29 @@ async def _mining_loop(hass):
                                             battery_soc = float(bat_state.state)
                                     
                                     if pv_value >= on_threshold:
-                                        turn_on_condition = True
-                                    elif allow_battery and battery_soc >= battery_min_soc:
-                                        turn_on_condition = True
+                                        if not allow_battery or (allow_battery and battery_soc >= battery_min_soc):
+                                            turn_on_condition = True
+                                            state["log_reason_on"] = f"(PV {pv_value}W >= {on_threshold}W" + (f", SOC {battery_soc}% >= {battery_min_soc}%)" if allow_battery else ")")
                                     
                                     # Wetter-Vorhersage Check (Optional)
+                                    forecast_enabled = miner.get("forecast_enabled", True)
                                     forecast_sensor = miner.get("forecast_sensor")
                                     forecast_min = float(miner.get("forecast_min", 0))
-                                    if forecast_sensor and turn_on_condition:
+                                    if forecast_enabled and forecast_sensor and turn_on_condition:
                                         f_state = hass.states.get(forecast_sensor)
                                         if f_state and f_state.state not in ["unknown", "unavailable"]:
                                             try:
                                                 if float(f_state.state) < forecast_min:
                                                     turn_on_condition = False # Prognose zu schlecht
+                                                else:
+                                                    _LOGGER.debug(f"[PV] Forecast ok ({float(f_state.state)} >= {forecast_min})")
                                             except ValueError:
                                                 pass
 
                                     if pv_value <= off_threshold:
                                         if not allow_battery or (allow_battery and battery_soc < battery_min_soc):
                                             turn_off_condition = True
+                                            state["log_reason_off"] = f"(PV {pv_value}W <= {off_threshold}W" + (f", SOC {battery_soc}% < {battery_min_soc}%)" if allow_battery else ")")
                                             
                                 except ValueError:
                                     pass
@@ -443,8 +447,28 @@ async def _mining_loop(hass):
                                     
                                     if battery_soc >= soc_on:
                                         turn_on_condition = True
+                                        state["log_reason_on"] = f"(SOC {battery_soc}% >= {soc_on}%)"
                                     elif battery_soc <= soc_off:
                                         turn_off_condition = True
+                                        state["log_reason_off"] = f"(SOC {battery_soc}% <= {soc_off}%)"
+                                except ValueError:
+                                    pass
+                    elif mode == "offgrid":
+                        battery_sensor = miner.get("battery_sensor")
+                        if battery_sensor:
+                            bat_state = hass.states.get(battery_sensor)
+                            if bat_state and bat_state.state not in ["unknown", "unavailable"]:
+                                try:
+                                    battery_soc = float(bat_state.state)
+                                    soc_start = float(miner.get("offgrid_soc_start", 90))
+                                    soc_stop = float(miner.get("offgrid_soc_stop", 85))
+                                    
+                                    if battery_soc >= soc_start:
+                                        turn_on_condition = True
+                                        state["log_reason_on"] = f"(Offgrid SOC {battery_soc}% >= Start {soc_start}%)"
+                                    elif battery_soc <= soc_stop:
+                                        turn_off_condition = True
+                                        state["log_reason_off"] = f"(Offgrid SOC {battery_soc}% <= Stop {soc_stop}%)"
                                 except ValueError:
                                     pass
                     
@@ -480,14 +504,16 @@ async def _mining_loop(hass):
                             
                             if not is_on and state.get("ramping") != "up":
                                 if miner.get("soft_start_enabled") and miner.get("power_entity"):
-                                    _add_log_entry(hass, f"🎢 {miner_name}: Soft-Start (Hochfahren) gestartet.")
-                                    _LOGGER.info(f"[{miner_name}] Starting Soft-Start Ramping Up")
+                                    reason = state.get("log_reason_on", "")
+                                    _add_log_entry(hass, f"🎢 {miner_name}: Soft-Start (Hochfahren) gestartet. {reason}")
+                                    _LOGGER.info(f"[{miner_name}] Starting Soft-Start Ramping Up {reason}")
                                     state["ramping"] = "up"
                                     state["ramping_step"] = 0
                                     state["ramping_last_time"] = 0 # trigger immediately
                                 else:
-                                    _add_log_entry(hass, f"⚡ {miner_name} wird eingeschaltet (PV/SOC).")
-                                    _LOGGER.info(f"[{miner_name}] Turn ON condition met, turning ON {switches}")
+                                    reason = state.get("log_reason_on", "")
+                                    _add_log_entry(hass, f"⚡ {miner_name} wird eingeschaltet. {reason}")
+                                    _LOGGER.info(f"[{miner_name}] Turn ON condition met, turning ON {switches} {reason}")
                                     await hass.services.async_call("switch", "turn_on", {"entity_id": switches}, blocking=False)
                                     
                                     # [NEU] Ziel-Wattzahl sofort setzen wenn kein Soft-Start
@@ -514,14 +540,16 @@ async def _mining_loop(hass):
 
                             if is_on and state.get("ramping") != "down":
                                 if miner.get("soft_stop_enabled") and miner.get("power_entity"):
-                                    _add_log_entry(hass, f"🎢 {miner_name}: Soft-Stop (Herunterfahren) gestartet.")
-                                    _LOGGER.info(f"[{miner_name}] Starting Soft-Stop Ramping Down")
+                                    reason = state.get("log_reason_off", "")
+                                    _add_log_entry(hass, f"🎢 {miner_name}: Soft-Stop (Herunterfahren) gestartet. {reason}")
+                                    _LOGGER.info(f"[{miner_name}] Starting Soft-Stop Ramping Down {reason}")
                                     state["ramping"] = "down"
                                     state["ramping_step"] = 0
                                     state["ramping_last_time"] = 0 # trigger immediately
                                 else:
-                                    _add_log_entry(hass, f"💤 {miner_name} wird ausgeschaltet (PV/SOC).")
-                                    _LOGGER.info(f"[{miner_name}] Turn OFF condition met, turning OFF {switches}")
+                                    reason = state.get("log_reason_off", "")
+                                    _add_log_entry(hass, f"💤 {miner_name} wird ausgeschaltet. {reason}")
+                                    _LOGGER.info(f"[{miner_name}] Turn OFF condition met, turning OFF {switches} {reason}")
                                     await hass.services.async_call("switch", "turn_off", {"entity_id": switches}, blocking=False)
                     else:
                         state["off_since"] = None
@@ -612,6 +640,30 @@ async def _mining_loop(hass):
                                                     best_step = min(steps) if steps else target_power
                                             
                                             target_power = best_step
+
+                                elif mode == "offgrid":
+                                    # Linear scaling between SOC_Start and SOC_Max
+                                    battery_sensor = miner.get("battery_sensor")
+                                    if battery_sensor:
+                                        bat_state = hass.states.get(battery_sensor)
+                                        if bat_state and bat_state.state not in ["unknown", "unavailable"]:
+                                            current_soc = float(bat_state.state)
+                                            soc_start = float(miner.get("offgrid_soc_start", 90))
+                                            soc_max = float(miner.get("offgrid_soc_max", 98))
+                                            min_p = float(miner.get("offgrid_min_power", 400))
+                                            max_p = float(miner.get("offgrid_max_power", 1400))
+                                            
+                                            if current_soc <= soc_start:
+                                                target_power = min_p
+                                            elif current_soc >= soc_max:
+                                                target_power = max_p
+                                            else:
+                                                # Linear interpolation
+                                                ratio = (current_soc - soc_start) / (soc_max - soc_start)
+                                                target_power = min_p + (ratio * (max_p - min_p))
+                                            
+                                            # Round to nearest integer (or steps if needed, but 1W granularity is usually fine for API)
+                                            target_power = round(target_power)
 
                                 # Check if we need to adjust (with a small 5W tolerance to avoid jitter)
                                 if abs(current_power - target_power) > 5:
