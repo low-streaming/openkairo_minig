@@ -1157,7 +1157,7 @@ class OpenKairoMiningPanel extends LitElement {
   render() {
     try {
       if (!this.config) return html`<div class="loading">Warte auf Konfiguration...</div>`;
-
+      
       const theme = this.config.theme || 'cyberpunk';
       const walletSensor = this.config.wallet_btc_sensor;
       const walletState = (this.hass && walletSensor && this.hass.states[walletSensor]) ? this.hass.states[walletSensor].state : '0.0000';
@@ -1211,7 +1211,7 @@ class OpenKairoMiningPanel extends LitElement {
             ` : ''}
             <h1 style="display: flex; align-items: center; justify-content: flex-end; gap: 15px; margin: 0;">
               <span style="opacity: 0.6; font-size: 0.8em;">₿</span> OpenKairo <span style="color: var(--theme-accent-1); opacity: 0.9;">Mining</span>
-              <span style="font-size: 0.3em; background: rgba(var(--theme-accent-1-rgb), 0.15); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 6px; padding: 4px 10px; color: var(--theme-accent-1); font-weight: 950; text-shadow: none; vertical-align: middle; letter-spacing: 1px;">PREMIUM v1.3</span>
+              <span style="font-size: 0.3em; background: rgba(var(--theme-accent-1-rgb), 0.15); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 6px; padding: 4px 10px; color: var(--theme-accent-1); font-weight: 950; text-shadow: none; vertical-align: middle; letter-spacing: 1px;">PREMIUM v1.3.6</span>
             </h1>
             <p class="subtitle" style="margin-top: 5px;">${theme === 'gladbeck' ? 'Sponsoring Edition' : 'Next-Gen Miner Control'}</p>
           </div>
@@ -1266,6 +1266,24 @@ class OpenKairoMiningPanel extends LitElement {
       </div>
       </div>
     `;
+    } catch (e) {
+      console.error("Critical Render Error:", e);
+      return html`
+        <div style="height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #1a1a1a; color: #fff; font-family: sans-serif; padding: 20px; text-align: center; border-radius: 20px; border: 2px solid #e74c3c; margin: 20px;">
+          <div style="font-size: 3em; margin-bottom: 20px;">⚠️</div>
+          <h2 style="color: #e74c3c; margin: 0;">Anzeige-Fehler abgefangen</h2>
+          <p style="max-width: 400px; line-height: 1.4; color: #aaa; font-size: 0.9em; margin: 15px 0;">
+            Ein Rendering-Problem wurde erkannt. Um einen Absturz (Black Screen) zu verhindern, wurde das Dashboard vorübergehend angehalten.
+          </p>
+          <div style="margin-bottom: 20px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; font-family: monospace; font-size: 0.8em; color: #ff9800; max-width: 100%; word-break: break-all;">
+            ${e.message}
+          </div>
+          <button @click="${() => window.location.reload()}" style="background: #e74c3c; border: none; color: #fff; padding: 10px 25px; border-radius: 30px; font-weight: bold; cursor: pointer;">
+            Dashboard neu laden
+          </button>
+        </div>
+      `;
+    }
   }
 
   renderLogs() {
@@ -1333,7 +1351,7 @@ class OpenKairoMiningPanel extends LitElement {
     return html`
       <div class="card" style="padding: 30px;">
         <h2 style="display: flex; align-items: center; gap: 15px; margin-top: 0;">
-          <span style="font-size: 1.5em;">🚀</span> OpenKairo Dashboard v1.3
+          <span style="font-size: 1.5em;">🚀</span> OpenKairo Dashboard v1.3.6
         </h2>
         <p style="font-size: 1.1em; color: var(--theme-text-main); line-height: 1.6;">
           <strong>Dein ultimatives Mining Control Center.</strong> <br>
@@ -1441,7 +1459,7 @@ class OpenKairoMiningPanel extends LitElement {
               <div style="font-size: 2.5em; margin-bottom: 15px;">🚀</div>
               <h3 style="margin: 0 0 10px 0; color: #fff;">PayPal</h3>
               <p style="color: #888; font-size: 0.9em; margin-bottom: 20px;">Die klassische Unterstützung für Kaffee & Energie.</p>
-              <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=info@openkairo.de&currency_code=EUR&source=url" target="_blank" class="btn-primary" style="display:inline-block; text-decoration:none; width:100%; padding: 12px 0; border-radius:30px; font-weight: 800; font-size: 0.9em;">
+              <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=info@low-streaming.de&currency_code=EUR&source=url" target="_blank" class="btn-primary" style="display:inline-block; text-decoration:none; width:100%; padding: 12px 0; border-radius:30px; font-weight: 800; font-size: 0.9em;">
                 Spenden via PayPal
               </a>
             </div>
@@ -1683,6 +1701,10 @@ class OpenKairoMiningPanel extends LitElement {
               switchState = this.hass.states[effectiveSwitch].state;
             }
 
+            const stateObj = this.states[miner.id] || {};
+            const lastUpdate = stateObj.last_sensor_update || 0;
+            const isStale = lastUpdate > 0 && (Date.now() / 1000 - lastUpdate > 300);
+
             let pvValue = this._formatValue(this.hass?.states[miner.pv_sensor], 'W', 'N/A');
             let batteryValue = this._formatValue(this.hass?.states[miner.battery_sensor], '%', '');
 
@@ -1799,7 +1821,7 @@ class OpenKairoMiningPanel extends LitElement {
               ? this.hass.states[miner.switch_2].attributes.friendly_name
               : miner.switch_2;
 
-            let stateObj = this.states ? this.states[miner.id] : null;
+            // let stateObj = this.states ? this.states[miner.id] : null; // Already defined above
 
             const pSensorState = this.hass?.states[pSensor];
             const hSensorState = this.hass?.states[hSensor];
@@ -3947,24 +3969,6 @@ class OpenKairoMiningPanel extends LitElement {
         .tab { flex: 1 1 100% !important; }
       }
     `;
-    } catch (e) {
-      console.error("Critical Render Error catch:", e);
-      return html`
-        <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #111; color: #fff; font-family: sans-serif; padding: 20px; text-align: center;">
-          <div style="font-size: 5em; margin-bottom: 20px;">⚠️</div>
-          <h2 style="color: #e74c3c;">Frontend-Fehler abgefangen</h2>
-          <p style="max-width: 500px; line-height: 1.6; color: #aaa;">
-            Ein Rendering-Problem wurde erkannt. Um einen kompletten Absturz (schwarzer Bildschirm) zu verhindern, wurde das Dashboard vorübergehend angehalten.
-          </p>
-          <div style="margin: 20px 0; padding: 15px; background: rgba(255,152,0,0.1); border: 1px solid #ff9800; border-radius: 8px; font-family: monospace; font-size: 0.85em; max-width: 80%; word-break: break-all;">
-            ${e.message}
-          </div>
-          <button @click="${() => location.reload()}" style="background: #0bc4e2; border: none; color: #000; padding: 12px 30px; border-radius: 30px; font-weight: bold; cursor: pointer; transition: 0.3s;">
-            Dashboard neu laden
-          </button>
-        </div>
-      `;
-    }
   }
 
   _renderTicker() {

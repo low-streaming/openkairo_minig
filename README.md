@@ -1,4 +1,4 @@
-# OpenKairo Mining 🚀 — Das Ultimative "Command Center" v1.3.5
+# OpenKairo Mining 🚀 — Das Ultimative "Command Center" v1.3.6
 
 [![OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg?style=for-the-badge)](https://home-assistant.io)
@@ -8,9 +8,9 @@ Verwandle deinen Home Assistant in eine professionelle **Mining-Schaltzentrale**
 
 ---
 
-## 💎 Highlights der v1.3.5
+## 💎 Highlights der v1.3.6
 
-Das neueste Update bringt volle Kompatibilität mit den neuesten Home Assistant Core-Versionen und führt ein völlig neues Event-Protokoll ein.
+Dieses Kraftpaket-Update fokussiert sich auf maximale **Betriebssicherheit** und **Langzeit-Stabilität**. Wir haben die Kernsteuerung unter die Lupe genommen und für den professionellen Einsatz gehärtet.
 
 > [!TIP]
 > **Neues "Logs" Tab**: Alle automatisierten Schaltvorgänge (Ramping, PV-Überschuss, Ausschalten, Watchdog-Fehler) werden nun in einem zentralen "Logs"-Tab im Dashboard inklusive Farbcodes übersichtlich chronologisch dokumentiert. Die Historie fasst nun die letzten 100 Aktionen umfänglich im RAM.
@@ -36,13 +36,19 @@ Maximale Sicherheit für deine Hardware:
 - **Frozen Detection**: Erkennt aufgehängte Miner am verringerten Stromverbrauch.
 - **Dual-Power Support**: Unterstützung für Miner mit **zwei Netzkabeln**. Beide Steckdosen werden synchron geschaltet.
 
+### 🚀 Stabilität & Sicherheit (v1.3.6)
+- **Sensor-Watchdog**: Automatischer Sicherheits-Stopp nach 5 Min. bei Datenverlust (z.B. Wechselrichter-Offline).
+- **Anti-Jitter (Deadband)**: Reduziert API-Last und Hardware-Verschleiß durch intelligente Toleranzbereiche (50W).
+- **Black-Screen Fix**: Vollständiges Speicher-Management verhindert Dashboard-Abstürze auf Tablets.
+- **SOC-Hysterese**: Schont den Akku durch definierte Ein-/Ausschaltzyklen (2% Puffer).
+
 ---
 
 ## 🛠️ Installation & Einrichtung
 
 ### 1. Installation via HACS
 1. In Home Assistant: **HACS** > **Integrationen** > drei Punkte > **Benutzerdefinierte Repositories**.
-2. URL: `https://github.com/low-streaming/openkairo_minig` (bzw. das korrekte Repo) > Kategorie: **Integration** hinzufügen.
+2. URL: `https://github.com/openkairo/openKairo_Mining` (bzw. das korrekte Repo) > Kategorie: **Integration** hinzufügen.
 3. Herunterladen und Home Assistant **neu starten**.
 
 ### 2. Dashboard & Miner einrichten
@@ -64,7 +70,7 @@ Maximale Sicherheit für deine Hardware:
 ## ☕ Projekt unterstützen
 OpenKairo ist ein leidenschaftliches Community-Projekt. Wenn dir das Dashboard gefällt, freuen wir uns über deine Unterstützung!
 
-- **PayPal**: [info@openkairo.de](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=info@openkairo.de&currency_code=EUR&source=url)
+- **PayPal**: [info@low-streaming.de](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=info@low-streaming.de&currency_code=EUR&source=url)
 - **Bitcoin**: `37KAus3ABc6krJ5T4jZyLKVB3uzbfQZGWD`
 
 ---
