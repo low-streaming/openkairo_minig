@@ -323,6 +323,15 @@ class OpenKairoMiningPanel extends LitElement {
     this.previewConfig = null;
     this.loadedFonts = new Set();
     this.logs = [];
+    this.intervals = [];
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this.intervals) {
+      this.intervals.forEach(id => clearInterval(id));
+      this.intervals = [];
+    }
   }
 
   firstUpdated() {
@@ -333,20 +342,20 @@ class OpenKairoMiningPanel extends LitElement {
     this.fetchBtcPriceHistory();
     
     // Refresh miner states/config every 15 seconds (matching backend loop)
-    setInterval(() => {
+    this.intervals.push(setInterval(() => {
       this.loadConfig();
-    }, 15 * 1000);
+    }, 15 * 1000));
 
     // Refresh market data every 10 minutes
-    setInterval(() => {
+    this.intervals.push(setInterval(() => {
       this.fetchBtcPrice();
       this.fetchMarketData();
-    }, 10 * 60 * 1000);
+    }, 10 * 60 * 1000));
 
     // Refresh history every hour
-    setInterval(() => {
+    this.intervals.push(setInterval(() => {
       this.fetchBtcPriceHistory();
-    }, 60 * 60 * 1000);
+    }, 60 * 60 * 1000));
   }
 
   async fetchMarketData() {
@@ -1146,18 +1155,21 @@ class OpenKairoMiningPanel extends LitElement {
 
 
   render() {
-    const theme = this.config.theme || 'cyberpunk';
-    const walletSensor = this.config.wallet_btc_sensor;
-    const walletState = (this.hass && walletSensor && this.hass.states[walletSensor]) ? this.hass.states[walletSensor].state : '0.0000';
-    const profileImg = this.config.profile_image || 'https://openkairo.de/wp-content/uploads/2024/01/openkairo-logo-icon.png';
+    try {
+      if (!this.config) return html`<div class="loading">Warte auf Konfiguration...</div>`;
 
-    // Apply variables to host
-    this._applyThemeStyles();
+      const theme = this.config.theme || 'cyberpunk';
+      const walletSensor = this.config.wallet_btc_sensor;
+      const walletState = (this.hass && walletSensor && this.hass.states[walletSensor]) ? this.hass.states[walletSensor].state : '0.0000';
+      const profileImg = this.config.profile_image || 'https://openkairo.de/wp-content/uploads/2024/01/openkairo-logo-icon.png';
 
-    return html`
-      ${this.config.background_animations_enabled !== false ? html`<div class="theme-bg-overlay"></div>` : ''}
-      <div class="dashboard-container">
-        <div class="header">
+      // Apply variables to host
+      this._applyThemeStyles();
+
+      return html`
+        ${this.config.background_animations_enabled !== false ? html`<div class="theme-bg-overlay"></div>` : ''}
+        <div class="dashboard-container">
+          <div class="header">
           <div class="profile-section">
             <div class="avatar-container" style="width: 72px; height: 72px;">
               <div style="width: 100%; height: 100%; border-radius: 50%; border: 2px solid var(--theme-accent-2); box-shadow: 0 0 25px rgba(var(--theme-accent-2-rgb), 0.4); overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center;">
@@ -3935,6 +3947,24 @@ class OpenKairoMiningPanel extends LitElement {
         .tab { flex: 1 1 100% !important; }
       }
     `;
+    } catch (e) {
+      console.error("Critical Render Error catch:", e);
+      return html`
+        <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #111; color: #fff; font-family: sans-serif; padding: 20px; text-align: center;">
+          <div style="font-size: 5em; margin-bottom: 20px;">⚠️</div>
+          <h2 style="color: #e74c3c;">Frontend-Fehler abgefangen</h2>
+          <p style="max-width: 500px; line-height: 1.6; color: #aaa;">
+            Ein Rendering-Problem wurde erkannt. Um einen kompletten Absturz (schwarzer Bildschirm) zu verhindern, wurde das Dashboard vorübergehend angehalten.
+          </p>
+          <div style="margin: 20px 0; padding: 15px; background: rgba(255,152,0,0.1); border: 1px solid #ff9800; border-radius: 8px; font-family: monospace; font-size: 0.85em; max-width: 80%; word-break: break-all;">
+            ${e.message}
+          </div>
+          <button @click="${() => location.reload()}" style="background: #0bc4e2; border: none; color: #000; padding: 12px 30px; border-radius: 30px; font-weight: bold; cursor: pointer; transition: 0.3s;">
+            Dashboard neu laden
+          </button>
+        </div>
+      `;
+    }
   }
 
   _renderTicker() {
