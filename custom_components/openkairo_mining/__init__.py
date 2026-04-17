@@ -244,6 +244,17 @@ class OpenKairoMiningApiView(HomeAssistantView):
                 except Exception as e:
                     _LOGGER.debug(f"WD calc error for {mid}: {e}")
                 
+            # [NEW] Determine precise status for UI
+            sw_on = s.get("is_on", False) # Derived from switch states in loop
+            is_mining = s.get("is_mining", False)
+            
+            if not sw_on:
+                clean_s["status_msg"] = "AUS"
+            elif is_mining:
+                clean_s["status_msg"] = "MINING"
+            else:
+                clean_s["status_msg"] = "STANDBY"
+                
             clean_states[mid] = clean_s
             
         mempool = {
@@ -423,6 +434,8 @@ async def _mining_loop(hass):
                 # Wenn der Stecker aus ist, ist der Miner AUS!
                 if not plug_on:
                     is_on = False
+                
+                state["is_on"] = is_on
 
                 # Erweiterter Check: Wenn der Miner Strom verbraucht (> 50W), behandeln wir ihn als EIN.
                 p_sensor = miner.get("power_consumption_sensor")

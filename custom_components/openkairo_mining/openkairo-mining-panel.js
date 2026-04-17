@@ -1856,10 +1856,11 @@ class OpenKairoMiningPanel extends LitElement {
                 </div>
                 
                 <div class="miner-status">
-                  <span class="status-badge ${isActuallyMining ? 'on' : isStandby ? 'standby' : 'off'} ${stateObj && stateObj.ramping ? 'pulse-orange' : ''}">
+                  <span class="status-badge ${(stateObj && stateObj.status_msg) ? stateObj.status_msg.toLowerCase() : (isActuallyMining ? 'on' : isStandby ? 'standby' : 'off')} ${stateObj && stateObj.ramping ? 'pulse-orange' : ''}">
                     ${stateObj && stateObj.ramping === 'up' ? `HOCHFAHREN ${stateObj.ramping_total ? `(${stateObj.ramping_step}/${stateObj.ramping_total})` : ''} ⚡` : 
                       stateObj && stateObj.ramping === 'down' ? `HERUNTERFAHREN ${stateObj.ramping_total ? `(${stateObj.ramping_step}/${stateObj.ramping_total})` : ''} 💤` : 
-                      (isActuallyMining ? 'MINING 🚀' : isStandby ? 'STANDBY 💤' : 'AUS 🌑')}
+                      (stateObj && stateObj.status_msg ? (stateObj.status_msg === 'MINING' ? 'MINING 🚀' : stateObj.status_msg === 'STANDBY' ? 'STANDBY 💤' : 'AUS 🌑') : 
+                      (isActuallyMining ? 'MINING 🚀' : isStandby ? 'STANDBY 💤' : 'AUS 🌑'))}
                   </span>
                   <button class="btn-power ${switchState === 'on' ? 'on' : ''}" ?disabled="${stateObj && stateObj.hardware_error}" @click="${() => this.toggleMiner(miner)}" title="Manuell ein/ausschalten">
                     ⏻
