@@ -1171,6 +1171,7 @@ class OpenKairoMiningPanel extends LitElement {
       return html`
         ${this.config.background_animations_enabled !== false ? html`<div class="theme-bg-overlay"></div>` : ''}
         <div class="dashboard-container">
+          ${this._renderTicker()} <!-- [NEW] Fees moved up -->
           <div class="header">
           <div class="profile-section">
             <div class="avatar-container" style="width: 72px; height: 72px;">
@@ -1218,9 +1219,6 @@ class OpenKairoMiningPanel extends LitElement {
             <p class="subtitle" style="margin-top: 5px;">${theme === 'gladbeck' ? 'Sponsoring Edition' : 'Next-Gen Miner Control'}</p>
           </div>
         </div>
-
-
-      ${this._renderTicker()}
 
 
       <div class="tabs">
@@ -3504,9 +3502,13 @@ class OpenKairoMiningPanel extends LitElement {
         transition: 0.5s;
         pointer-events: none;
       }
-
-      .btn-mining:hover::after {
-        left: 100%;
+      :host { overflow: hidden; }
+      .dashboard-container { 
+        width: 100%; 
+        max-width: 100vw; 
+        overflow-x: hidden; 
+        position: relative;
+        box-sizing: border-box;
       }
       
       .tabs { display: flex; justify-content: center; margin-bottom: 35px; gap: 15px; flex-wrap: wrap; }
@@ -3533,7 +3535,10 @@ class OpenKairoMiningPanel extends LitElement {
         box-shadow: 0 5px 20px rgba(var(--theme-primary-rgb), 0.3);
       }
       
-      .content { max-width: 900px; margin: 0 auto; }
+      .content { 
+        max-width: 900px; 
+        margin: 50px auto 0 auto; /* [NEW] Shift content down */
+      }
       
       /* Techy Cards */
       .card { 

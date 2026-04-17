@@ -165,7 +165,7 @@ void createMinerTab(const char* name, String id) {
     mt.label_wd = lv_label_create(card);
     lv_label_set_text(mt.label_wd, "");
     lv_obj_set_style_text_font(mt.label_wd, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(mt.label_wd, lv_color_hex(0x0bc4e2), 0); // Cyan
+    lv_obj_set_style_text_color(mt.label_wd, lv_color_hex(0xd62cf6), 0); // Magenta (Matches Brain State)
     lv_obj_align(mt.label_wd, LV_ALIGN_TOP_MID, 0, 2);
 
     mt.label_status = lv_label_create(card); // [NEW] Logic Status Label

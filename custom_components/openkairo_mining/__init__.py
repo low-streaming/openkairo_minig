@@ -69,8 +69,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 "switch":                  f"switch.{domain}_{safe_ip}_mining_aktiv",
                 "power_entity":            f"number.{domain}_{safe_ip}_power_limit",
                 "hashrate_sensor":         f"sensor.{domain}_{safe_ip}_hashrate",
-                "temp_sensor":             f"sensor.{domain}_{safe_ip}_temperatur",
-                "power_consumption_sensor": f"sensor.{domain}_{safe_ip}_leistung_aktuell",
+                "temp_sensor":             f"sensor.{domain}_{safe_ip}_temperature",
+                "power_consumption_sensor": f"sensor.{domain}_{safe_ip}_power",
             }
             
             # Check if this IP is already in the dashboard config
@@ -247,13 +247,19 @@ class OpenKairoMiningApiView(HomeAssistantView):
             # [NEW] Determine precise status for UI
             sw_on = s.get("is_on", False)
             is_mining = s.get("is_mining", False)
-            on_for_secs = (current_time - s.get("on_since_actual", 0)) if s.get("on_since_actual") else 0
-            min_run_secs = float(m.get("min_run_time", 5)) * 60
+            ramping = s.get("ramping") # 'up' or 'down'
+            
+            # Find miner config
+            m_cfg = next((m for m in config.get("miners", []) if m.get("id") == mid or m.get("miner_ip") == mid), {})
+            
+            now = time.time()
+            on_for_secs = (now - s.get("on_since_actual", 0)) if s.get("on_since_actual") else 0
+            min_run_secs = float(m_cfg.get("min_run_time", 5)) * 60
             
             # Check Grid Price
             grid_active = False
-            price_sensor = m.get("electricity_price_sensor")
-            price_limit = m.get("grid_price_limit")
+            price_sensor = m_cfg.get("electricity_price_sensor")
+            price_limit = m_cfg.get("grid_price_limit")
             if price_sensor and price_limit is not None:
                 p_state = hass.states.get(price_sensor)
                 if p_state and p_state.state not in ["unknown", "unavailable"]:
@@ -264,22 +270,23 @@ class OpenKairoMiningApiView(HomeAssistantView):
 
             if not sw_on:
                 clean_s["status_msg"] = "AUS"
-            elif sw_on and not is_mining and not s.get("ramping"):
+            elif ramping == "up":
+                clean_s["status_msg"] = "SOFT-UP"
+            elif ramping == "down":
+                clean_s["status_msg"] = "SOFT-DN"
+            elif sw_on and not is_mining:
                 clean_s["status_msg"] = "STANDBY"
             elif is_mining:
-                if grid_active:
-                    clean_s["status_msg"] = "CH-GRID" # Cheap Grid
+                # Priority for status msg: MIN-RUN > CH-GRID > MINING
+                # Check if we are in protection window (Min-Run)
+                if on_for_secs < min_run_secs and s.get("on_since_actual"):
+                    # We only label it MIN-RUN if it would normally be OFF. 
+                    # But for now, let's keep it simple: Protection is active.
+                    clean_s["status_msg"] = "MIN-RUN"
+                elif grid_active:
+                    clean_s["status_msg"] = "CH-GRID"
                 else:
                     clean_s["status_msg"] = "MINING"
-            
-            # Overlay Protection state
-            if is_mining and on_for_secs < min_run_secs and s.get("on_since_actual"):
-                # If we WOULD have turned off (PV low) but MIN-RUN kept us on
-                # We need to check if the loop actually set a 'turn_off_condition'
-                # For simplicity, we just label it MIN-RUN if it's within the protection window
-                # and maybe add a flag if the 'balancing' or 'pv' logic didn't want it on.
-                # Actually, let's keep it simple for the display.
-                pass
                 
             clean_states[mid] = clean_s
             
@@ -751,22 +758,20 @@ async def _mining_loop(hass):
                             if state["off_since"] is None:
                                 state["off_since"] = current_time
                             elif current_time - state["off_since"] >= delay_seconds:
-                                # ... (rest of off logic)
-                            
-                            if is_on and state.get("ramping") != "down":
-                                if miner.get("soft_stop_enabled") and miner.get("power_entity"):
-                                    reason = state.get("log_reason_off", "")
-                                    _add_log_entry(hass, f"🎢 {miner_name}: Soft-Stop (Herunterfahren) gestartet. {reason}")
-                                    _LOGGER.info(f"[{miner_name}] Starting Soft-Stop Ramping Down {reason}")
-                                    state["ramping"] = "down"
-                                    state["ramping_step"] = 0
-                                    state["ramping_last_time"] = 0 # trigger immediately
-                                else:
-                                    reason = state.get("log_reason_off", "")
-                                    _add_log_entry(hass, f"💤 {miner_name} wird ausgeschaltet. {reason}")
-                                    _LOGGER.info(f"[{miner_name}] Turn OFF condition met, turning OFF {switches} {reason}")
-                                    
-                                    # Hardware API Stop ausfuehren
+                                if is_on and state.get("ramping") != "down":
+                                    if miner.get("soft_stop_enabled") and miner.get("power_entity"):
+                                        reason = state.get("log_reason_off", "")
+                                        _add_log_entry(hass, f"🎢 {miner_name}: Soft-Stop (Herunterfahren) gestartet. {reason}")
+                                        _LOGGER.info(f"[{miner_name}] Starting Soft-Stop Ramping Down {reason}")
+                                        state["ramping"] = "down"
+                                        state["ramping_step"] = 0
+                                        state["ramping_last_time"] = 0 # trigger immediately
+                                    else:
+                                        reason = state.get("log_reason_off", "")
+                                        _add_log_entry(hass, f"💤 {miner_name} wird ausgeschaltet. {reason}")
+                                        _LOGGER.info(f"[{miner_name}] Turn OFF condition met, turning OFF {switches} {reason}")
+                                        
+                                        # Hardware API Stop ausfuehren
                                     if coord and coord.miner_obj:
                                         try:
                                             _LOGGER.info(f"[{miner_name}] Direktes Ausschalten via API (Stop)")
