@@ -773,7 +773,9 @@ class OpenKairoMiningPanel extends LitElement {
       offgrid_soc_max: 98,
       offgrid_min_power: 400,
       offgrid_max_power: 1400,
-      watchdog_type: 'power'
+      watchdog_type: 'power',
+      min_run_time: 5,
+      grid_price_limit: null
     };
   }
 
@@ -2081,6 +2083,16 @@ class OpenKairoMiningPanel extends LitElement {
                       </label>
                     </div>
                   `}
+
+                  <!-- [NEU] Hardware Schutz & Preis Info -->
+                  <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; opacity: 0.8;">
+                    ${miner.min_run_time ? html`
+                      <span class="badge" style="background: rgba(var(--theme-accent-4-rgb, 0, 255, 136), 0.1); color: var(--theme-accent-4); font-size: 0.7em;">🛡️ Min-Run: ${miner.min_run_time}m</span>
+                    ` : ''}
+                    ${miner.grid_price_limit ? html`
+                      <span class="badge" style="background: rgba(var(--theme-accent-1-rgb, 11, 196, 226), 0.1); color: var(--theme-accent-1); font-size: 0.7em;">🏷️ Max Price: ${miner.grid_price_limit}</span>
+                    ` : ''}
+                  </div>
                 </div>
 
                   <div class="miner-controls" style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
@@ -2537,10 +2549,32 @@ class OpenKairoMiningPanel extends LitElement {
                 <small style="color: #888; display: block; margin-top: -5px;">Schaltet den Miner erst ein, wenn die Tagesprognose diesen Wert erreicht. Ideal um Akkus bei schlechtem Wetter zu schonen.</small>
             </div>
 
-            <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
-                <label>Verzögerung (Hysterese in Minuten)</label>
-                <input type="number" min="0" step="1" name="delay_minutes" .value="${this.editForm.delay_minutes !== undefined ? this.editForm.delay_minutes : 5}" @input="${this.handleFormInput}">
-                <small>Verhindert ständiges An/Aus, z.B. bei kurzen Wolken. Miner schaltet erst nach X Minuten.</small>
+            <div class="form-row mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <div class="form-group flex-1">
+                    <label>Verzögerung (Hysterese in Minuten)</label>
+                    <input type="number" min="0" step="1" name="delay_minutes" .value="${this.editForm.delay_minutes !== undefined ? this.editForm.delay_minutes : 5}" @input="${this.handleFormInput}">
+                    <small>PV-Aus-Verzögerung.</small>
+                </div>
+                <div class="form-group flex-1">
+                    <label>🛡️ Min. Laufzeit (Minuten)</label>
+                    <input type="number" min="0" step="1" name="min_run_time" .value="${this.editForm.min_run_time || 5}" @input="${this.handleFormInput}">
+                    <small>Schont Netzteile.</small>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; padding: 15px; border: 1px dashed rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 8px; background: rgba(var(--theme-accent-1-rgb), 0.05); margin-bottom: 20px;">
+                <h4 style="margin: 0 0 15px 0; color: var(--theme-accent-1); display: flex; align-items: center; gap: 8px;">🏷️ Grid Price Awareness (Tibber/Awattar)</h4>
+                <div class="form-row">
+                    <div class="form-group flex-2">
+                        <label>Preis-Sensor (z.B. sensor.tibber_price)</label>
+                        <openkairo-entity-picker name="electricity_price_sensor" placeholder="-- Preis-Sensor suchen --" .value="${this.editForm.electricity_price_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                    </div>
+                    <div class="form-group flex-1">
+                        <label>Limit (Erlaubt bis €)</label>
+                        <input type="number" step="0.01" name="grid_price_limit" .value="${this.editForm.grid_price_limit}" @input="${this.handleFormInput}">
+                    </div>
+                </div>
+                <small style="color: #888;">Ermöglicht Mining bei günstigen Netzpreisen, auch ohne PV-Überschuss.</small>
             </div>
           </div>
         ` : ''}

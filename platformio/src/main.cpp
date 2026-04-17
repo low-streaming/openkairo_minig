@@ -41,6 +41,7 @@ struct MinerUI {
     lv_obj_t * label_p;
     lv_obj_t * label_t;
     lv_obj_t * label_wd; // Watchdog status
+    lv_obj_t * label_status; // [NEW] Logic Status Label
     
     // Sliders and containers for mode-specific settings
     lv_obj_t * dd_mode;
@@ -166,6 +167,12 @@ void createMinerTab(const char* name, String id) {
     lv_obj_set_style_text_font(mt.label_wd, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(mt.label_wd, lv_color_hex(0x0bc4e2), 0); // Cyan
     lv_obj_align(mt.label_wd, LV_ALIGN_TOP_MID, 0, 2);
+
+    mt.label_status = lv_label_create(card); // [NEW] Logic Status Label
+    lv_label_set_text(mt.label_status, "");
+    lv_obj_set_style_text_font(mt.label_status, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(mt.label_status, lv_color_hex(0xd62cf6), 0); // Magenta
+    lv_obj_align(mt.label_status, LV_ALIGN_BOTTOM_MID, 0, -2);
 
     // MODE SELECTION DROPDOWN
     lv_obj_t * dd = lv_dropdown_create(tab);
@@ -444,6 +451,16 @@ void fetchData() {
                 lv_label_set_text(mt.label_h, hBuf);
                 lv_label_set_text(mt.label_p, pBuf);
                 lv_label_set_text(mt.label_t, tBuf);
+                
+                // Advanced Status Message
+                String s_msg = kv.value()["status_msg"].as<String>();
+                if (lv_obj_is_valid(mt.label_status)) {
+                    if (s_msg != "null" && s_msg != "") {
+                        lv_label_set_text(mt.label_status, s_msg.c_str());
+                    } else {
+                        lv_label_set_text(mt.label_status, "");
+                    }
+                }
                 
                 // Watchdog Countdown Sync
                 int wd_rem = kv.value()["watchdog_remaining"].as<int>();

@@ -245,15 +245,41 @@ class OpenKairoMiningApiView(HomeAssistantView):
                     _LOGGER.debug(f"WD calc error for {mid}: {e}")
                 
             # [NEW] Determine precise status for UI
-            sw_on = s.get("is_on", False) # Derived from switch states in loop
+            sw_on = s.get("is_on", False)
             is_mining = s.get("is_mining", False)
+            on_for_secs = (current_time - s.get("on_since_actual", 0)) if s.get("on_since_actual") else 0
+            min_run_secs = float(m.get("min_run_time", 5)) * 60
             
+            # Check Grid Price
+            grid_active = False
+            price_sensor = m.get("electricity_price_sensor")
+            price_limit = m.get("grid_price_limit")
+            if price_sensor and price_limit is not None:
+                p_state = hass.states.get(price_sensor)
+                if p_state and p_state.state not in ["unknown", "unavailable"]:
+                    try:
+                        if float(p_state.state) <= float(price_limit):
+                            grid_active = True
+                    except: pass
+
             if not sw_on:
                 clean_s["status_msg"] = "AUS"
-            elif is_mining:
-                clean_s["status_msg"] = "MINING"
-            else:
+            elif sw_on and not is_mining and not s.get("ramping"):
                 clean_s["status_msg"] = "STANDBY"
+            elif is_mining:
+                if grid_active:
+                    clean_s["status_msg"] = "CH-GRID" # Cheap Grid
+                else:
+                    clean_s["status_msg"] = "MINING"
+            
+            # Overlay Protection state
+            if is_mining and on_for_secs < min_run_secs and s.get("on_since_actual"):
+                # If we WOULD have turned off (PV low) but MIN-RUN kept us on
+                # We need to check if the loop actually set a 'turn_off_condition'
+                # For simplicity, we just label it MIN-RUN if it's within the protection window
+                # and maybe add a flag if the 'balancing' or 'pv' logic didn't want it on.
+                # Actually, let's keep it simple for the display.
+                pass
                 
             clean_states[mid] = clean_s
             
@@ -377,6 +403,10 @@ async def _mining_loop(hass):
             
             # Nach Priorität sortieren (1 = höchste Priorität)
             sorted_miners = sorted(miners, key=lambda x: int(x.get("priority", 99)))
+            
+            # [NEU] Globaler Überschuss-Tracker (für Balancing mehrere Miner)
+            global_pv_surplus = None 
+            
             for miner in sorted_miners:
                 miner_id = str(miner.get("id", miner.get("name", "Unknown")))
                 if "miner_states" not in hass.data[DOMAIN]:
@@ -535,23 +565,42 @@ async def _mining_loop(hass):
                                     on_threshold = float(miner.get("pv_on", 1000))
                                     off_threshold = float(miner.get("pv_off", 500))
                                     
-                                    battery_sensor = miner.get("battery_sensor")
                                     battery_min_soc = float(miner.get("battery_min_soc", 100))
                                     allow_battery = miner.get("allow_battery", False)
                                     
+                                    # [NEU] Global Surplus Balancing
+                                    if global_pv_surplus is None:
+                                        global_pv_surplus = pv_value
+                                    
+                                    effective_pv = global_pv_surplus
+                                    
                                     battery_soc = 0
+                                    # ... (rest of SOC/Battery logic)
                                     if allow_battery and battery_sensor:
                                         bat_state = hass.states.get(battery_sensor)
                                         if bat_state and bat_state.state not in ["unknown", "unavailable"]:
                                             battery_soc = float(bat_state.state)
                                     
-                                    if pv_value >= on_threshold:
+                                    if effective_pv >= on_threshold:
                                         # SOC Hysterese: Zum Einschalten muessen es 2% ueber dem Limit sein
                                         safety_min_soc = battery_min_soc + 2 if not is_on else battery_min_soc
                                         if not allow_battery or (allow_battery and battery_soc >= safety_min_soc):
                                             turn_on_condition = True
-                                            state["log_reason_on"] = f"(PV {pv_value}W >= {on_threshold}W" + (f", SOC {battery_soc}% >= {safety_min_soc}%)" if allow_battery else ")")
+                                            state["log_reason_on"] = f"(PV {effective_pv}W >= {on_threshold}W" + (f", SOC {battery_soc}% >= {safety_min_soc}%)" if allow_battery else ")")
                                     
+                                    # [NEU] Grid Price Awareness (Tibber/Awattar)
+                                    price_sensor = miner.get("electricity_price_sensor")
+                                    price_limit = miner.get("grid_price_limit")
+                                    if price_sensor and price_limit is not None:
+                                        p_state = hass.states.get(price_sensor)
+                                        if p_state and p_state.state not in ["unknown", "unavailable"]:
+                                            try:
+                                                cur_price = float(p_state.state)
+                                                if cur_price <= float(price_limit):
+                                                    turn_on_condition = True
+                                                    state["log_reason_on"] = f"(Günstiger Netzpreis: {cur_price} <= {price_limit})"
+                                            except: pass
+
                                     # Wetter-Vorhersage Check (Optional)
                                     forecast_enabled = miner.get("forecast_enabled", True)
                                     forecast_sensor = miner.get("forecast_sensor")
@@ -635,11 +684,19 @@ async def _mining_loop(hass):
                             state["on_since"] = current_time
                         elif current_time - state["on_since"] >= delay_seconds or state["hashrate"] > 0 or state["power"] > 200:
                             
+                            # [NEU] Surplus vom globalen Pool abziehen für nächste Miner
+                            if global_pv_surplus is not None:
+                                estimated_p = float(miner.get("soft_target_power", 1200))
+                                global_pv_surplus -= estimated_p
+                                _LOGGER.debug(f"[Balancing] {miner_name} reserviert {estimated_p}W. Verbleibender Überschuss: {global_pv_surplus}W")
+
                             # [NEU] Direktes Einschalten via Hardware-Treiber (Bypass HA Switches)
                             if coord and coord.miner_obj:
                                 try:
                                     _LOGGER.info(f"[{miner_name}] Direktes Einschalten via API (Resume)")
                                     await coord.miner_obj.resume_mining()
+                                    if not state.get("on_since_actual"):
+                                        state["on_since_actual"] = current_time
                                 except Exception as e:
                                     _LOGGER.error(f"[{miner_name}] API Einschalten fehlgeschlagen: {e}")
 
@@ -681,9 +738,20 @@ async def _mining_loop(hass):
                         state["on_since"] = None
 
                     if turn_off_condition:
-                        if state["off_since"] is None:
-                            state["off_since"] = current_time
-                        elif current_time - state["off_since"] >= delay_seconds:
+                        # [NEU] Hardware-Schutz: Mindestlaufzeit prüfen
+                        min_run_mins = float(miner.get("min_run_time", 5))
+                        on_for_secs = (current_time - state["on_since_actual"]) if state.get("on_since_actual") else 99999
+                        
+                        if is_on and on_for_secs < (min_run_mins * 60):
+                            _LOGGER.debug(f"[{miner_name}] Abschaltung verzögert: Min-Run Schutz ({int(on_for_secs)}s < {int(min_run_mins*60)}s)")
+                            turn_off_condition = False
+                            state["off_since"] = None # Reset delay tracker
+                        
+                        if turn_off_condition:
+                            if state["off_since"] is None:
+                                state["off_since"] = current_time
+                            elif current_time - state["off_since"] >= delay_seconds:
+                                # ... (rest of off logic)
                             
                             if is_on and state.get("ramping") != "down":
                                 if miner.get("soft_stop_enabled") and miner.get("power_entity"):
