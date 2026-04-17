@@ -1,0 +1,290 @@
+esphome:
+  name: openkairo-mining-display
+  friendly_name: "OpenKairo Mining Status"
+  comment: "Status Display for OpenKairo Mining (4-inch ESP32-S3)"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  cpu_frequency: 240MHz
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+wifi:
+  ssid: "WIFI_SSID"
+  password: "WIFI_PASSWORD"
+  ap:
+    ssid: "OpenKairo-Mining-Display"
+    password: "12345678"
+
+captive_portal:
+api:
+ota:
+logger:
+  level: INFO
+
+# --- HARDWARE CONFIGURATION ---
+
+output:
+  - platform: ledc
+    id: backlight_pwm
+    pin: GPIO38
+    frequency: 1000Hz
+
+light:
+  - platform: monochromatic
+    id: backlight
+    name: "Display Backlight"
+    output: backlight_pwm
+    restore_mode: ALWAYS_ON
+
+i2c:
+  sda: GPIO19
+  scl: GPIO45
+  scan: true
+
+spi:
+  id: bus_display
+  clk_pin: GPIO48
+  mosi_pin: GPIO47
+
+touchscreen:
+  - platform: gt911
+    id: my_touch
+    # Touch input is automatically handled by LVGL if linked
+    on_touch:
+      - logger.log: "Touch at (x=%.1f, y=%.1f)"
+
+display:
+  - platform: mipi_rgb
+    id: my_display
+    model: GUITION-4848S040
+    color_order: RGB
+    cs_pin: GPIO39
+    hsync_pulse_width: 8
+    hsync_front_porch: 10
+    hsync_back_porch: 50
+    vsync_pulse_width: 8
+    vsync_front_porch: 10
+    vsync_back_porch: 20
+    # LVGL handles the refresh loop
+    update_interval: never
+    auto_clear_enabled: false
+
+# --- LVGL DASHBOARD ---
+
+lvgl:
+  id: my_lvgl
+  displays:
+    - id: my_display
+  touchscreens:
+    - id: my_touch
+  
+  # Default Styles
+  themes:
+    - dark: true
+      primary_color: "#0bc4e2" # OpenKairo Cyan
+
+  # Main Dashboard Layout
+  widgets:
+    - page:
+        id: main_page
+        bg_color: "#0a0a0c"
+        bg_opa: 100%
+        layout:
+          type: flex
+          flex_flow: column
+          flex_align_main: start
+          flex_align_cross: center
+          pad_top: 20
+          row_gap: 30
+
+        widgets:
+          # Header
+          - obj:
+              width: 100%
+              height: 60
+              bg_color: "#1a1a1f"
+              border_width: 0
+              radius: 0
+              layout:
+                type: flex
+                flex_align_main: center
+              widgets:
+                - label:
+                    text: "OPENKAIRO MINING"
+                    text_color: "#0bc4e2"
+                    text_font: font_inter_bold
+
+          # Main Hashrate Card
+          - obj:
+              width: 420
+              height: 200
+              bg_color: "#1a1a1f"
+              border_color: "#333333"
+              border_width: 1
+              radius: 20
+              shadow_width: 10
+              shadow_color: "#000000"
+              shadow_ofs_y: 5
+              layout:
+                type: flex
+                flex_flow: column
+                flex_align_main: center
+                flex_align_cross: center
+              widgets:
+                - label:
+                    text: "TOTAL HASHRATE"
+                    text_color: "#888888"
+                    text_font: font_inter_light
+                - label:
+                    id: hashrate_val
+                    text: "0.00"
+                    text_color: "#ffffff"
+                    text_font: font_inter_exbold
+                - label:
+                    text: "TH/s"
+                    text_color: "#0bc4e2"
+                    text_font: font_inter_bold
+
+          # Metrics Section
+          - obj:
+              width: 420
+              height: 100
+              bg_opa: 0%
+              border_width: 0
+              layout:
+                type: flex
+                flex_flow: row
+                flex_align_main: space_around
+              widgets:
+                # Power
+                - obj:
+                    bg_opa: 0%
+                    layout: { type: flex, flex_flow: column, flex_align_main: center }
+                    widgets:
+                      - label: { text: "POWER", text_color: "#888888", text_font: font_inter_light }
+                      - label: { id: power_val, text: "0 W", text_color: "#ffffff", text_font: font_inter_med }
+                # BTC Price
+                - obj:
+                    bg_opa: 0%
+                    layout: { type: flex, flex_flow: column, flex_align_main: center }
+                    widgets:
+                      - label: { text: "BTC PRICE", text_color: "#888888", text_font: font_inter_light }
+                      - label: { id: btc_val, text: "0 €", text_color: "#ffffff", text_font: font_inter_med }
+
+          # Footer / Fees
+          - label:
+              id: fees_val
+              text: "FEES: ... sat/vB"
+              text_color: "#888888"
+              text_font: font_inter_small
+
+# --- DATA BINDING ---
+
+# We update the labels when the template sensors change
+sensor:
+  - platform: template
+    id: total_hashrate
+    unit_of_measurement: "TH/s"
+    on_value:
+      then:
+        - lvgl.label.printf:
+            id: hashrate_val
+            format: "%.2f"
+            args: [x]
+
+  - platform: template
+    id: total_power
+    on_value:
+      then:
+        - lvgl.label.printf:
+            id: power_val
+            format: "%.0f W"
+            args: [x]
+
+  - platform: template
+    id: btc_price
+    on_value:
+      then:
+        - lvgl.label.printf:
+            id: btc_val
+            format: "%.0f €"
+            args: [x]
+
+  - platform: template
+    id: fee_low
+  - platform: template
+    id: fee_med
+  - platform: template
+    id: fee_high
+    on_value:
+      then:
+        - lvgl.label.printf:
+            id: fees_val
+            format: "FEES: %.0f / %.0f / %.0f sat/vB"
+            args: [id(fee_low).state, id(fee_med).state, id(fee_high).state]
+
+binary_sensor:
+  - platform: template
+    id: is_mining
+
+# --- DATA FETCHING (Same as before) ---
+
+http_request:
+  useragent: "esphome/openkairo-display"
+  timeout: 10s
+  verify_ssl: false
+
+interval:
+  - interval: 15s
+    then:
+      - http_request.get:
+          url: "http://HOME_ASSISTANT_IP:8123/api/openkairo_mining/data?display=1"
+          on_response:
+            - lambda: |-
+                json::parse_json(body, [](JsonObject root) {
+                  float total_h = 0;
+                  float total_p = 0;
+                  bool active = false;
+                  JsonObject states = root["states"];
+                  if (states.isNull()) return;
+                  for (JsonPair p : states) {
+                    JsonObject s = p.value();
+                    total_h += s["hashrate"].as<float>();
+                    total_p += s["power"].as<float>();
+                    if (s["is_mining"].as<bool>()) active = true;
+                  }
+                  id(total_hashrate).publish_state(total_h);
+                  id(total_power).publish_state(total_p);
+                  id(is_mining).publish_state(active);
+                  JsonObject mempool = root["mempool"];
+                  if (!mempool["fees"].isNull()) {
+                    id(fee_low).publish_state(mempool["fees"]["hourFee"].as<float>());
+                    id(fee_med).publish_state(mempool["fees"]["halfHourFee"].as<float>());
+                    id(fee_high).publish_state(mempool["fees"]["fastestFee"].as<float>());
+                  }
+                });
+
+# --- FONTS ---
+
+font:
+  - file: "gfonts://Roboto@700"
+    id: font_inter_bold
+    size: 24
+  - file: "gfonts://Roboto@300"
+    id: font_inter_light
+    size: 18
+  - file: "gfonts://Roboto@900"
+    id: font_inter_exbold
+    size: 72
+  - file: "gfonts://Roboto@500"
+    id: font_inter_med
+    size: 28
+  - file: "gfonts://Roboto@400"
+    id: font_inter_small
+    size: 16

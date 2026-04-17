@@ -214,6 +214,9 @@ class OpenKairoMiningApiView(HomeAssistantView):
         config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
         states = hass.data.get(DOMAIN, {}).get("miner_states", {})
         
+        # [NEW] Check for 'short' or 'display' parameter to save bandwidth/CPU for ESP32
+        is_short = request.query.get("short") == "1" or request.query.get("display") == "1"
+
         # Sterilize states (remove large objects if any)
         clean_states = {}
         for mid, s in states.items():
@@ -225,7 +228,8 @@ class OpenKairoMiningApiView(HomeAssistantView):
             "halving": hass.data.get(DOMAIN, {}).get("mempool_halving")
         }
         
-        logs = hass.data.get(DOMAIN, {}).get("logs", [])
+        # [NEW] Skip logs if short mode
+        logs = [] if is_short else hass.data.get(DOMAIN, {}).get("logs", [])
 
         from aiohttp import web
         return web.json_response({"status": "ok", "config": config, "states": clean_states, "mempool": mempool, "logs": logs})
@@ -448,6 +452,7 @@ async def _mining_loop(hass):
                         if battery_sensor:
                             bat_state = hass.states.get(battery_sensor)
                             if bat_state and bat_state.state not in ["unknown", "unavailable"]:
+                                state["last_sensor_update"] = current_time
                                 try:
                                     battery_soc = float(bat_state.state)
                                     soc_on = float(miner.get("soc_on", 90))
@@ -466,6 +471,7 @@ async def _mining_loop(hass):
                         if battery_sensor:
                             bat_state = hass.states.get(battery_sensor)
                             if bat_state and bat_state.state not in ["unknown", "unavailable"]:
+                                state["last_sensor_update"] = current_time
                                 try:
                                     battery_soc = float(bat_state.state)
                                     soc_start = float(miner.get("offgrid_soc_start", 90))
