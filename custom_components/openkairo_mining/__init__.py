@@ -94,19 +94,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 await hass.async_add_executor_job(_save_config, hass, config)
                 _LOGGER.info(f"Added miner {entry.title} ({ip}) to dashboard config with auto-entities")
             else:
-                # Update existing entry: fill in any missing entity references
+                # Update existing entry: only fill in if fields are completely MISSING
+                # DO NOT overwrite existing values, even if they look like legacy ones, 
+                # as the user might have manually pointed them to something else.
                 miner = config["miners"][existing_idx]
                 changed = False
                 for key, val in auto_entities.items():
-                    legacy_strings = ["_durchschnittliche_temperatur", "_verbrauch"]
-                    current_val = miner.get(key, "")
-                    if not current_val or any(ls in current_val for ls in legacy_strings):
+                    if key not in miner or not miner.get(key):
                         miner[key] = val
                         changed = True
                 if changed:
                     config["miners"][existing_idx] = miner
                     await hass.async_add_executor_job(_save_config, hass, config)
-                    _LOGGER.info(f"Updated miner {entry.title} ({ip}) with missing entity references")
+                    _LOGGER.info(f"Fixed missing entity references for {entry.title} ({ip})")
 
         hass.async_create_task(sync_with_config())
 
@@ -214,13 +214,37 @@ class OpenKairoMiningApiView(HomeAssistantView):
         config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
         states = hass.data.get(DOMAIN, {}).get("miner_states", {})
         
-        # [NEW] Check for 'short' or 'display' parameter to save bandwidth/CPU for ESP32
+        # Check for 'short' or 'display' parameter to save bandwidth/CPU for ESP32
         is_short = request.query.get("short") == "1" or request.query.get("display") == "1"
+
+        # Sterilize config: Remove large image data for display devices
+        if is_short:
+            clean_config = {"miners": []}
+            for m in config.get("miners", []):
+                clean_miner = {k: v for k, v in m.items() if k != "image"}
+                clean_config["miners"].append(clean_miner)
+            config = clean_config
 
         # Sterilize states (remove large objects if any)
         clean_states = {}
         for mid, s in states.items():
-            clean_states[mid] = {k: v for k, v in s.items() if k != "active_ramping_task"}
+            clean_s = {k: v for k, v in s.items() if k != "active_ramping_task"}
+            
+            # [NEW] Calculate remaining watchdog time for API
+            wd_start = s.get("standby_since")
+            clean_s["watchdog_remaining"] = 0 # Default
+            if wd_start:
+                try:
+                    # Find miner in config to get delay
+                    m_cfg = next((m for m in config.get("miners", []) if m.get("id") == mid or m.get("miner_ip") == mid), {})
+                    if m_cfg.get("standby_watchdog_enabled"):
+                        delay_secs = float(m_cfg.get("standby_delay", 10)) * 60
+                        rem = int(max(0, delay_secs - (time.time() - wd_start)))
+                        clean_s["watchdog_remaining"] = rem
+                except Exception as e:
+                    _LOGGER.debug(f"WD calc error for {mid}: {e}")
+                
+            clean_states[mid] = clean_s
             
         mempool = {
             "fees": hass.data.get(DOMAIN, {}).get("mempool_fees"),
@@ -228,16 +252,85 @@ class OpenKairoMiningApiView(HomeAssistantView):
             "halving": hass.data.get(DOMAIN, {}).get("mempool_halving")
         }
         
+        # [NEW] BTC Price & Global SOC
+        btc_price = hass.data.get(DOMAIN, {}).get("btc_price", 0)
+        
+        global_soc = 0
+        for m in config.get("miners", []):
+            bat_sensor = m.get("battery_sensor")
+            if bat_sensor:
+                s = hass.states.get(bat_sensor)
+                if s and s.state not in ["unknown", "unavailable"]:
+                    try:
+                        global_soc = float(s.state)
+                        break
+                    except: pass
+
         # [NEW] Skip logs if short mode
         logs = [] if is_short else hass.data.get(DOMAIN, {}).get("logs", [])
 
         from aiohttp import web
-        return web.json_response({"status": "ok", "config": config, "states": clean_states, "mempool": mempool, "logs": logs})
+        return web.json_response({
+            "status": "ok", 
+            "config": config, 
+            "states": clean_states, 
+            "mempool": mempool, 
+            "btc_price": btc_price,
+            "soc": global_soc,
+            "logs": logs
+        })
 
  
     async def post(self, request):
         hass = request.app["hass"]
         data = await request.json()
+        
+        # [NEW] Handle remote actions from Display/Dashboard
+        if "action" in data:
+            action = data["action"]
+            config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
+            
+            for m in config.get("miners", []):
+                ip = m.get("miner_ip")
+                if not ip: continue
+                
+                if action == "restart":
+                    await hass.services.async_call(DOMAIN, "restart_backend", {"ip_address": ip})
+                elif action == "reboot":
+                    await hass.services.async_call(DOMAIN, "reboot", {"ip_address": ip})
+            
+            from aiohttp import web
+            return web.json_response({"status": "success", "action": action})
+
+        # [NEW] Handle specific miner config updates (e.g. SOC values)
+        if "update_miner_config" in data:
+            mid = data["update_miner_config"]
+            params = data.get("params", {})
+            config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
+            
+            for m in config.get("miners", []):
+                if m.get("id") == mid or m.get("miner_ip") == mid:
+                    for key, val in params.items():
+                        m[key] = val
+                    break
+            
+            await hass.async_add_executor_job(_save_config, hass, config)
+            from aiohttp import web
+            return web.json_response({"status": "success", "updated": mid})
+
+        # [NEW] Handle global config updates for all miners
+        if "update_global_config" in data:
+            params = data.get("params", {})
+            config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
+            
+            for m in config.get("miners", []):
+                for key, val in params.items():
+                    m[key] = val
+            
+            await hass.async_add_executor_job(_save_config, hass, config)
+            from aiohttp import web
+            return web.json_response({"status": "success", "updated": "all"})
+
         await hass.async_add_executor_job(_save_config, hass, data)
         from aiohttp import web
         return web.json_response({"status": "success"})
@@ -316,8 +409,20 @@ async def _mining_loop(hass):
                     switches.append(miner_switch_2)
                 
                 # --- State Detection ---
-                # Basis-Check: Sind alle konfigurierten Schalter an?
+                # 1. Hardware-Check: Ist die Steckdose überhaupt an?
+                plug_on = True
+                standby_plug = miner.get("standby_switch")
+                if standby_plug:
+                    p_state = hass.states.get(standby_plug)
+                    if p_state and p_state.state == "off":
+                        plug_on = False
+
+                # 2. Basis-Check: Sind alle konfigurierten Schalter an?
                 is_on = all(hass.states.get(s).state == "on" if hass.states.get(s) else False for s in switches)
+                
+                # Wenn der Stecker aus ist, ist der Miner AUS!
+                if not plug_on:
+                    is_on = False
 
                 # Erweiterter Check: Wenn der Miner Strom verbraucht (> 50W), behandeln wir ihn als EIN.
                 p_sensor = miner.get("power_consumption_sensor")
@@ -338,10 +443,11 @@ async def _mining_loop(hass):
                     coord = await async_get_miner_coordinator(hass, DOMAIN, miner_ip, miner_name, miner.get("miner_user"), miner.get("miner_password"))
                     try:
                         if coord and coord.data:
-                            state["hashrate"] = getattr(coord.data, "hashrate", 0) or 0
-                            state["power"] = getattr(coord.data, "wattage", 0) or getattr(coord.data, "power", 0) or 0
-                            state["temp"] = getattr(coord.data, "temperature_avg", 0) or getattr(coord.data, "temperature", 0) or 0
-                            state["is_mining"] = getattr(coord.data, "is_mining", False)
+                            sensors = coord.data.get("miner_sensors", {})
+                            state["hashrate"] = sensors.get("hashrate", 0)
+                            state["power"] = sensors.get("miner_consumption", 0)
+                            state["temp"] = sensors.get("temperature", 0)
+                            state["is_mining"] = coord.data.get("is_mining", False)
                         else:
                             state["hashrate"] = 0
                             state["power"] = 0
@@ -372,17 +478,25 @@ async def _mining_loop(hass):
                                 standby_delay_mins = float(miner.get("standby_delay", 10))
                                 standby_delay_secs = standby_delay_mins * 60
                                 
-                                if current_value < standby_threshold:
+                                if current_value < standby_threshold and is_on:
                                     if state.get("standby_since") is None:
                                         state["standby_since"] = current_time
-                                        _LOGGER.info(f"[{miner_name}] Watchdog Countdown gestartet: Wert {current_value} < {standby_threshold}")
+                                        msg = f"Watchdog Countdown gestartet: {current_value}W < {standby_threshold}W (Warte {standby_delay_mins} Min)"
+                                        _LOGGER.info(f"[{miner_name}] {msg}")
+                                        _add_log_entry(hass, f"🛡️ {miner_name}: {msg}")
                                     elif current_time - state["standby_since"] >= standby_delay_secs:
                                         msg = f"Watchdog an {miner_name} ausgelöst ({watchdog_type})! Wert {current_value} zu niedrig. Schalte Steckdose AUS."
                                         _LOGGER.warning(f"[{miner_name}] {msg}")
                                         _add_log_entry(hass, f"🛡️ {msg}")
-                                        await hass.services.async_call("switch", "turn_off", {"entity_id": standby_switches}, blocking=False)
+                                        if standby_switches:
+                                            await hass.services.async_call("switch", "turn_off", {"entity_id": standby_switches}, blocking=False)
+                                        else:
+                                            _LOGGER.error(f"[{miner_name}] Watchdog triggered but NO switches configured!")
                                         state["standby_since"] = None
                                 else:
+                                    # Reset watchdog if value is OK or miner was intentionally turned OFF
+                                    if state.get("standby_since") is not None:
+                                        _LOGGER.debug(f"[{miner_name}] Watchdog Reset (Wert ok oder Miner absichtlich AUS)")
                                     state["standby_since"] = None
                             except ValueError:
                                 state["standby_since"] = None
@@ -496,11 +610,17 @@ async def _mining_loop(hass):
 
                     # Apply Hysterese and Ramping
                     if turn_on_condition:
+                        # Abort shutdown if we are currently ramping down
+                        if state.get("ramping") == "down":
+                            state["ramping"] = None
+                            state["off_since"] = None
+                            _LOGGER.info(f"[{miner_name}] Shutdown abgebrochen, da Einschalt-Bedingung wieder erfüllt ist.")
+
                         if is_on or state.get("ramping") == "up":
                             state["on_since"] = None
                         elif state["on_since"] is None:
                             state["on_since"] = current_time
-                        elif current_time - state["on_since"] >= delay_seconds:
+                        elif current_time - state["on_since"] >= delay_seconds or state["hashrate"] > 0 or state["power"] > 200:
                             
                             # [NEU] Direktes Einschalten via Hardware-Treiber (Bypass HA Switches)
                             if coord and coord.miner_obj:
@@ -759,6 +879,12 @@ async def _update_mempool_data(hass):
                         hass.data[DOMAIN]["mempool_halving"] = next_halving - h
                     except ValueError:
                         pass
+            
+            # 3. Bitcoin Kurs (EUR)
+            async with session.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=eur", timeout=10) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    hass.data[DOMAIN]["btc_price"] = data.get("bitcoin", {}).get("eur", 0)
         
         hass.data[DOMAIN]["mempool_last_update"] = time.time()
     except Exception as e:

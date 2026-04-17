@@ -135,7 +135,7 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         if miner is None:
             self._failure_count += 1
             if self._failure_count <= 2:
-                return {**DEFAULT_DATA, "ip": self.miner_ip}
+                return {**DEFAULT_DATA, "ip": self.miner_ip, "model": self.miner_model or "ASIC", "make": self.miner_make or "OpenKairo"}
             raise UpdateFailed(f"Miner at {self.miner_ip} unreachable.")
 
         data_options = [
@@ -224,15 +224,22 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             
             # [FIX] Efficiency Fallback
             wattage = float(getattr(miner_data, "wattage", 0) or 0)
+            
+            # Additional wattage fallback for BOS+ / Braiins OS+ where standard wattage might be 0
+            if wattage == 0:
+                raw_s = getattr(miner_data, "raw_data", {})
+                wattage = float(raw_s.get("Power", raw_s.get("power", 0)))
+
             efficiency = getattr(miner_data, "efficiency", 0) or getattr(miner_data, "efficiency_fract", 0)
             if (not efficiency or efficiency == 0) and hr > 0:
                  efficiency = round(wattage / hr, 1)
 
             # [FIX] Avalon & VNish Standby/Power Detection
             is_mining = getattr(miner_data, "is_mining", False)
-            miner_fw = str(getattr(miner, "firmware", "")).lower()
+            miner_fw = str(getattr(miner, "firmware", "") or "").lower()
+            m_make = str(self.miner_make or "").lower()
             
-            if "Avalon" in self.miner_make:
+            if "avalon" in m_make:
                 # Fallback for missing/zero wattage on some Avalon models
                 if wattage == 0:
                     try:

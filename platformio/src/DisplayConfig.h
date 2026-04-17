@@ -22,8 +22,8 @@ public:
       cfg.panel_height  = 480;
       cfg.offset_x      = 0;
       cfg.offset_y      = 0;
-      cfg.rgb_order     = false; // Set to BGR as per manufacturer demo
-      cfg.invert        = false; 
+      cfg.rgb_order     = true; 
+      cfg.invert        = true; 
       _panel_instance.config(cfg);
     }
 
