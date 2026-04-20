@@ -1258,7 +1258,7 @@ class OpenKairoMiningPanel extends LitElement {
             ` : ''}
             <h1 style="display: flex; align-items: center; justify-content: flex-end; gap: 15px; margin: 0;">
               <span style="opacity: 0.6; font-size: 0.8em;">₿</span> OpenKairo <span style="color: var(--theme-accent-1); opacity: 0.9;">Mining</span>
-              <span style="font-size: 0.3em; background: rgba(var(--theme-accent-1-rgb), 0.15); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 6px; padding: 4px 10px; color: var(--theme-accent-1); font-weight: 950; text-shadow: none; vertical-align: middle; letter-spacing: 1px;">PREMIUM v1.3.10</span>
+              <span style="font-size: 0.3em; background: rgba(var(--theme-accent-1-rgb), 0.15); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 6px; padding: 4px 10px; color: var(--theme-accent-1); font-weight: 950; text-shadow: none; vertical-align: middle; letter-spacing: 1px;">PREMIUM v1.3.11</span>
             </h1>
             <p class="subtitle" style="margin-top: 5px;">${theme === 'gladbeck' ? 'Sponsoring Edition' : 'Next-Gen Miner Control'}</p>
           </div>
@@ -1395,7 +1395,7 @@ class OpenKairoMiningPanel extends LitElement {
     return html`
       <div class="card" style="padding: 30px;">
         <h2 style="display: flex; align-items: center; gap: 15px; margin-top: 0;">
-          <span style="font-size: 1.5em;">🚀</span> OpenKairo Dashboard v1.3.10
+          <span style="font-size: 1.5em;">🚀</span> OpenKairo Dashboard v1.3.11
         </h2>
         <p style="font-size: 1.1em; color: var(--theme-text-main); line-height: 1.6;">
           <strong>Dein ultimatives Mining Control Center.</strong> <br>
@@ -1620,13 +1620,21 @@ class OpenKairoMiningPanel extends LitElement {
         let hSensor = miner.hashrate_sensor || (_ipSlug ? `sensor.${domain}_${_ipSlug}_hashrate` : '');
         let hrInTH = 0;
         if (this.hass && hSensor && this.hass.states[hSensor]) {
-           const hrState = this.hass.states[hSensor];
-           const hrValue = parseFloat(hrState.state) || 0;
-           hrInTH = hrValue;
-           const unit = (hrState.attributes?.unit_of_measurement || 'TH/s').toUpperCase();
-           if (unit.includes('GH')) hrInTH = hrValue / 1000;
-           if (unit.includes('PH')) hrInTH = hrValue * 1000;
-           if (hrInTH > 0 && switchState === 'on') totalHashrateTH += hrInTH;
+            const hrState = this.hass.states[hSensor];
+            const hrValue = parseFloat(hrState.state) || 0;
+            const unit = (hrState.attributes?.unit_of_measurement || 'TH/S').toUpperCase();
+            
+            if (unit.includes('PH')) hrInTH = hrValue * 1000;
+            else if (unit.includes('TH')) hrInTH = hrValue;
+            else if (unit.includes('GH')) hrInTH = hrValue / 1000;
+            else if (unit.includes('MH')) hrInTH = hrValue / 1000000;
+            else if (unit.includes('KH')) hrInTH = hrValue / 1000000000;
+            else hrInTH = hrValue / 1000000000000; // Raw H/s
+            
+            if (hrInTH > 0 && switchState === 'on') {
+                totalHashrateTH += hrInTH;
+                totalMinersOnline++;
+            }
         }
 
         // Multi-Coin Earnings (BTC or KAS)
@@ -1830,12 +1838,21 @@ class OpenKairoMiningPanel extends LitElement {
 
             if (miner.calc_method === 'btc_auto' && miner.hashrate_sensor && currentCoinPrice > 0 && this.hass && this.hass.states[miner.hashrate_sensor]) {
               const hrState = this.hass.states[miner.hashrate_sensor];
-              const hrValue = parseFloat(hrState.state) || 0;
-
-              let hrInTH = hrValue;
-              const unit = (hrState.attributes?.unit_of_measurement || 'TH/s').toUpperCase();
-              if (unit.includes('GH')) hrInTH = hrValue / 1000;
+              const hrValue = parseFloat(hrState?.state || 0);
+              let hrInTH = 0;
+              const unit = (hrState.attributes?.unit_of_measurement || 'TH/S').toUpperCase();
+              
               if (unit.includes('PH')) hrInTH = hrValue * 1000;
+              else if (unit.includes('TH')) hrInTH = hrValue;
+              else if (unit.includes('GH')) hrInTH = hrValue / 1000;
+              else if (unit.includes('MH')) hrInTH = hrValue / 1000000;
+              else if (unit.includes('KH')) hrInTH = hrValue / 1000000000;
+              else hrInTH = hrValue / 1000000000000; // Assume H/s if no prefix match
+              
+              if (hrInTH > 0 && switchState === 'on') {
+                  totalHashrateTH += hrInTH;
+                  totalMinersOnline++;
+              }
 
               const btcPerDay = (hrInTH * 1e12 / (currentDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
               dailyRevenue = btcPerDay * currentCoinPrice;
