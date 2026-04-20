@@ -559,9 +559,8 @@ class OpenKairoMiningPanel extends LitElement {
       const hrResp = await fetch('https://api.kaspa.org/info/hashrate');
       const hrData = await hrResp.json();
       if (hrData && hrData.hashrate) {
-          // api.kaspa.org returns hashrate in H/s as a string
-          // We convert it to TH/s to keep calculation numbers small and safe (avoiding 10^17 range)
-          this.kasNetworkHashrate = parseFloat(hrData.hashrate) / 1e12;
+          // api.kaspa.org returns hashrate in TH/s (verified 2026-04-20)
+          this.kasNetworkHashrate = parseFloat(hrData.hashrate) || 0;
       }
       
       console.info("[KAS Data] Price:", this.kasPriceEur, "Reward:", this.kasReward, "NetHR (TH/s):", this.kasNetworkHashrate);
@@ -1258,7 +1257,7 @@ class OpenKairoMiningPanel extends LitElement {
             ` : ''}
             <h1 style="display: flex; align-items: center; justify-content: flex-end; gap: 15px; margin: 0;">
               <span style="opacity: 0.6; font-size: 0.8em;">₿</span> OpenKairo <span style="color: var(--theme-accent-1); opacity: 0.9;">Mining</span>
-              <span style="font-size: 0.3em; background: rgba(var(--theme-accent-1-rgb), 0.15); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 6px; padding: 4px 10px; color: var(--theme-accent-1); font-weight: 950; text-shadow: none; vertical-align: middle; letter-spacing: 1px;">PREMIUM v1.3.11</span>
+              <span style="font-size: 0.3em; background: rgba(var(--theme-accent-1-rgb), 0.15); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 6px; padding: 4px 10px; color: var(--theme-accent-1); font-weight: 950; text-shadow: none; vertical-align: middle; letter-spacing: 1px;">PREMIUM v1.3.14</span>
             </h1>
             <p class="subtitle" style="margin-top: 5px;">${theme === 'gladbeck' ? 'Sponsoring Edition' : 'Next-Gen Miner Control'}</p>
           </div>
@@ -1395,7 +1394,7 @@ class OpenKairoMiningPanel extends LitElement {
     return html`
       <div class="card" style="padding: 30px;">
         <h2 style="display: flex; align-items: center; gap: 15px; margin-top: 0;">
-          <span style="font-size: 1.5em;">🚀</span> OpenKairo Dashboard v1.3.11
+          <span style="font-size: 1.5em;">🚀</span> OpenKairo Dashboard v1.3.14
         </h2>
         <p style="font-size: 1.1em; color: var(--theme-text-main); line-height: 1.6;">
           <strong>Dein ultimatives Mining Control Center.</strong> <br>
@@ -1592,6 +1591,7 @@ class OpenKairoMiningPanel extends LitElement {
     let activeMiners = 0;
     let anyBtcPrice = this.btcPriceEur || 0;
     let anyKasPrice = this.kasPriceEur || 0;
+    let totalMinersOnline = 0;
 
     this.config.miners.forEach(miner => {
         const domain = 'openkairo_mining';
@@ -1671,7 +1671,7 @@ class OpenKairoMiningPanel extends LitElement {
     const euroPerKwh = totalDailyKwh > 0 ? totalEuroRev / totalDailyKwh : 0;
 
     const overviewHtml = html`
-      <div class="overview-section" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+      <div class="overview-section" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 20px;">
         
         <div class="card" style="margin-bottom: 0; padding: 25px; border-color: rgba(var(--theme-accent-1-rgb, 11, 196, 226), 0.4); box-shadow: 0 10px 30px rgba(var(--theme-accent-1-rgb, 11, 196, 226), 0.1); position: relative; overflow: hidden; height: 100%;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1;">
@@ -3643,8 +3643,8 @@ class OpenKairoMiningPanel extends LitElement {
       }
       
       .content { 
-        max-width: 900px; 
-        margin: 50px auto 0 auto; /* [NEW] Shift content down */
+        max-width: 1260px; 
+        margin: 50px auto 0 auto;
       }
       
       /* Techy Cards */
@@ -3680,7 +3680,7 @@ class OpenKairoMiningPanel extends LitElement {
       /* Grid for Miners Dashboard */
       .miners-grid { 
         display: grid; 
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); 
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
         gap: 25px; 
         width: 100%;
       }
