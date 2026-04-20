@@ -544,23 +544,23 @@ class OpenKairoMiningPanel extends LitElement {
       const priceResp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=kaspa&vs_currencies=eur,usd');
       const priceData = await priceResp.json();
       if (priceData && priceData.kaspa) {
-        this.kasPriceEur = priceData.kaspa.eur;
-        this.kasPriceUsd = priceData.kaspa.usd;
+        this.kasPriceEur = parseFloat(priceData.kaspa.eur || 0);
+        this.kasPriceUsd = parseFloat(priceData.kaspa.usd || 0);
       }
 
       // 2. Fetch Kaspa Block Reward
       const rewardResp = await fetch('https://api.kaspa.org/info/blockreward');
       const rewardData = await rewardResp.json();
       if (rewardData && rewardData.blockreward) {
-        this.kasReward = rewardData.blockreward;
+        this.kasReward = parseFloat(rewardData.blockreward);
       }
 
       // 3. Fetch Kaspa Network Hashrate
       const hrResp = await fetch('https://api.kaspa.org/info/hashrate');
       const hrData = await hrResp.json();
       if (hrData && hrData.hashrate) {
-          // api.kaspa.org returns hashrate in H/s
-          this.kasNetworkHashrate = hrData.hashrate;
+          // api.kaspa.org returns hashrate in H/s as a string
+          this.kasNetworkHashrate = parseFloat(hrData.hashrate);
       }
       
       this.requestUpdate();
@@ -1256,7 +1256,7 @@ class OpenKairoMiningPanel extends LitElement {
             ` : ''}
             <h1 style="display: flex; align-items: center; justify-content: flex-end; gap: 15px; margin: 0;">
               <span style="opacity: 0.6; font-size: 0.8em;">₿</span> OpenKairo <span style="color: var(--theme-accent-1); opacity: 0.9;">Mining</span>
-              <span style="font-size: 0.3em; background: rgba(var(--theme-accent-1-rgb), 0.15); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 6px; padding: 4px 10px; color: var(--theme-accent-1); font-weight: 950; text-shadow: none; vertical-align: middle; letter-spacing: 1px;">PREMIUM v1.3.6</span>
+              <span style="font-size: 0.3em; background: rgba(var(--theme-accent-1-rgb), 0.15); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 6px; padding: 4px 10px; color: var(--theme-accent-1); font-weight: 950; text-shadow: none; vertical-align: middle; letter-spacing: 1px;">PREMIUM v1.3.9</span>
             </h1>
             <p class="subtitle" style="margin-top: 5px;">${theme === 'gladbeck' ? 'Sponsoring Edition' : 'Next-Gen Miner Control'}</p>
           </div>
@@ -1393,7 +1393,7 @@ class OpenKairoMiningPanel extends LitElement {
     return html`
       <div class="card" style="padding: 30px;">
         <h2 style="display: flex; align-items: center; gap: 15px; margin-top: 0;">
-          <span style="font-size: 1.5em;">🚀</span> OpenKairo Dashboard v1.3.6
+          <span style="font-size: 1.5em;">🚀</span> OpenKairo Dashboard v1.3.9
         </h2>
         <p style="font-size: 1.1em; color: var(--theme-text-main); line-height: 1.6;">
           <strong>Dein ultimatives Mining Control Center.</strong> <br>
@@ -1643,9 +1643,11 @@ class OpenKairoMiningPanel extends LitElement {
             totalDailyRevBTC += btcPerDay;
         } else if (miningCoin === 'KAS') {
             let kasPerDay = 0;
-            if (hrInTH > 0 && switchState === 'on' && this.kasNetworkHashrate > 0) {
+            const netHR = parseFloat(this.kasNetworkHashrate || 0);
+            if (hrInTH > 0 && switchState === 'on' && netHR > 0) {
                 // KAS/Day = (Miner_H_s / Network_H_s) * Blocks_Per_Day * Block_Reward
-                kasPerDay = (hrInTH * 1e12 / this.kasNetworkHashrate) * 86400 * (this.kasReward || 0);
+                const minerHR = hrInTH * 1e12;
+                kasPerDay = (minerHR / netHR) * 86400 * (parseFloat(this.kasReward) || 0);
             } else if (miner.crypto_revenue_sensor && this.hass && this.hass.states[miner.crypto_revenue_sensor] && switchState === 'on') {
                 kasPerDay = parseFloat(this.hass.states[miner.crypto_revenue_sensor].state) || 0;
             }
