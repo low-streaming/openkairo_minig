@@ -71,62 +71,89 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         return self.data is not None and self._failure_count <= 3
 
     async def _get_miner(self):
-        """Get or refresh the miner object."""
+        """Get or refresh the miner object with parallel discovery."""
         import pyasic
+        import asyncio
+        import aiohttp
 
         if self.miner_obj is not None:
             return self.miner_obj
 
-        try:
-            miner = await asyncio.wait_for(pyasic.get_miner(self.miner_ip), timeout=10)
-            
-            if not miner:
-                # Robust discovery fallback: try port 4028 directly
-                try:
-                    _LOGGER.debug(f"[{self.miner_ip}] Coordinator standard discovery failed. Attempting robust probe...")
-                    reader, writer = await asyncio.wait_for(asyncio.open_connection(self.miner_ip, 4028), timeout=5)
-                    writer.write(b'{"command":"summary"}')
-                    await writer.drain()
-                    resp = await reader.read(1024)
-                    writer.close()
-                    await writer.wait_closed()
-                    
-                    if resp:
-                        try:
-                            from pyasic.miners.antminer import VNishS21
-                            miner = VNishS21(self.miner_ip)
-                        except ImportError:
-                            from pyasic.miners.antminer.bm_miner.S19 import AntminerS19
-                            miner = AntminerS19(self.miner_ip)
-                except Exception as e:
-                    _LOGGER.debug(f"[{self.miner_ip}] Coordinator robust probe failed: {e}")
+        _LOGGER.debug(f"[{self.miner_ip}] Coordinator startet prioritierte Miner-Suche...")
+        
+        token = self.config_entry.data.get("api_token", "").strip()
+        is_already_pbfarmer = "PBfarmer" in str(self.config_entry.title) or "PBfarmer" in str(self.miner_model)
 
-            if miner:
-                self.miner_obj = miner
-                self.miner_model = getattr(miner, "model", "ASIC Miner")
-                self.miner_make = getattr(miner, "make", "OpenKairo")
-                
-                if entry:
-                    pwd = entry.data.get("password")
-                    user = entry.data.get("username", "root")
-                    
-                    if pwd:
-                        if miner.api: miner.api.pwd = pwd
-                        if miner.web: miner.web.pwd = pwd
-                    
-                    if user and user != "root" and miner.web:
-                        miner.web.username = user
-                        
-                    if miner.ssh:
-                        miner.ssh.username = self.config_entry.data.get("ssh_username", "root")
-                        miner.ssh.pwd = self.config_entry.data.get("ssh_password") or ""
-                    
-                    # Store api_token if available
-                    self.api_token = self.config_entry.data.get("api_token")
-            return self.miner_obj
-        except Exception as e:
-            _LOGGER.debug(f"[{self.miner_ip}] Miner connection failed: {e}")
+        async def check_pbfarmer():
+            # If we know it's a PBfarmer, prioritize HTTP then HTTPS
+            endpoints = [
+                f"http://{self.miner_ip}/api/overview",
+                f"https://{self.miner_ip}/api/overview",
+                f"http://{self.miner_ip}:4111/api/overview"
+            ]
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=12)) as session:
+                for url in endpoints:
+                    try:
+                        headers = {"Authorization": f"Bearer {token}"} if token else {}
+                        async with session.get(url, ssl=False, headers=headers) as resp:
+                            if resp.status in [200, 401, 403]:
+                                _LOGGER.info(f"[{self.miner_ip}] PBfarmer erkannt via {url}")
+                                class MinerStub:
+                                    def __init__(self, ip):
+                                        self.ip = ip
+                                        self.make = "IceRiver"
+                                        self.model = "KS0 (PBfarmer)"
+                                return {"title": "KS0 (PBfarmer)", "miner": MinerStub(self.miner_ip)}
+                    except Exception: continue
             return None
+
+        async def check_pyasic_standard():
+            # Standard pyasic probe
+            try:
+                miner = await asyncio.wait_for(pyasic.get_miner(self.miner_ip), timeout=10)
+                if miner: return {"title": getattr(miner, "model", "ASIC"), "miner": miner}
+            except Exception: pass
+            return None
+
+        # Run in parallel, but wait slightly longer for PBfarmer if we expect it
+        tasks = [asyncio.create_task(check_pbfarmer()), asyncio.create_task(check_pyasic_standard())]
+        done, pending = await asyncio.wait(tasks, timeout=15, return_when=asyncio.FIRST_COMPLETED)
+        
+        result = None
+        for t in done:
+            result = t.result()
+            if result: break
+        
+        if not result:
+            for t in asyncio.as_completed(pending):
+                result = await t
+                if result: break
+        
+        for t in pending: t.cancel()
+
+        if result:
+            miner = result["miner"]
+            self.miner_obj = miner
+            self.miner_model = result["title"]
+            self.miner_make = getattr(miner, "make", "IceRiver" if "PBfarmer" in result["title"] else "OpenKairo")
+            
+            # Application of credentials
+            if "PBfarmer" not in str(result["title"]):
+                pwd = self.config_entry.data.get("password")
+                user = self.config_entry.data.get("username", "root")
+                if pwd:
+                    if hasattr(miner, "api") and miner.api: miner.api.pwd = pwd
+                    if hasattr(miner, "web") and miner.web: miner.web.pwd = pwd
+                if user and user != "root" and hasattr(miner, "web") and miner.web:
+                    miner.web.username = user
+                if hasattr(miner, "ssh") and miner.ssh:
+                    miner.ssh.username = self.config_entry.data.get("ssh_username", "root")
+                    miner.ssh.pwd = self.config_entry.data.get("ssh_password") or ""
+            
+            return self.miner_obj
+
+        _LOGGER.debug(f"[{self.miner_ip}] Coordinator konnte keine Verbindung zum Miner herstellen.")
+        return None
 
     async def _async_update_data(self):
         """Fetch data from the ASIC."""
@@ -345,70 +372,74 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Miner error: {e}")
 
     async def _fetch_pbfarmer_data(self, token: str):
-        """Fetch data from the PBfarmer HTTPS API."""
+        """Fetch data from the PBfarmer API (HTTP/HTTPS)."""
         import aiohttp
         from types import SimpleNamespace
         
-        url = f"https://{self.miner_ip}/api/overview"
-        headers = {}
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
-            
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
-            async with session.get(url, ssl=False, headers=headers) as resp:
-                if resp.status == 401:
-                    raise UpdateFailed("PBfarmer API: Unauthorized (check token)")
-                if resp.status != 200:
-                    raise UpdateFailed(f"PBfarmer API: HTTP {resp.status}")
-                
-                res = await resp.json()
-                if res.get("error", 0) != 0:
-                    raise UpdateFailed(f"PBfarmer API Error: {res.get('message')}")
-                
-                d = res.get("data", {})
-                
-                # Map PBfarmer JSON to expected format
-                # rtpow is "150G", avgpow is "145G"
-                def parse_hr(val):
-                    if not val or not isinstance(val, str): return 0
-                    if val.endswith("G"): return float(val[:-1])
-                    if val.endswith("T"): return float(val[:-1]) * 1000
-                    return float(val)
+        protocols = ["http", "https"]
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+            for proto in protocols:
+                url = f"{proto}://{self.miner_ip}/api/overview"
+                try:
+                    _LOGGER.debug(f"[{self.miner_ip}] Versuche PBfarmer Datenabruf: {url}")
+                    async with session.get(url, ssl=False, headers=headers) as resp:
+                        if resp.status == 401:
+                            _LOGGER.error(f"[{self.miner_ip}] PBfarmer: Authentifizierung fehlt/falsch.")
+                            return None
+                        if resp.status != 200: continue
+                        
+                        res = await resp.json()
+                        if res.get("error", 0) != 0:
+                            _LOGGER.debug(f"[{self.miner_ip}] PBfarmer API Fehler: {res.get('message')}")
+                            continue
 
-                # Fan mapping
-                fans = []
-                for speed in d.get("fans", []):
-                    fans.append(SimpleNamespace(speed=speed))
-                
-                # Board mapping
-                boards = []
-                for b in d.get("boards", []):
-                    boards.append(SimpleNamespace(
-                        slot=int(b.get("no", 0)),
-                        temp=b.get("outtmp", 0),
-                        chip_temp=b.get("chiptmp", 0),
-                        hashrate=parse_hr(b.get("rtpow", "0")),
-                        chips=b.get("chipsuc", 0),
-                        expected_chips=b.get("chipnum", 0)
-                    ))
+                        d = res.get("data", {})
+                        
+                        # Mapping
+                        def parse_hr(val):
+                            if not val or not isinstance(val, str): return 0
+                            v = val.replace(",", ".")
+                            if v.endswith("G"): return float(v[:-1])
+                            if v.endswith("T"): return float(v[:-1]) * 1000
+                            try: return float(v)
+                            except: return 0
 
-                return SimpleNamespace(
-                    hashrate=parse_hr(d.get("rtpow", "0")),
-                    expected_hashrate=parse_hr(d.get("idealpow", "0")), # or avgpow?
-                    wattage=float(d.get("wattage", 0)), # if exists, or check power stage
-                    temperature_avg=d.get("tempstate", 0), # placeholder
-                    is_mining=d.get("netstate", False),
-                    fw_ver=f"PBfarmer {d.get('softver1', '')}",
-                    hostname=d.get("host"),
-                    mac=d.get("mac"),
-                    model=f"{d.get('model', 'ASIC')} (PBfarmer)",
-                    make="IceRiver",
-                    uptime=d.get("runtime"),
-                    wattage_limit=0,
-                    fans=fans,
-                    hashboards=boards,
-                    raw_data=d
-                )
+                        # Fans & Boards
+                        fans = [SimpleNamespace(speed=s) for s in d.get("fans", [])]
+                        boards = []
+                        for b in d.get("boards", []):
+                            boards.append(SimpleNamespace(
+                                slot=int(b.get("no", 0)),
+                                temp=b.get("outtmp", 0),
+                                chip_temp=b.get("chiptmp", 0),
+                                hashrate=parse_hr(b.get("rtpow", "0")),
+                                chips=b.get("chipsuc", 0),
+                                expected_chips=b.get("chipnum", 0)
+                            ))
+
+                        return SimpleNamespace(
+                            hashrate=parse_hr(d.get("rtpow", "0")),
+                            expected_hashrate=parse_hr(d.get("idealpow", "0")),
+                            wattage=float(d.get("wattage", 0)),
+                            temperature_avg=d.get("tempstate", 0),
+                            is_mining=d.get("netstate", False),
+                            fw_ver=f"PBfarmer {d.get('softver1', '')}",
+                            hostname=d.get("host"),
+                            mac=d.get("mac"),
+                            model=f"{d.get('model', 'ASIC')} (PBfarmer)",
+                            make="IceRiver",
+                            uptime=d.get("runtime"),
+                            wattage_limit=0,
+                            fans=fans,
+                            hashboards=boards,
+                            raw_data=d
+                        )
+                except Exception as e:
+                    _LOGGER.debug(f"[{self.miner_ip}] PBfarmer Abruf {url} fehlgeschlagen: {e}")
+                    continue
+        return None
 
 
 async def async_get_miner_coordinator(hass, domain, miner_ip, miner_name, user="root", password="", ssh_user="root", ssh_password=""):
