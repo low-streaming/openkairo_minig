@@ -55,22 +55,33 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
                         headers["Authorization"] = f"Bearer {api_token}"
                     
                     async with session.get(url, ssl=False, headers=headers) as resp:
-                        if resp.status in [200, 401, 403]:
-                            _LOGGER.info(f"[{ip_address}] PBfarmer-kompatibler Endpunkt gefunden: {url}")
-                            
+                        if resp.status == 200:
+                            try:
+                                json_data = await resp.json()
+                                # ONLY match if it's really PBfarmer
+                                if "PBfarmer" in str(json_data) or "softver" in str(json_data):
+                                    _LOGGER.info(f"[{ip_address}] PBfarmer verifiziert via {url}")
+                                    class MinerStub:
+                                        def __init__(self, ip):
+                                            self.ip = ip
+                                            self._is_stub = True
+                                            self.make = "IceRiver"
+                                            self.model = "KS0 (PBfarmer)"
+                                    
+                                    miner = MinerStub(ip_address)
+                                    if json_data.get("data", {}).get("model"):
+                                        miner.model = f"{json_data['data']['model']} (PBfarmer)"
+                                    return {"title": miner.model, "miner": miner}
+                            except Exception: pass
+                        elif resp.status in [401, 403]:
+                            _LOGGER.info(f"[{ip_address}] PBfarmer vermutet (Auth Req) via {url}")
                             class MinerStub:
                                 def __init__(self, ip):
                                     self.ip = ip
+                                    self._is_stub = True
                                     self.make = "IceRiver"
                                     self.model = "KS0 (PBfarmer)"
-                            
                             miner = MinerStub(ip_address)
-                            if resp.status == 200:
-                                try:
-                                    json_data = await resp.json()
-                                    if json_data.get("data", {}).get("model"):
-                                        miner.model = f"{json_data['data']['model']} (PBfarmer)"
-                                except Exception: pass
                             return {"title": miner.model, "miner": miner}
                 except Exception as e:
                     _LOGGER.debug(f"[{ip_address}] Probe {url} fehlgeschlagen: {e}")

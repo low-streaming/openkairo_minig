@@ -1656,9 +1656,8 @@ class OpenKairoMiningPanel extends LitElement {
     const totalEuroRev = (totalDailyRevBTC * anyBtcPrice) + (totalDailyRevKAS * anyKasPrice);
     const totalDailyKwh = (totalPowerW / 1000) * 24;
     
-    // Efficiency baseline (Sat equivalents or Euro baseline)
-    const totalDailySats = (totalDailyRevBTC * 1e8) + (totalDailyRevKAS * anyKasPrice / (anyBtcPrice / 1e8));
-    const satPerKwh = totalDailyKwh > 0 ? totalDailySats / totalDailyKwh : 0;
+    // Efficiency baseline (Euro per kWh)
+    const euroPerKwh = totalDailyKwh > 0 ? totalEuroRev / totalDailyKwh : 0;
 
     const overviewHtml = html`
       <div class="overview-section" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
@@ -1701,9 +1700,9 @@ class OpenKairoMiningPanel extends LitElement {
           
           <div style="margin-top: 15px; display: flex; align-items: baseline; gap: 8px; position: relative; z-index: 1;">
              <span style="font-size: 1.7em; font-weight: 900; color: var(--theme-accent-2); text-shadow: 0 0 20px rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.4); font-family: 'Space Mono', monospace; line-height: 1;">
-                ${satPerKwh > 0 ? satPerKwh.toFixed(0) : '0'}
+                ${euroPerKwh > 0 ? euroPerKwh.toFixed(2) : '0.00'}
              </span>
-             <span style="font-size: 0.75em; color: var(--theme-accent-2); font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.8;">sat-eq/kWh</span>
+             <span style="font-size: 0.75em; color: var(--theme-accent-2); font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.8;">€-eq/kWh</span>
           </div>
           <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--theme-accent-2); box-shadow: 0 0 10px var(--theme-accent-2);"></div>
           ${this.config.theme === 'gladbeck' ? html`

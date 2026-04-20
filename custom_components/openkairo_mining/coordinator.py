@@ -81,11 +81,15 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
 
         _LOGGER.debug(f"[{self.miner_ip}] Coordinator startet prioritierte Miner-Suche...")
         
-        token = self.config_entry.data.get("api_token", "").strip()
-        is_already_pbfarmer = "PBfarmer" in str(self.config_entry.title) or "PBfarmer" in str(self.miner_model)
-
+        # [FIX] Force Stock if user named it so
+        force_stock = "(Stock)" in str(self.config_entry.title)
+        
         async def check_pbfarmer():
-            # If we know it's a PBfarmer, prioritize HTTP then HTTPS
+            if force_stock:
+                _LOGGER.debug(f"[{self.miner_ip}] '(Stock)' im Titel erkannt. Überspringe PBfarmer-Check.")
+                return None
+            
+            # Stricter check for PBfarmer
             endpoints = [
                 f"http://{self.miner_ip}/api/overview",
                 f"https://{self.miner_ip}/api/overview",
@@ -96,11 +100,27 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                     try:
                         headers = {"Authorization": f"Bearer {token}"} if token else {}
                         async with session.get(url, ssl=False, headers=headers) as resp:
-                            if resp.status in [200, 401, 403]:
-                                _LOGGER.info(f"[{self.miner_ip}] PBfarmer erkannt via {url}")
+                            if resp.status == 200:
+                                try:
+                                    json_data = await resp.json()
+                                    # ONLY match if it's really PBfarmer
+                                    if "PBfarmer" in str(json_data) or "softver" in str(json_data):
+                                        _LOGGER.info(f"[{self.miner_ip}] PBfarmer verifiziert via {url}")
+                                        class MinerStub:
+                                            def __init__(self, ip):
+                                                self.ip = ip
+                                                self._is_stub = True
+                                                self.make = "IceRiver"
+                                                self.model = "KS0 (PBfarmer)"
+                                        return {"title": "KS0 (PBfarmer)", "miner": MinerStub(self.miner_ip)}
+                                except Exception: pass
+                            elif resp.status in [401, 403]:
+                                # If auth is required on this specific path, it's likely PBfarmer
+                                _LOGGER.info(f"[{self.miner_ip}] PBfarmer vermutet (Auth Req) via {url}")
                                 class MinerStub:
                                     def __init__(self, ip):
                                         self.ip = ip
+                                        self._is_stub = True
                                         self.make = "IceRiver"
                                         self.model = "KS0 (PBfarmer)"
                                 return {"title": "KS0 (PBfarmer)", "miner": MinerStub(self.miner_ip)}
