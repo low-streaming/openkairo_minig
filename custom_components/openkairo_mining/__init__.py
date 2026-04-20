@@ -128,7 +128,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         config={
             "_panel_custom": {
                 "name": "openkairo-mining-panel",
-                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=1.3.14"
+                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=1.3.18"
             }
         },
         require_admin=True
@@ -672,7 +672,8 @@ async def _mining_loop(hass):
                     
                     # --- SENSOR WATCHDOG ---
                     # Wenn seit 5 Minuten keine gueltigen Sensordaten kamen -> Abschalten!
-                    if current_time - state.get("last_sensor_update", current_time) > 300:
+                    # Nur ausführen wenn wir in einem Automatik-Modus sind!
+                    if mode in ["pv", "soc", "offgrid"] and current_time - state.get("last_sensor_update", current_time) > 300:
                         _LOGGER.warning(f"[{miner_name}] Sensor-Timeout (>5 Min)! Schalte sicherheitshalber AB.")
                         turn_on_condition = False
                         turn_off_condition = True

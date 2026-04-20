@@ -1257,7 +1257,7 @@ class OpenKairoMiningPanel extends LitElement {
             ` : ''}
             <h1 style="display: flex; align-items: center; justify-content: flex-end; gap: 15px; margin: 0;">
               <span style="opacity: 0.6; font-size: 0.8em;">₿</span> OpenKairo <span style="color: var(--theme-accent-1); opacity: 0.9;">Mining</span>
-              <span style="font-size: 0.3em; background: rgba(var(--theme-accent-1-rgb), 0.15); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 6px; padding: 4px 10px; color: var(--theme-accent-1); font-weight: 950; text-shadow: none; vertical-align: middle; letter-spacing: 1px;">PREMIUM v1.3.14</span>
+              <span style="font-size: 0.3em; background: rgba(var(--theme-accent-1-rgb), 0.15); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3); border-radius: 6px; padding: 4px 10px; color: var(--theme-accent-1); font-weight: 950; text-shadow: none; vertical-align: middle; letter-spacing: 1px;">PREMIUM v1.3.18</span>
             </h1>
             <p class="subtitle" style="margin-top: 5px;">${theme === 'gladbeck' ? 'Sponsoring Edition' : 'Next-Gen Miner Control'}</p>
           </div>
@@ -1394,7 +1394,7 @@ class OpenKairoMiningPanel extends LitElement {
     return html`
       <div class="card" style="padding: 30px;">
         <h2 style="display: flex; align-items: center; gap: 15px; margin-top: 0;">
-          <span style="font-size: 1.5em;">🚀</span> OpenKairo Dashboard v1.3.14
+          <span style="font-size: 1.5em;">🚀</span> OpenKairo Dashboard v1.3.18
         </h2>
         <p style="font-size: 1.1em; color: var(--theme-text-main); line-height: 1.6;">
           <strong>Dein ultimatives Mining Control Center.</strong> <br>
@@ -1650,7 +1650,9 @@ class OpenKairoMiningPanel extends LitElement {
             } else if (hrInTH > 0 && switchState === 'on') {
                 btcPerDay = (hrInTH * 1e12 / (currentDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
             }
-            totalDailyRevBTC += btcPerDay;
+            if (!miner.is_solo) {
+                totalDailyRevBTC += btcPerDay;
+            }
         } else if (miningCoin === 'KAS') {
             let kasPerDay = 0;
             const netHR_TH = parseFloat(this.kasNetworkHashrate || 0); // Already normalized to TH/s
@@ -1660,7 +1662,9 @@ class OpenKairoMiningPanel extends LitElement {
             } else if (miner.crypto_revenue_sensor && this.hass && this.hass.states[miner.crypto_revenue_sensor] && switchState === 'on') {
                 kasPerDay = parseFloat(this.hass.states[miner.crypto_revenue_sensor].state) || 0;
             }
-            totalDailyRevKAS += kasPerDay;
+            if (!miner.is_solo) {
+                totalDailyRevKAS += kasPerDay;
+            }
         }
     });
 
@@ -1671,7 +1675,7 @@ class OpenKairoMiningPanel extends LitElement {
     const euroPerKwh = totalDailyKwh > 0 ? totalEuroRev / totalDailyKwh : 0;
 
     const overviewHtml = html`
-      <div class="overview-section" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 20px;">
+      <div class="overview-section">
         
         <div class="card" style="margin-bottom: 0; padding: 25px; border-color: rgba(var(--theme-accent-1-rgb, 11, 196, 226), 0.4); box-shadow: 0 10px 30px rgba(var(--theme-accent-1-rgb, 11, 196, 226), 0.1); position: relative; overflow: hidden; height: 100%;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1;">
@@ -1948,9 +1952,12 @@ class OpenKairoMiningPanel extends LitElement {
                         // Simpler: use the sensors we already have if possible, but they are not easily available here
                         // Let's check for "VNish" in the manufacturer or model
                         const isVNish = miner.name.toLowerCase().includes('vnish') || (miner.miner_ip && this.config.miners.find(m => m.id === miner.id)?.name.toLowerCase().includes('vnish'));
-                        // Actually, I'll just check if the model or name hints at VNish for now, 
-                        // as we don't have the full coordinator data directly in the frontend component easily.
-                        return isVNish ? html`<span class="prio-badge" style="background: rgba(108, 92, 231, 0.2); border-color: #6c5ce7; color: #a29bfe;">VNish</span>` : '';
+                        
+                        let badges = [];
+                        if (isVNish) badges.push(html`<span class="prio-badge" style="background: rgba(108, 92, 231, 0.2); border-color: #6c5ce7; color: #a29bfe;">VNish</span>`);
+                        if (miner.is_solo) badges.push(html`<span class="prio-badge" style="background: rgba(231, 76, 60, 0.2); border-color: #e74c3c; color: #ff7675;">SOLO</span>`);
+                        
+                        return html`${badges}`;
                     })()}
                   </div>
                 </div>
@@ -2461,7 +2468,14 @@ class OpenKairoMiningPanel extends LitElement {
             <div class="form-group flex-1">
               <label>Priorität</label>
               <input type="number" name="priority" .value="${this.editForm.priority}" @input="${this.handleFormInput}">
-              <small>1 = Höchste Prio (startet zuerst)</small>
+              <small>1 = Höchste</small>
+            </div>
+            <div class="form-group flex-1" style="display: flex; flex-direction: column; justify-content: center;">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 0;">
+                <input type="checkbox" name="is_solo" .checked="${this.editForm.is_solo}" @change="${this.handleFormInput}" style="width: 18px; height: 18px; accent-color: var(--theme-accent-2);">
+                <b>Solo Miner</b>
+              </label>
+              <small style="line-height:1.1; margin-top:2px;">Kein Ertrag (NerdAxe)</small>
             </div>
         </div>
 
@@ -2847,7 +2861,14 @@ class OpenKairoMiningPanel extends LitElement {
                 const simModel = this.simulatorModels[miner.id] || 'sensor';
                 const manualInput = this.manualInputs[miner.id] || { hashrate: 100, power: 3000 };
 
-                if (simModel === 'manual') {
+                if (miner.is_solo) {
+                   // Solo miners don't yield crypto earnings in stats
+                   powerKW = 0;
+                   hashrateTH = 0;
+                } else if (simModel === 'manual') {
+                   powerKW = manualInput.power / 1000;
+                   hashrateTH = manualInput.hashrate;
+                } else if (simModel === 'sensor') {
                   powerKW = (manualInput.power || 0) / 1000;
                   hashrateTH = manualInput.hashrate || 0;
                 } else if (simModel === 'S9') {
@@ -3643,7 +3664,7 @@ class OpenKairoMiningPanel extends LitElement {
       }
       
       .content { 
-        max-width: 1260px; 
+        max-width: 1600px; 
         margin: 50px auto 0 auto;
       }
       
@@ -3678,11 +3699,30 @@ class OpenKairoMiningPanel extends LitElement {
       }
       
       /* Grid for Miners Dashboard */
+      .overview-section {
+        display: grid; 
+        grid-template-columns: repeat(4, 1fr); 
+        gap: 15px; 
+        margin-bottom: 25px;
+      }
+
       .miners-grid { 
         display: grid; 
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+        grid-template-columns: repeat(3, 1fr); 
         gap: 25px; 
         width: 100%;
+      }
+
+      /* Responsive Adjustments */
+      @media (max-width: 1400px) {
+        .overview-section { grid-template-columns: repeat(2, 1fr); }
+        .miners-grid { grid-template-columns: repeat(2, 1fr); }
+      }
+      
+      @media (max-width: 850px) {
+        .overview-section { grid-template-columns: 1fr; }
+        .miners-grid { grid-template-columns: 1fr; }
+        .content { margin-top: 20px; }
       }
 
       

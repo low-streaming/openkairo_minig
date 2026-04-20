@@ -46,6 +46,8 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
     _failure_count: int = 0
     miner_model: str = None
     miner_make: str = None
+    _last_discovery_fail: float = 0
+    DISCOVERY_COOLDOWN: int = 300 # 5 Minutes
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, miner_ip: str, name: str):
         """Initialize the coordinator."""
@@ -78,6 +80,13 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
 
         if self.miner_obj is not None:
             return self.miner_obj
+
+        # Check cooldown
+        import time
+        now = time.time()
+        if now - self._last_discovery_fail < self.DISCOVERY_COOLDOWN:
+            _LOGGER.debug(f"[{self.miner_ip}] Discovery im Cooldown (Miner offline?). Nächster Versuch in {int(self.DISCOVERY_COOLDOWN - (now - self._last_discovery_fail))}s")
+            return None
 
         _LOGGER.debug(f"[{self.miner_ip}] Coordinator startet prioritierte Miner-Suche...")
         
@@ -172,7 +181,8 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             
             return self.miner_obj
 
-        _LOGGER.debug(f"[{self.miner_ip}] Coordinator konnte keine Verbindung zum Miner herstellen.")
+        _LOGGER.debug(f"[{self.miner_ip}] Coordinator konnte keine Verbindung zum Miner herstellen. Starte Cooldown.")
+        self._last_discovery_fail = time.time()
         return None
 
     async def _async_update_data(self):
