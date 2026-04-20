@@ -16,8 +16,10 @@
                     "ip_address": "IP-Adresse",
                     "username": "Benutzername (Optional)",
                     "password": "Passwort (Optional)",
-                    "ssh_username": "SSH Benutzer",
-                    "ssh_password": "SSH Passwort"
+                    "ssh_password": "SSH Passwort",
+                    "api_token": "API Token (PBfarmer)",
+                    "min_power": "Min. Leistung (Watt)",
+                    "max_power": "Max. Leistung (Watt)"
                 }
             },
             "discovery_select": {

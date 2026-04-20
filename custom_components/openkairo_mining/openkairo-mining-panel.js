@@ -298,6 +298,10 @@ class OpenKairoMiningPanel extends LitElement {
       btc_price_history: { type: Array },
       btcPriceEur: { type: Number },
       btcPriceUsd: { type: Number },
+      kasPriceEur: { type: Number },
+      kasPriceUsd: { type: Number },
+      kasNetworkHashrate: { type: Number },
+      kasReward: { type: Number },
       previewConfig: { type: Object },
       logs: { type: Array }
     };
@@ -320,6 +324,10 @@ class OpenKairoMiningPanel extends LitElement {
     this.manualInputs = {};
     this.difficulty_adjustment = null;
     this.btc_price_history = [];
+    this.kasPriceEur = 0;
+    this.kasPriceUsd = 0;
+    this.kasNetworkHashrate = 0;
+    this.kasReward = 0;
     this.previewConfig = null;
     this.loadedFonts = new Set();
     this.logs = [];
@@ -340,6 +348,7 @@ class OpenKairoMiningPanel extends LitElement {
     this.fetchBtcPrice();
     this.fetchMarketData();
     this.fetchBtcPriceHistory();
+    this.fetchKaspaData();
     
     // Refresh miner states/config every 15 seconds (matching backend loop)
     this.intervals.push(setInterval(() => {
@@ -350,6 +359,7 @@ class OpenKairoMiningPanel extends LitElement {
     this.intervals.push(setInterval(() => {
       this.fetchBtcPrice();
       this.fetchMarketData();
+      this.fetchKaspaData();
     }, 10 * 60 * 1000));
 
     // Refresh history every hour
@@ -525,6 +535,37 @@ class OpenKairoMiningPanel extends LitElement {
           this.requestUpdate();
         }
       } catch (e2) {}
+    }
+  }
+
+  async fetchKaspaData() {
+    try {
+      // 1. Fetch Kaspa Price (CoinGecko)
+      const priceResp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=kaspa&vs_currencies=eur,usd');
+      const priceData = await priceResp.json();
+      if (priceData && priceData.kaspa) {
+        this.kasPriceEur = priceData.kaspa.eur;
+        this.kasPriceUsd = priceData.kaspa.usd;
+      }
+
+      // 2. Fetch Kaspa Block Reward
+      const rewardResp = await fetch('https://api.kaspa.org/info/blockreward');
+      const rewardData = await rewardResp.json();
+      if (rewardData && rewardData.blockreward) {
+        this.kasReward = rewardData.blockreward;
+      }
+
+      // 3. Fetch Kaspa Network Hashrate
+      const hrResp = await fetch('https://api.kaspa.org/info/hashrate');
+      const hrData = await hrResp.json();
+      if (hrData && hrData.hashrate) {
+          // api.kaspa.org returns hashrate in H/s
+          this.kasNetworkHashrate = hrData.hashrate;
+      }
+      
+      this.requestUpdate();
+    } catch (e) {
+      console.error("Failed to fetch Kaspa data", e);
     }
   }
 
@@ -726,6 +767,7 @@ class OpenKairoMiningPanel extends LitElement {
     this.editForm = {
       id: this.generateId(),
       name: 'Neuer Miner',
+      mining_coin: 'BTC',
       switch: '',
       mode: 'manual',
       priority: this.config.miners.length + 1,
@@ -1544,8 +1586,10 @@ class OpenKairoMiningPanel extends LitElement {
     let totalHashrateTH = 0;
     let totalPowerW = 0;
     let totalDailyRevBTC = 0;
+    let totalDailyRevKAS = 0;
     let activeMiners = 0;
     let anyBtcPrice = this.btcPriceEur || 0;
+    let anyKasPrice = this.kasPriceEur || 0;
 
     this.config.miners.forEach(miner => {
         const domain = 'openkairo_mining';
@@ -1583,22 +1627,38 @@ class OpenKairoMiningPanel extends LitElement {
            if (hrInTH > 0 && switchState === 'on') totalHashrateTH += hrInTH;
         }
 
-        // BTC Earnings (Estimated via Braiins standard formula or direct if sensor exists)
-        let btcPerDay = 0;
-        const currentDifficulty = this.btcDifficulty || 82000000000000; // Final Fallback
+        // Multi-Coin Earnings (BTC or KAS)
+        const currentDifficulty = this.btcDifficulty || 82000000000000;
+        const miningCoin = miner.mining_coin || 'BTC';
         
-        if (miner.calc_method === 'btc_auto' && hrInTH > 0 && switchState === 'on') {
-            btcPerDay = (hrInTH * 1e12 / (currentDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
-        } else if (miner.crypto_revenue_sensor && this.hass && this.hass.states[miner.crypto_revenue_sensor] && switchState === 'on') {
-            btcPerDay = parseFloat(this.hass.states[miner.crypto_revenue_sensor].state) || 0;
-        } else if (hrInTH > 0 && switchState === 'on') {
-            // AUTO-FALLBACK: Wenn hS vorhanden aber kein Profit-Sensor gesetzt, nutze Auto-Vorschau
-            btcPerDay = (hrInTH * 1e12 / (currentDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
+        if (miningCoin === 'BTC') {
+            let btcPerDay = 0;
+            if (miner.calc_method === 'btc_auto' && hrInTH > 0 && switchState === 'on') {
+                btcPerDay = (hrInTH * 1e12 / (currentDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
+            } else if (miner.crypto_revenue_sensor && this.hass && this.hass.states[miner.crypto_revenue_sensor] && switchState === 'on') {
+                btcPerDay = parseFloat(this.hass.states[miner.crypto_revenue_sensor].state) || 0;
+            } else if (hrInTH > 0 && switchState === 'on') {
+                btcPerDay = (hrInTH * 1e12 / (currentDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
+            }
+            totalDailyRevBTC += btcPerDay;
+        } else if (miningCoin === 'KAS') {
+            let kasPerDay = 0;
+            if (hrInTH > 0 && switchState === 'on' && this.kasNetworkHashrate > 0) {
+                // KAS/Day = (Miner_H_s / Network_H_s) * Blocks_Per_Day * Block_Reward
+                kasPerDay = (hrInTH * 1e12 / this.kasNetworkHashrate) * 86400 * (this.kasReward || 0);
+            } else if (miner.crypto_revenue_sensor && this.hass && this.hass.states[miner.crypto_revenue_sensor] && switchState === 'on') {
+                kasPerDay = parseFloat(this.hass.states[miner.crypto_revenue_sensor].state) || 0;
+            }
+            totalDailyRevKAS += kasPerDay;
         }
-        totalDailyRevBTC += btcPerDay;
     });
+
+    const totalEuroRev = (totalDailyRevBTC * anyBtcPrice) + (totalDailyRevKAS * anyKasPrice);
     const totalDailyKwh = (totalPowerW / 1000) * 24;
-    const satPerKwh = totalDailyKwh > 0 ? (totalDailyRevBTC * 1e8) / totalDailyKwh : 0;
+    
+    // Efficiency baseline (Sat equivalents or Euro baseline)
+    const totalDailySats = (totalDailyRevBTC * 1e8) + (totalDailyRevKAS * anyKasPrice / (anyBtcPrice / 1e8));
+    const satPerKwh = totalDailyKwh > 0 ? totalDailySats / totalDailyKwh : 0;
 
     const overviewHtml = html`
       <div class="overview-section" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
@@ -1619,21 +1679,31 @@ class OpenKairoMiningPanel extends LitElement {
 
         <div class="card" style="margin-bottom: 0; padding: 25px; border-color: rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.4); box-shadow: 0 10px 30px rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.1); position: relative; overflow: hidden; height: 100%;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1;">
-            <span style="color: var(--theme-accent-2); font-weight: 800; letter-spacing: 1.5px; font-size: 0.8em; text-transform: uppercase;">Est. Daily Earnings</span>
-            <span style="background: rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.15); padding: 4px 8px; border-radius: 6px; color: var(--theme-accent-2); font-size: 0.7em; border: 1px solid rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.3);">Pool Est</span>
+            <span style="color: var(--theme-accent-2); font-weight: 800; letter-spacing: 1.5px; font-size: 0.8em; text-transform: uppercase;">Est. Daily Yield</span>
+            <span style="background: rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.15); padding: 4px 8px; border-radius: 6px; color: var(--theme-accent-2); font-size: 0.7em; border: 1px solid rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.3);">Combined</span>
           </div>
           <div style="font-size: 2.3em; font-weight: 800; color: #fff; margin-top: 10px; text-shadow: 0 0 15px rgba(255,255,255,0.2); font-family: monospace; position: relative; z-index: 1;">
-             ${anyBtcPrice > 0 ? (totalDailyRevBTC * anyBtcPrice).toFixed(2) : '0.00'} <span style="font-size: 0.5em; color: #888;">€</span>
-          </div>
-          <div style="color: #888; font-size: 0.85em; margin-top: 0px; font-weight: bold; position: relative; z-index: 1; opacity: 0.8;">
-            ≈ ${totalDailyRevBTC.toFixed(6)} BTC
+             ${totalEuroRev > 0 ? totalEuroRev.toFixed(2) : '0.00'} <span style="font-size: 0.5em; color: #888;">€</span>
           </div>
           
-          <div style="margin-top: 18px; display: flex; align-items: baseline; gap: 8px; position: relative; z-index: 1;">
+          <div style="display: flex; flex-direction: column; gap: 2px; margin-top: 5px; position: relative; z-index: 1;">
+            ${totalDailyRevBTC > 0 ? html`
+              <div style="color: #888; font-size: 0.75em; font-weight: 600; opacity: 0.8; display: flex; align-items: baseline; gap: 4px;">
+                <span style="color: var(--theme-accent-3); font-weight: 900;">₿</span> ${totalDailyRevBTC.toFixed(6)} BTC
+              </div>
+            ` : ''}
+            ${totalDailyRevKAS > 0 ? html`
+              <div style="color: #888; font-size: 0.75em; font-weight: 600; opacity: 0.8; display: flex; align-items: baseline; gap: 4px;">
+                <span style="color: #3b9bff; font-weight: 900;">K</span> ${totalDailyRevKAS.toFixed(2)} KAS
+              </div>
+            ` : ''}
+          </div>
+          
+          <div style="margin-top: 15px; display: flex; align-items: baseline; gap: 8px; position: relative; z-index: 1;">
              <span style="font-size: 1.7em; font-weight: 900; color: var(--theme-accent-2); text-shadow: 0 0 20px rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.4); font-family: 'Space Mono', monospace; line-height: 1;">
                 ${satPerKwh > 0 ? satPerKwh.toFixed(0) : '0'}
              </span>
-             <span style="font-size: 0.75em; color: var(--theme-accent-2); font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.8;">sat/kWh</span>
+             <span style="font-size: 0.75em; color: var(--theme-accent-2); font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.8;">sat-eq/kWh</span>
           </div>
           <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--theme-accent-2); box-shadow: 0 0 10px var(--theme-accent-2);"></div>
           ${this.config.theme === 'gladbeck' ? html`
@@ -2361,6 +2431,13 @@ class OpenKairoMiningPanel extends LitElement {
             <div class="form-group flex-2">
               <label>Name des Miners</label>
               <input type="text" name="name" placeholder="z.B. KS0 Pro" .value="${this.editForm.name}" @input="${this.handleFormInput}">
+            </div>
+            <div class="form-group flex-1">
+              <label>Geschürfter Coin</label>
+              <select name="mining_coin" @change="${this.handleFormInput}">
+                <option value="BTC" ?selected="${this.editForm.mining_coin === 'BTC'}">Bitcoin (BTC)</option>
+                <option value="KAS" ?selected="${this.editForm.mining_coin === 'KAS'}">Kaspa (KAS)</option>
+              </select>
             </div>
             <div class="form-group flex-1">
               <label>Priorität</label>

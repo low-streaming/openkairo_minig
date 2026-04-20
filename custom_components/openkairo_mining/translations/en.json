@@ -4,17 +4,42 @@
         "step": {
             "user": {
                 "title": "Add ASIC Miner",
-                "description": "Enter the connection details for your ASIC miner. The device will be queried and set up automatically.",
+                "description": "Welcome to the OpenKairo Mining assistant. The network will now be scanned for ASIC miners.",
+                "data": {
+                    "manual_entry": "Manual IP entry (skip scan)"
+                }
+            },
+            "manual": {
+                "title": "Add ASIC Miner",
+                "description": "Enter the connection details manually.",
                 "data": {
                     "ip_address": "IP Address",
                     "username": "Username (Optional)",
+                    "password": "Password (Optional)",
+                    "ssh_username": "SSH Username",
+                    "ssh_password": "SSH Password",
+                    "api_token": "API Token (PBfarmer)",
+                    "min_power": "Min. Power (Watts)",
+                    "max_power": "Max. Power (Watts)"
+                }
+            },
+            "discovery_select": {
+                "title": "Miners found",
+                "description": "Select the miner you want to add.",
+                "data": {
+                    "selected_miner": "Detected Hardware",
                     "password": "Password (Optional)"
                 }
+            },
+            "scan_failed": {
+                "title": "No miners found",
+                "description": "The network scan was not successful. Do you want to try it manually?"
             }
         },
         "error": {
             "cannot_connect": "Failed to connect. Check the IP address.",
-            "invalid_auth": "Authentication failed. Check your password.",
+            "invalid_auth": "Authentication failed. Check your password & username.",
+            "no_miners_found": "No miners found in the local network.",
             "unknown": "An unexpected error occurred."
         },
         "abort": {

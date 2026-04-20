@@ -87,29 +87,37 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
             _LOGGER.debug(f"[{ip_address}] Robuster API-Check (4028) fehlgeschlagen: {e}")
 
         # [NEW] Try PBfarmer HTTPS Check (Port 443)
+        is_pbfarmer = False
         if miner is None:
             _LOGGER.debug(f"[{ip_address}] Versuche PBfarmer-Check auf Port 443...")
             try:
                 import aiohttp
                 timeout = aiohttp.ClientTimeout(total=5)
                 async with aiohttp.ClientSession(timeout=timeout) as session:
-                    # We use verify_ssl=False because ASICs usually have self-signed certs
                     headers = {}
                     if api_token:
                         headers["Authorization"] = f"Bearer {api_token}"
                     
                     async with session.get(f"https://{ip_address}/api/overview", ssl=False, headers=headers) as resp:
-                        if resp.status in [200, 401]: # 401 means it exists but needs token
-                            _LOGGER.info(f"[{ip_address}] PBfarmer-kompatibler Endpunkt auf Port 443 gefunden.")
-                            from pyasic.miners.base import BaseMiner
-                            # Minimal mock for discovery
-                            miner = BaseMiner(ip_address)
-                            miner.make = "IceRiver"
-                            miner.model = "KS0 (PBfarmer)"
+                        # 200 (Success) or 401 (Auth required) or 403 (Auth required) indicates PBfarmer exists
+                        if resp.status in [200, 401, 403]:
+                            _LOGGER.info(f"[{ip_address}] PBfarmer-kompatibler Endpunkt auf Port 443 gefunden (Status: {resp.status}).")
+                            is_pbfarmer = True
+                            # Create a stub miner object for validation
+                            class MinerStub:
+                                def __init__(self, ip):
+                                    self.ip = ip
+                                    self.make = "IceRiver"
+                                    self.model = "KS0 (PBfarmer)"
+                            
+                            miner = MinerStub(ip_address)
                             if resp.status == 200:
                                 json_data = await resp.json()
                                 if json_data.get("data", {}).get("model"):
                                     miner.model = f"{json_data['data']['model']} (PBfarmer)"
+                            
+                            # If we found PBfarmer, we don't need the authentication loop below
+                            return {"title": miner.model, "miner": miner}
             except Exception as e:
                 _LOGGER.debug(f"[{ip_address}] PBfarmer-Check fehlgeschlagen: {e}")
 
