@@ -37,6 +37,7 @@ async def async_setup(hass: HomeAssistant, config: dict):
     await hass.async_add_executor_job(ensure_pyasic)
     return True
 
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     _LOGGER.info(f"Setting up OpenKairo Mining Integration: {entry.title}")
     
@@ -127,7 +128,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         config={
             "_panel_custom": {
                 "name": "openkairo-mining-panel",
-                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=1.3.9"
+                "module_url": f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js?v=1.3.10"
             }
         },
         require_admin=True
