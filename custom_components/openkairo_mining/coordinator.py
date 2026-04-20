@@ -168,89 +168,79 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                 return {**DEFAULT_DATA, "ip": self.miner_ip, "model": self.miner_model or "ASIC", "make": self.miner_make or "OpenKairo"}
             raise UpdateFailed(f"Miner at {self.miner_ip} unreachable.")
 
-        data_options = [
-            pyasic.DataOptions.IS_MINING,
-            pyasic.DataOptions.HASHRATE,
-            pyasic.DataOptions.EXPECTED_HASHRATE,
-            pyasic.DataOptions.HASHBOARDS,
-            pyasic.DataOptions.WATTAGE,
-            pyasic.DataOptions.WATTAGE_LIMIT,
-            pyasic.DataOptions.FANS,
-            pyasic.DataOptions.HOSTNAME,
-            pyasic.DataOptions.MAC,
-            pyasic.DataOptions.FW_VERSION,
-            pyasic.DataOptions.UPTIME,
-        ]
-
         try:
-            # First attempt with all requested options
-            try:
-                miner_data = await asyncio.wait_for(miner.get_data(include=data_options), timeout=25)
-            except Exception as e:
-                _LOGGER.debug(f"[{self.miner_ip}] Full data fetch failed: {e}. Trying minimal summary-only fetch...")
-                minimal_options = [
+            # [NEW] Skip pyasic probing for PBfarmer (MinerStub)
+            if "PBfarmer" in str(self.miner_model) or hasattr(miner, "_is_stub"):
+                api_token = self.config_entry.data.get("api_token")
+                miner_data = await self._fetch_pbfarmer_data(api_token)
+                if not miner_data:
+                    self._failure_count += 1
+                    raise UpdateFailed("PBfarmer API returned no data (Check Token/Connection)")
+                _LOGGER.debug(f"[{self.miner_ip}] PBfarmer data collection successful!")
+            else:
+                # Standard PyAsic Flow
+                data_options = [
                     pyasic.DataOptions.IS_MINING,
                     pyasic.DataOptions.HASHRATE,
+                    pyasic.DataOptions.EXPECTED_HASHRATE,
+                    pyasic.DataOptions.HASHBOARDS,
                     pyasic.DataOptions.WATTAGE,
+                    pyasic.DataOptions.WATTAGE_LIMIT,
                     pyasic.DataOptions.FANS,
+                    pyasic.DataOptions.HOSTNAME,
+                    pyasic.DataOptions.MAC,
+                    pyasic.DataOptions.FW_VERSION,
+                    pyasic.DataOptions.UPTIME,
                 ]
+
+                # Attempt with all requested options, with multi-stage fallbacks
                 try:
-                    miner_data = await asyncio.wait_for(miner.get_data(include=minimal_options), timeout=20)
-                except Exception as e2:
-                    _LOGGER.warning(f"[{self.miner_ip}] Resilient update failed: {e2}. Trying RAW Ultra-Fallback...")
+                    miner_data = await asyncio.wait_for(miner.get_data(include=data_options), timeout=25)
+                except Exception as e:
+                    _LOGGER.debug(f"[{self.miner_ip}] Full data fetch failed: {e}. Trying minimal summary-only fetch...")
+                    minimal_options = [
+                        pyasic.DataOptions.IS_MINING,
+                        pyasic.DataOptions.HASHRATE,
+                        pyasic.DataOptions.WATTAGE,
+                        pyasic.DataOptions.FANS,
+                    ]
                     try:
+                        miner_data = await asyncio.wait_for(miner.get_data(include=minimal_options), timeout=20)
+                    except Exception as e2:
+                        _LOGGER.warning(f"[{self.miner_ip}] Resilient update failed: {e2}. Trying RAW Ultra-Fallback...")
                         # 3. Ultra-Fallback: Raw API (Bypass Pyasic Parsing)
                         from types import SimpleNamespace
                         raw_summary = await asyncio.wait_for(miner.api.summary(), timeout=10)
                         raw_stats = await asyncio.wait_for(miner.api.stats(), timeout=10)
                         
-                        hr = 0
-                        is_mining = False
+                        hr_val = 0
+                        is_mining_val = False
                         if raw_summary and "SUMMARY" in raw_summary and len(raw_summary["SUMMARY"]) > 0:
                             s_obj = raw_summary["SUMMARY"][0]
-                            hr = float(s_obj.get("GHS 5s", 0) or s_obj.get("GHS av", 0))
-                            is_mining = hr > 0
+                            hr_val = float(s_obj.get("GHS 5s", 0) or s_obj.get("GHS av", 0))
+                            is_mining_val = hr_val > 0
                         
-                        wattage = 0
-                        temperature = 0
+                        wattage_val = 0
+                        temperature_val = 0
                         if raw_stats and "STATS" in raw_stats and len(raw_stats["STATS"]) > 1:
                             st_obj = raw_stats["STATS"][1]
-                            wattage = float(st_obj.get("power", 0) or st_obj.get("Power", 0))
-                            temperature = float(st_obj.get("temp1", 0) or st_obj.get("Temp", 0))
+                            wattage_val = float(st_obj.get("power", 0) or st_obj.get("Power", 0))
+                            temperature_val = float(st_obj.get("temp1", 0) or st_obj.get("Temp", 0))
                             
-                        # Package for the loop
                         miner_data = SimpleNamespace(
-                            hashrate=hr,
-                            wattage=wattage,
-                            temperature_avg=temperature,
-                            is_mining=is_mining,
+                            hashrate=hr_val,
+                            wattage=wattage_val,
+                            temperature_avg=temperature_val,
+                            is_mining=is_mining_val,
                             expected_hashrate=0,
                             fans=[],
                             hashboards=[]
                         )
-                        _LOGGER.info(f"[{self.miner_ip}] Ultra-Fallback successful! HR: {hr}, W: {wattage}")
-                    except Exception as e3:
-                        _LOGGER.debug(f"[{self.miner_ip}] Ultra-Fallback failed: {e3}")
-                        
-                        # [NEW] PBfarmer Final Fallback (Port 443)
-                        api_token = self.config_entry.data.get("api_token")
-                        if api_token or "PBfarmer" in str(self.miner_model):
-                            _LOGGER.debug(f"[{self.miner_ip}] Trying PBfarmer HTTPS API...")
-                            try:
-                                miner_data = await self._fetch_pbfarmer_data(api_token)
-                                if miner_data:
-                                    _LOGGER.info(f"[{self.miner_ip}] PBfarmer HTTPS data collection successful!")
-                            except Exception as e4:
-                                _LOGGER.error(f"[{self.miner_ip}] PBfarmer HTTPS API failed: {e4}")
-                                raise UpdateFailed(f"PBfarmer API Error: {e4}")
-                        else:
-                            raise UpdateFailed(f"Miner at {self.miner_ip} unreachable (all fallbacks failed).")                
+                        _LOGGER.info(f"[{self.miner_ip}] Ultra-Fallback successful! HR: {hr_val}, W: {wattage_val}")
+
             self._failure_count = 0
 
             # [FIX] Enhanced Hashrate Scaling (BOS+, VNish, Stock)
-            # 1. H/s (e.g. 200,000,000,000,000) -> Divide by 1e12
-            # 2. GH/s (e.g. 200,000) -> Divide by 1000
-            # 3. TH/s (e.g. 200) -> Keep as is
             raw_hr = float(getattr(miner_data, "hashrate", 0) or 0)
             if raw_hr > 1000000000: # > 1 GH/s in H/s
                  hr = round(raw_hr / 1e12, 2)
@@ -267,7 +257,6 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             # [FIX] Efficiency Fallback
             wattage = float(getattr(miner_data, "wattage", 0) or 0)
             
-            # Additional wattage fallback for BOS+ / Braiins OS+ where standard wattage might be 0
             if wattage == 0:
                 raw_s = getattr(miner_data, "raw_data", {})
                 wattage = float(raw_s.get("Power", raw_s.get("power", 0)))
@@ -282,20 +271,16 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             m_make = str(self.miner_make or "").lower()
             
             if "avalon" in m_make:
-                # Fallback for missing/zero wattage on some Avalon models
                 if wattage == 0:
                     try:
                          raw_summary = await miner.api.send_command("summary")
-                         # Avalon summary is often comma-separated string like '...,Cur Load=816,...'
                          if raw_summary and isinstance(raw_summary, str):
                               import re
                               match = re.search(r"Cur Load=(\d+)", raw_summary)
                               if not match: match = re.search(r"Power=(\d+)", raw_summary)
                               if match:
                                    wattage = float(match.group(1))
-                                   _LOGGER.debug(f"[{self.miner_ip}] Extracted raw wattage: {wattage}W")
-                    except Exception as e:
-                         _LOGGER.debug(f"[{self.miner_ip}] Avalon raw summary extraction failed: {e}")
+                    except Exception: pass
 
                 if hr == 0 and wattage < 150:
                     is_mining = False
@@ -303,7 +288,6 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                     is_mining = True
             
             elif "vnish" in miner_fw:
-                # VNish specific: hashrate might be 0 while starting
                 if hr > 0: is_mining = True
                 if wattage < 100 and hr == 0: is_mining = False
 
@@ -337,7 +321,9 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                     if not isinstance(v, (list, dict)):
                         raw_data[k] = v
             else:
-                raw_data = vars(miner_data)
+                raw_data = getattr(miner_data, "__dict__", {})
+                if not raw_data and hasattr(miner_data, "__slots__"):
+                    raw_data = {s: getattr(miner_data, s) for s in miner_data.__slots__ if hasattr(miner_data, s)}
 
             return {
                 "hostname": getattr(miner_data, "hostname", self.miner_name),
@@ -376,12 +362,15 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         import aiohttp
         from types import SimpleNamespace
         
-        protocols = ["http", "https"]
+        endpoints = [
+            f"http://{self.miner_ip}/api/overview",
+            f"https://{self.miner_ip}/api/overview",
+            f"http://{self.miner_ip}:4111/api/overview"
+        ]
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
-            for proto in protocols:
-                url = f"{proto}://{self.miner_ip}/api/overview"
+            for url in endpoints:
                 try:
                     _LOGGER.debug(f"[{self.miner_ip}] Versuche PBfarmer Datenabruf: {url}")
                     async with session.get(url, ssl=False, headers=headers) as resp:
