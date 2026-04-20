@@ -32,11 +32,16 @@ def get_device_info(DOMAIN, coordinator):
     if coordinator.data and "vnish" in str(coordinator.data.get("fw_ver", "")).lower():
         manufacturer = "VNish (Bitmain)"
 
+    # Determine config URL (PBfarmer uses HTTPS)
+    config_url = f"http://{coordinator.miner_ip}"
+    if "PBfarmer" in str(data.get("model", "")):
+        config_url = f"https://{coordinator.miner_ip}"
+
     return {
         "identifiers": {(DOMAIN, coordinator.miner_ip)},
         "manufacturer": manufacturer,
         "model": data.get("model") or getattr(coordinator, "miner_model", "ASIC Miner"),
         "sw_version": data.get("fw_ver"),
         "name": name,
-        "configuration_url": f"http://{coordinator.miner_ip}",
+        "configuration_url": config_url,
     }

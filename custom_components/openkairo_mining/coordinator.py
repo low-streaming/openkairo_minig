@@ -118,8 +118,11 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                         miner.web.username = user
                         
                     if miner.ssh:
-                        miner.ssh.username = entry.data.get("ssh_username", "root")
-                        miner.ssh.pwd = entry.data.get("ssh_password") or ""
+                        miner.ssh.username = self.config_entry.data.get("ssh_username", "root")
+                        miner.ssh.pwd = self.config_entry.data.get("ssh_password") or ""
+                    
+                    # Store api_token if available
+                    self.api_token = self.config_entry.data.get("api_token")
             return self.miner_obj
         except Exception as e:
             _LOGGER.debug(f"[{self.miner_ip}] Miner connection failed: {e}")
@@ -200,9 +203,21 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                         )
                         _LOGGER.info(f"[{self.miner_ip}] Ultra-Fallback successful! HR: {hr}, W: {wattage}")
                     except Exception as e3:
-                        _LOGGER.error(f"[{self.miner_ip}] Ultra-Fallback also failed: {e3}")
-                        raise
-                
+                        _LOGGER.debug(f"[{self.miner_ip}] Ultra-Fallback failed: {e3}")
+                        
+                        # [NEW] PBfarmer Final Fallback (Port 443)
+                        api_token = self.config_entry.data.get("api_token")
+                        if api_token or "PBfarmer" in str(self.miner_model):
+                            _LOGGER.debug(f"[{self.miner_ip}] Trying PBfarmer HTTPS API...")
+                            try:
+                                miner_data = await self._fetch_pbfarmer_data(api_token)
+                                if miner_data:
+                                    _LOGGER.info(f"[{self.miner_ip}] PBfarmer HTTPS data collection successful!")
+                            except Exception as e4:
+                                _LOGGER.error(f"[{self.miner_ip}] PBfarmer HTTPS API failed: {e4}")
+                                raise UpdateFailed(f"PBfarmer API Error: {e4}")
+                        else:
+                            raise UpdateFailed(f"Miner at {self.miner_ip} unreachable (all fallbacks failed).")                
             self._failure_count = 0
 
             # [FIX] Enhanced Hashrate Scaling (BOS+, VNish, Stock)
@@ -328,6 +343,72 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             if self._failure_count <= 2:
                 return {**DEFAULT_DATA, "ip": self.miner_ip}
             raise UpdateFailed(f"Miner error: {e}")
+
+    async def _fetch_pbfarmer_data(self, token: str):
+        """Fetch data from the PBfarmer HTTPS API."""
+        import aiohttp
+        from types import SimpleNamespace
+        
+        url = f"https://{self.miner_ip}/api/overview"
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+            
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
+            async with session.get(url, ssl=False, headers=headers) as resp:
+                if resp.status == 401:
+                    raise UpdateFailed("PBfarmer API: Unauthorized (check token)")
+                if resp.status != 200:
+                    raise UpdateFailed(f"PBfarmer API: HTTP {resp.status}")
+                
+                res = await resp.json()
+                if res.get("error", 0) != 0:
+                    raise UpdateFailed(f"PBfarmer API Error: {res.get('message')}")
+                
+                d = res.get("data", {})
+                
+                # Map PBfarmer JSON to expected format
+                # rtpow is "150G", avgpow is "145G"
+                def parse_hr(val):
+                    if not val or not isinstance(val, str): return 0
+                    if val.endswith("G"): return float(val[:-1])
+                    if val.endswith("T"): return float(val[:-1]) * 1000
+                    return float(val)
+
+                # Fan mapping
+                fans = []
+                for speed in d.get("fans", []):
+                    fans.append(SimpleNamespace(speed=speed))
+                
+                # Board mapping
+                boards = []
+                for b in d.get("boards", []):
+                    boards.append(SimpleNamespace(
+                        slot=int(b.get("no", 0)),
+                        temp=b.get("outtmp", 0),
+                        chip_temp=b.get("chiptmp", 0),
+                        hashrate=parse_hr(b.get("rtpow", "0")),
+                        chips=b.get("chipsuc", 0),
+                        expected_chips=b.get("chipnum", 0)
+                    ))
+
+                return SimpleNamespace(
+                    hashrate=parse_hr(d.get("rtpow", "0")),
+                    expected_hashrate=parse_hr(d.get("idealpow", "0")), # or avgpow?
+                    wattage=float(d.get("wattage", 0)), # if exists, or check power stage
+                    temperature_avg=d.get("tempstate", 0), # placeholder
+                    is_mining=d.get("netstate", False),
+                    fw_ver=f"PBfarmer {d.get('softver1', '')}",
+                    hostname=d.get("host"),
+                    mac=d.get("mac"),
+                    model=f"{d.get('model', 'ASIC')} (PBfarmer)",
+                    make="IceRiver",
+                    uptime=d.get("runtime"),
+                    wattage_limit=0,
+                    fans=fans,
+                    hashboards=boards,
+                    raw_data=d
+                )
 
 
 async def async_get_miner_coordinator(hass, domain, miner_ip, miner_name, user="root", password="", ssh_user="root", ssh_password=""):

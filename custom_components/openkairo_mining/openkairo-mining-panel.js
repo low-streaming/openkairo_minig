@@ -1597,6 +1597,8 @@ class OpenKairoMiningPanel extends LitElement {
         }
         totalDailyRevBTC += btcPerDay;
     });
+    const totalDailyKwh = (totalPowerW / 1000) * 24;
+    const satPerKwh = totalDailyKwh > 0 ? (totalDailyRevBTC * 1e8) / totalDailyKwh : 0;
 
     const overviewHtml = html`
       <div class="overview-section" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
@@ -1620,10 +1622,19 @@ class OpenKairoMiningPanel extends LitElement {
             <span style="color: var(--theme-accent-2); font-weight: 800; letter-spacing: 1.5px; font-size: 0.8em; text-transform: uppercase;">Est. Daily Earnings</span>
             <span style="background: rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.15); padding: 4px 8px; border-radius: 6px; color: var(--theme-accent-2); font-size: 0.7em; border: 1px solid rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.3);">Pool Est</span>
           </div>
-          <div style="font-size: 2.3em; font-weight: 800; color: #fff; margin-top: 15px; text-shadow: 0 0 15px rgba(255,255,255,0.2); font-family: monospace; position: relative; z-index: 1;">
+          <div style="font-size: 2.3em; font-weight: 800; color: #fff; margin-top: 10px; text-shadow: 0 0 15px rgba(255,255,255,0.2); font-family: monospace; position: relative; z-index: 1;">
              ${anyBtcPrice > 0 ? (totalDailyRevBTC * anyBtcPrice).toFixed(2) : '0.00'} <span style="font-size: 0.5em; color: #888;">€</span>
           </div>
-          <div style="color: #888; font-size: 0.85em; margin-top: 5px; font-weight: bold; position: relative; z-index: 1;">≈ ${totalDailyRevBTC.toFixed(6)} BTC</div>
+          <div style="color: #888; font-size: 0.85em; margin-top: 0px; font-weight: bold; position: relative; z-index: 1; opacity: 0.8;">
+            ≈ ${totalDailyRevBTC.toFixed(6)} BTC
+          </div>
+          
+          <div style="margin-top: 18px; display: flex; align-items: baseline; gap: 8px; position: relative; z-index: 1;">
+             <span style="font-size: 1.7em; font-weight: 900; color: var(--theme-accent-2); text-shadow: 0 0 20px rgba(var(--theme-accent-2-rgb, 214, 44, 246), 0.4); font-family: 'Space Mono', monospace; line-height: 1;">
+                ${satPerKwh > 0 ? satPerKwh.toFixed(0) : '0'}
+             </span>
+             <span style="font-size: 0.75em; color: var(--theme-accent-2); font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.8;">sat/kWh</span>
+          </div>
           <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--theme-accent-2); box-shadow: 0 0 10px var(--theme-accent-2);"></div>
           ${this.config.theme === 'gladbeck' ? html`
             <img src="https://solarmodule-gladbeck.de/wp-content/uploads/2023/07/cropped-logo_new.png" style="position: absolute; bottom: 10px; right: 10px; height: 25px; opacity: 0.12; filter: grayscale(1) brightness(1.5); pointer-events: none; z-index: 0;">

@@ -22,6 +22,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Optional("password", default=""): str,
         vol.Optional("ssh_username", default="root"): str,
         vol.Optional("ssh_password", default=""): str,
+        vol.Optional("api_token", default=""): str,
         vol.Optional("min_power", default=400): int,
         vol.Optional("max_power", default=1400): int,
     }
@@ -38,6 +39,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
     password = data.get("password", "")
     ssh_username = data.get("ssh_username", "root")
     ssh_password = data.get("ssh_password", "")
+    api_token = data.get("api_token", "").strip()
 
     max_retries = 3
     retry_delay = 2
@@ -82,7 +84,34 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
                     from pyasic.miners.antminer.bm_miner.S19 import AntminerS19
                     miner = AntminerS19(ip_address)
         except Exception as e:
-            _LOGGER.debug(f"[{ip_address}] Robuster API-Check fehlgeschlagen: {e}")
+            _LOGGER.debug(f"[{ip_address}] Robuster API-Check (4028) fehlgeschlagen: {e}")
+
+        # [NEW] Try PBfarmer HTTPS Check (Port 443)
+        if miner is None:
+            _LOGGER.debug(f"[{ip_address}] Versuche PBfarmer-Check auf Port 443...")
+            try:
+                import aiohttp
+                timeout = aiohttp.ClientTimeout(total=5)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    # We use verify_ssl=False because ASICs usually have self-signed certs
+                    headers = {}
+                    if api_token:
+                        headers["Authorization"] = f"Bearer {api_token}"
+                    
+                    async with session.get(f"https://{ip_address}/api/overview", ssl=False, headers=headers) as resp:
+                        if resp.status in [200, 401]: # 401 means it exists but needs token
+                            _LOGGER.info(f"[{ip_address}] PBfarmer-kompatibler Endpunkt auf Port 443 gefunden.")
+                            from pyasic.miners.base import BaseMiner
+                            # Minimal mock for discovery
+                            miner = BaseMiner(ip_address)
+                            miner.make = "IceRiver"
+                            miner.model = "KS0 (PBfarmer)"
+                            if resp.status == 200:
+                                json_data = await resp.json()
+                                if json_data.get("data", {}).get("model"):
+                                    miner.model = f"{json_data['data']['model']} (PBfarmer)"
+            except Exception as e:
+                _LOGGER.debug(f"[{ip_address}] PBfarmer-Check fehlgeschlagen: {e}")
 
     if miner is None:
         _LOGGER.error(f"[{ip_address}] Kein ASIC Miner nach {max_retries} Versuchen gefunden.")
