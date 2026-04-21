@@ -13,7 +13,9 @@ public:
   lgfx::Touch_GT911  _touch_instance;
   lgfx::Light_PWM    _light_instance;
 
-  LGFX(void) {
+  LGFX(void) {} // Empty constructor to avoid boot hangs
+
+  void initDevice() {
     {
       auto cfg = _panel_instance.config();
       cfg.memory_width  = 480;

@@ -237,6 +237,8 @@ class MinerDynamicSensor(CoordinatorEntity, SensorEntity):
         
         # Make the name pretty-ish
         pretty_name = key.replace("_", " ").title()
+        if "Temp" in pretty_name and not pretty_name.endswith("Temperature"):
+            pretty_name = pretty_name.replace("Temp", "Temperature")
         self._attr_name = pretty_name
         
         # Best effort unit assignment
@@ -244,19 +246,27 @@ class MinerDynamicSensor(CoordinatorEntity, SensorEntity):
         if "temp" in k:
             self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
-        elif "watt" in k or "power" in k:
+        elif "watt" in k or "power" in k or k == "pow":
             self._attr_native_unit_of_measurement = UnitOfPower.WATT
             self._attr_device_class = SensorDeviceClass.POWER
         elif "voltage" in k or "volt" in k:
             self._attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
+            self._attr_device_class = SensorDeviceClass.VOLTAGE
         elif "speed" in k or "rpm" in k:
             self._attr_native_unit_of_measurement = REVOLUTIONS_PER_MINUTE
         elif "hashrate" in k and "ideal" not in k:
             self._attr_native_unit_of_measurement = "TH/s"
-        elif "efficiency" in k or "efficiency" in k:
+        elif "efficiency" in k:
             self._attr_native_unit_of_measurement = "J/TH"
+        elif "freq" in k:
+            self._attr_native_unit_of_measurement = "MHz"
+        elif "luck" in k or "ratio" in k:
+            self._attr_native_unit_of_measurement = "%"
+        elif "shares" in k or "count" in k:
+             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
             
-        self._attr_state_class = SensorStateClass.MEASUREMENT if hasattr(self, "_attr_native_unit_of_measurement") and self._attr_native_unit_of_measurement else None
+        if not hasattr(self, "_attr_state_class") or self._attr_state_class is None:
+            self._attr_state_class = SensorStateClass.MEASUREMENT if hasattr(self, "_attr_native_unit_of_measurement") and self._attr_native_unit_of_measurement else None
 
     @property
     def device_info(self):

@@ -113,14 +113,38 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
         except Exception: pass
         return None
 
+    async def check_generic_http_api():
+        # Check for Bitaxe / NerdMiner / ESP32 Generic API
+        endpoints = [
+            f"http://{ip_address}/api",
+            f"http://{ip_address}/stats",
+        ]
+        timeout = aiohttp.ClientTimeout(total=5)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for url in endpoints:
+                try:
+                    async with session.get(url, ssl=False) as resp:
+                        if resp.status == 200:
+                            try:
+                                json_data = await resp.json()
+                                # Heuristic: If it has hashrate or shares, it's likely a miner
+                                if "hashrate" in json_data or "shares" in json_data or "freq" in json_data:
+                                    model = json_data.get("model", "NerdMiner/Bitaxe")
+                                    _LOGGER.info(f"[{ip_address}] Generic HTTP Miner ({model}) found via {url}")
+                                    return {"title": model, "miner": None} # Validation only needs title
+                            except Exception: pass
+                except Exception: continue
+        return None
+
     # Parallel Execution
     tasks = [
         asyncio.create_task(check_pbfarmer()),
+        asyncio.create_task(check_generic_http_api()),
         asyncio.create_task(check_pyasic_standard()),
         asyncio.create_task(check_pyasic_port_4028())
     ]
     
-    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    done, pending = await asyncio.wait(tasks, timeout=12, return_when=asyncio.FIRST_COMPLETED)
     
     result = None
     for t in done:

@@ -93,46 +93,32 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
         # [FIX] Force Stock if user named it so
         force_stock = "(Stock)" in str(self.config_entry.title)
         
-        async def check_pbfarmer():
-            if force_stock:
-                _LOGGER.debug(f"[{self.miner_ip}] '(Stock)' im Titel erkannt. Überspringe PBfarmer-Check.")
-                return None
-            
-            # Stricter check for PBfarmer
+        async def check_generic_http_api():
+            # Check for Bitaxe / NerdMiner / ESP32 Generic API
             endpoints = [
-                f"http://{self.miner_ip}/api/overview",
-                f"https://{self.miner_ip}/api/overview",
-                f"http://{self.miner_ip}:4111/api/overview"
+                f"http://{self.miner_ip}/api",
+                f"http://{self.miner_ip}/stats",
             ]
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=12)) as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
                 for url in endpoints:
                     try:
-                        headers = {"Authorization": f"Bearer {token}"} if token else {}
-                        async with session.get(url, ssl=False, headers=headers) as resp:
+                        async with session.get(url, ssl=False) as resp:
                             if resp.status == 200:
                                 try:
                                     json_data = await resp.json()
-                                    # ONLY match if it's really PBfarmer
-                                    if "PBfarmer" in str(json_data) or "softver" in str(json_data):
-                                        _LOGGER.info(f"[{self.miner_ip}] PBfarmer verifiziert via {url}")
+                                    # Heuristic: If it has hashrate or shares, it's likely a miner
+                                    if "hashrate" in json_data or "shares" in json_data or "freq" in json_data:
+                                        model = json_data.get("model", "NerdMiner/Bitaxe")
+                                        _LOGGER.info(f"[{self.miner_ip}] Generic HTTP Miner ({model}) found via {url}")
                                         class MinerStub:
-                                            def __init__(self, ip):
+                                            def __init__(self, ip, model):
                                                 self.ip = ip
                                                 self._is_stub = True
-                                                self.make = "IceRiver"
-                                                self.model = "KS0 (PBfarmer)"
-                                        return {"title": "KS0 (PBfarmer)", "miner": MinerStub(self.miner_ip)}
+                                                self._stub_type = "generic_http"
+                                                self.make = "ESP32"
+                                                self.model = model
+                                        return {"title": model, "miner": MinerStub(self.miner_ip, model)}
                                 except Exception: pass
-                            elif resp.status in [401, 403]:
-                                # If auth is required on this specific path, it's likely PBfarmer
-                                _LOGGER.info(f"[{self.miner_ip}] PBfarmer vermutet (Auth Req) via {url}")
-                                class MinerStub:
-                                    def __init__(self, ip):
-                                        self.ip = ip
-                                        self._is_stub = True
-                                        self.make = "IceRiver"
-                                        self.model = "KS0 (PBfarmer)"
-                                return {"title": "KS0 (PBfarmer)", "miner": MinerStub(self.miner_ip)}
                     except Exception: continue
             return None
 
@@ -144,9 +130,13 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             except Exception: pass
             return None
 
-        # Run in parallel, but wait slightly longer for PBfarmer if we expect it
-        tasks = [asyncio.create_task(check_pbfarmer()), asyncio.create_task(check_pyasic_standard())]
-        done, pending = await asyncio.wait(tasks, timeout=15, return_when=asyncio.FIRST_COMPLETED)
+        # Run in parallel
+        tasks = [
+            asyncio.create_task(check_pbfarmer()), 
+            asyncio.create_task(check_generic_http_api()),
+            asyncio.create_task(check_pyasic_standard())
+        ]
+        done, pending = await asyncio.wait(tasks, timeout=12, return_when=asyncio.FIRST_COMPLETED)
         
         result = None
         for t in done:
@@ -164,7 +154,7 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             miner = result["miner"]
             self.miner_obj = miner
             self.miner_model = result["title"]
-            self.miner_make = getattr(miner, "make", "IceRiver" if "PBfarmer" in result["title"] else "OpenKairo")
+            self.miner_make = getattr(miner, "make", "IceRiver" if "PBfarmer" in result["title"] else "ESP32" if hasattr(miner, "_stub_type") else "OpenKairo")
             
             # Application of credentials
             if "PBfarmer" not in str(result["title"]):
@@ -200,13 +190,18 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
 
         try:
             # [NEW] Skip pyasic probing for PBfarmer (MinerStub)
-            if "PBfarmer" in str(self.miner_model) or hasattr(miner, "_is_stub"):
-                api_token = self.config_entry.data.get("api_token")
-                miner_data = await self._fetch_pbfarmer_data(api_token)
+            # [NEW] Skip pyasic probing for Stubs (PBfarmer or Generic HTTP)
+            if hasattr(miner, "_is_stub"):
+                if getattr(miner, "_stub_type", None) == "generic_http":
+                    miner_data = await self._fetch_generic_http_data()
+                else:
+                    api_token = self.config_entry.data.get("api_token")
+                    miner_data = await self._fetch_pbfarmer_data(api_token)
+                
                 if not miner_data:
                     self._failure_count += 1
-                    raise UpdateFailed("PBfarmer API returned no data (Check Token/Connection)")
-                _LOGGER.debug(f"[{self.miner_ip}] PBfarmer data collection successful!")
+                    raise UpdateFailed("Miner API returned no data (Offline or API changed)")
+                _LOGGER.debug(f"[{self.miner_ip}] Stub data collection successful!")
             else:
                 # Standard PyAsic Flow
                 data_options = [
@@ -457,6 +452,61 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
                         )
                 except Exception as e:
                     _LOGGER.debug(f"[{self.miner_ip}] PBfarmer Abruf {url} fehlgeschlagen: {e}")
+                    continue
+        return None
+
+    async def _fetch_generic_http_data(self):
+        """Fetch data from ESP32 miners (Bitaxe/NerdMiner) via /api or /stats."""
+        import aiohttp
+        from types import SimpleNamespace
+        
+        endpoints = [
+            f"http://{self.miner_ip}/api",
+            f"http://{self.miner_ip}/stats"
+        ]
+        
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as session:
+            for url in endpoints:
+                try:
+                    async with session.get(url, ssl=False) as resp:
+                        if resp.status != 200: continue
+                        
+                        d = await resp.json()
+                        
+                        # Mapping logic for Bitaxe and variants (Source: Bitaxe/ESP-Miner API)
+                        # We try both small and camelCase keys
+                        raw_hr = d.get("hashrate", d.get("hashRate", 0))
+                        # Bitaxe often reports GH/s, PBfarmer/ASICs often report TH/s or H/s
+                        # If raw_hr is < 5000, we assume it's GH/s (Bitaxe range)
+                        # We convert it to TH/s for internal consistency in the sensor loop
+                        hr_th = float(raw_hr) / 1000 if float(raw_hr) > 10 else float(raw_hr)
+
+                        # Power handling (Bitaxe pow is in Watts, NerdMiner often missing)
+                        pow_w = float(d.get("pow", d.get("power", 0)))
+                        
+                        # Voltage (mV to V)
+                        volt_v = float(d.get("volt", d.get("voltage", 0)))
+                        if volt_v > 100: volt_v = volt_v / 1000
+
+                        return SimpleNamespace(
+                            hashrate=hr_th,
+                            expected_hashrate=float(d.get("expectedHashrate", 0)) / 1000,
+                            wattage=pow_w,
+                            temperature_avg=d.get("temp", d.get("temperature", d.get("chipTemp", 0))),
+                            is_mining=d.get("mining", True),
+                            fw_ver=d.get("version", d.get("fwVersion", "ESP-Miner")),
+                            hostname=d.get("hostname", d.get("name", self.miner_name)),
+                            mac=d.get("mac"),
+                            model=d.get("model", "Bitaxe/NerdMiner"),
+                            make="ESP32",
+                            uptime=d.get("uptime", 0),
+                            wattage_limit=0,
+                            fans=[SimpleNamespace(speed=d.get("fanRPM", d.get("fan", 0)))],
+                            hashboards=[],
+                            raw_data=d
+                        )
+                except Exception as e:
+                    _LOGGER.debug(f"[{self.miner_ip}] Generic HTTP Abruf {url} fehlgeschlagen: {e}")
                     continue
         return None
 

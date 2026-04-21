@@ -718,18 +718,25 @@ void setupUI() {
 // --- MAIN ---
 void setup() {
   Serial.begin(115200);
-  delay(1000);
-  Serial.println("\n--- OPENKAIRO BOOT ---");
-
-  // 1. LCD & Touch (LGFX handles backlight via internal PWM)
-  Serial.println("LGFX init...");
+  delay(1000); 
+  
+  Serial.println("\n[CP 1] SERIAL OK - APP STARTING");
+  Serial.flush();
+  
+  Serial.println("[CP 2] LGFX INIT START...");
+  Serial.flush();
+  
+  // 1. LCD & Touch
+  tft.initDevice(); // [NEU] Initialisiere Hardware verzögert
+  
   if (!tft.init()) {
-    Serial.println("LGFX Init Failed!");
+    Serial.println("[ERROR] LGFX Init Failed!");
   }
-  delay(500); // Give ST7701S time to stabilize
+  delay(200);
   tft.setBrightness(255);
   tft.setSwapBytes(true);
-  Serial.println("LCD OK.");
+  Serial.println("[CP 3] LCD & Backlight OK.");
+  Serial.flush();
 
   // 2. LVGL
   lv_init();
@@ -745,12 +752,16 @@ void setup() {
   }
   
   lv_display_set_buffers(disp, buf1, NULL, buf_size, LV_DISPLAY_RENDER_MODE_PARTIAL);
+  Serial.println("[CP 4] LVGL & Display Buffer OK.");
+  Serial.flush();
 
   lv_indev_t * indev = lv_indev_create();
   lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
   lv_indev_set_read_cb(indev, my_touchpad_read);
 
   // 3. WiFi (WiFiManager AP)
+  Serial.println("[CP 5] WiFi connecting (Check smartphone for AP: OpenKairo-Mining-Display)...");
+  Serial.flush();
   WiFiManager wm;
   //wm.resetSettings(); // Unlock this to clear saved WiFi
   bool res = wm.autoConnect("OpenKairo-Mining-Display", "12345678");
@@ -768,6 +779,9 @@ void setup() {
 
   // 5. Initial Data Fetch
   fetchData();
+  
+  Serial.println("[CP 6] Setup Finished - Entering Loop.");
+  Serial.flush();
 }
 
 unsigned long lastUpdate = 0;
