@@ -174,11 +174,27 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             except Exception: pass
             return None
 
+        async def check_pyasic_port_4028():
+            try:
+                reader, writer = await asyncio.wait_for(asyncio.open_connection(self.miner_ip, 4028), timeout=5)
+                writer.write(b'{"command":"summary"}')
+                await writer.drain()
+                resp = await reader.read(4096)
+                writer.close()
+                await writer.wait_closed()
+                if resp:
+                    from pyasic.miners.antminer.bm_miner.S19 import AntminerS19
+                    miner = AntminerS19(self.miner_ip)
+                    return {"title": "Antminer/VNish (4028)", "miner": miner}
+            except Exception: pass
+            return None
+
         # Run in parallel
         tasks = [
             asyncio.create_task(check_pbfarmer()), 
             asyncio.create_task(check_generic_http_api()),
-            asyncio.create_task(check_pyasic_standard())
+            asyncio.create_task(check_pyasic_standard()),
+            asyncio.create_task(check_pyasic_port_4028())
         ]
         done, pending = await asyncio.wait(tasks, timeout=12, return_when=asyncio.FIRST_COMPLETED)
         
