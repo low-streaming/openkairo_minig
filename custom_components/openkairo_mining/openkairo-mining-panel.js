@@ -1582,7 +1582,8 @@ class OpenKairoMiningPanel extends LitElement {
       'manual': 'Manuell',
       'pv': 'PV-Überschuss',
       'soc': 'Batterie SOC',
-      'offgrid': 'Offgrid PV (SOC Kurve)'
+      'offgrid': 'Offgrid PV (SOC Kurve)',
+      'heating': 'Heiz-Modus'
     };
 
     // --- OVERVIEW AGGREGATION ---
@@ -2104,6 +2105,23 @@ class OpenKairoMiningPanel extends LitElement {
                     </div>
                   ` : ''}
 
+                  ${miner.mode === 'heating' ? html`
+                    <div class="tech-box" style="border-color: #e67e22; background: rgba(230, 126, 34, 0.05);">
+                      <p><b>Raumtemperatur:</b> <span class="highlight-val" style="color: #e67e22;">${this._formatValue(this.hass?.states[miner.target_temp_sensor], '°C', 'N/A')}</span></p>
+                      <div class="small-text mt-1" style="margin-bottom: 8px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
+                        Heizen: An &le; <input type="number" class="tech-input" .value="${miner.target_temp_on || 21}" @change="${(e) => this.quickUpdateMiner(miner.id, 'target_temp_on', e.target.value)}"> °C 
+                        | Aus &ge; <input type="number" class="tech-input" .value="${miner.target_temp_off || 22}" @change="${(e) => this.quickUpdateMiner(miner.id, 'target_temp_off', e.target.value)}"> °C
+                      </div>
+                      ${miner.allow_battery ? html`
+                        <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px; margin-top: 8px;">
+                          <p><b>Batterie (SOC):</b> <span class="highlight-val">${batterySOCValue || 'N/A'}</span></p>
+                          <p class="small-text mt-1">🔋 Nur Heizen bei min. ${miner.battery_min_soc}% SOC</p>
+                        </div>
+                      ` : ''}
+                      <small style="color: #888; display: block; margin-top: 5px;">Der Miner heizt solange die Temperatur unter dem Zielwert liegt.</small>
+                    </div>
+                  ` : ''}
+
                   ${miner.standby_watchdog_enabled ? html`
                     ${(() => {
                       let stState = 'Unbekannt';
@@ -2603,6 +2621,7 @@ class OpenKairoMiningPanel extends LitElement {
             <option value="pv" ?selected="${this.editForm.mode === 'pv'}">PV-Überschuss (Einspeisung)</option>
             <option value="soc" ?selected="${this.editForm.mode === 'soc'}">Batterie SOC</option>
             <option value="offgrid" ?selected="${this.editForm.mode === 'offgrid'}">Offgrid PV (SOC Kurve)</option>
+            <option value="heating" ?selected="${this.editForm.mode === 'heating'}">Heiz-Modus (Temperatur-Steuerung)</option>
           </select>
         </div>
 
@@ -2768,6 +2787,65 @@ class OpenKairoMiningPanel extends LitElement {
                 <label>Update-Intervall (Sekunden)</label>
                 <input type="number" min="15" step="1" name="soft_interval" .value="${this.editForm.soft_interval || 60}" @input="${this.handleFormInput}">
                 <small>Wie oft soll die Leistung angepasst werden?</small>
+            </div>
+          </div>
+        ` : ''}
+
+        ${this.editForm.mode === 'heating' ? html`
+          <div class="mode-section btc-section" style="border-color: #e67e22; background: rgba(230, 126, 34, 0.05);">
+            <h3 style="color: #e67e22; margin-top: 0; margin-bottom: 20px;">🔥 Heiz-Modus (Temperatur-Steuerung)</h3>
+            <p style="font-size: 0.85em; color: #bbb; margin-bottom: 15px;">Nutze deinen Miner als Heizung. Er schaltet sich automatisch ein, wenn es zu kalt wird.</p>
+            
+            <div class="form-group">
+                <label>Raumtemperatur-Sensor</label>
+                <openkairo-entity-picker name="target_temp_sensor" placeholder="-- Temperatur Sensor suchen --" .value="${this.editForm.target_temp_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label>Einschalten unterhalb (°C)</label>
+                    <input type="number" step="0.5" name="target_temp_on" .value="${this.editForm.target_temp_on || 21.0}" @input="${this.handleFormInput}">
+                </div>
+                <div class="form-group flex-1">
+                    <label>Ausschalten oberhalb (°C)</label>
+                    <input type="number" step="0.5" name="target_temp_off" .value="${this.editForm.target_temp_off || 22.0}" @input="${this.handleFormInput}">
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; padding: 15px; border: 1px dashed rgba(214, 44, 246, 0.3); border-radius: 8px; background: rgba(214, 44, 246, 0.05);">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #d62cf6; font-weight: bold;">
+                    <input type="checkbox" name="allow_battery" .checked="${this.editForm.allow_battery}" @change="${this.handleFormInput}" style="width: 20px; height: 20px; accent-color: #d62cf6;">
+                    🔋 Optionale Batterie-Unterstützung erlauben
+                </label>
+                
+                ${this.editForm.allow_battery ? html`
+                <div class="form-row" style="margin-top: 15px;">
+                    <div class="form-group flex-2">
+                        <label>Batterie SOC-Sensor (Ladezustand in %)</label>
+                        <openkairo-entity-picker name="battery_sensor" placeholder="-- Batterie % Sensor suchen --" .value="${this.editForm.battery_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                    </div>
+                    <div class="form-group flex-1">
+                        <label>Minimale Batterieladung (%)</label>
+                        <input type="number" min="0" max="100" name="battery_min_soc" .value="${this.editForm.battery_min_soc || 100}" @input="${this.handleFormInput}">
+                        <small>Nur heizen bei SOC ≥ X%.</small>
+                    </div>
+                </div>
+                ` : html`
+                <p style="margin: 8px 0 0 30px; font-size: 0.85em; color: #888;">Ermöglicht Heizen nur dann, wenn der Hausakku ausreichend geladen ist.</p>
+                `}
+            </div>
+
+            <div class="form-row mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <div class="form-group flex-1">
+                    <label>Verzögerung (Hysterese in Minuten)</label>
+                    <input type="number" min="0" step="1" name="delay_minutes" .value="${this.editForm.delay_minutes !== undefined ? this.editForm.delay_minutes : 5}" @input="${this.handleFormInput}">
+                    <small>Verhindert zu häufiges Schalten.</small>
+                </div>
+                <div class="form-group flex-1">
+                    <label>🛡️ Min. Laufzeit (Minuten)</label>
+                    <input type="number" min="0" step="1" name="min_run_time" .value="${this.editForm.min_run_time || 5}" @input="${this.handleFormInput}">
+                    <small>Schont die Hardware.</small>
+                </div>
             </div>
           </div>
         ` : ''}

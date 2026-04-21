@@ -555,7 +555,7 @@ async def _mining_loop(hass):
                             # Reset watchdog if plug is off or sensor unavailable
                             state["standby_since"] = None
 
-                if mode in ["pv", "soc", "offgrid"]:
+                if mode in ["pv", "soc", "offgrid", "heating"]:
                     delay_minutes = float(miner.get("delay_minutes", 0))
                     delay_seconds = delay_minutes * 60
                     
@@ -650,6 +650,49 @@ async def _mining_loop(hass):
                                         state["log_reason_off"] = f"(SOC {battery_soc}% <= {soc_off}%)"
                                 except ValueError:
                                     pass
+                    elif mode == "heating":
+                        temp_sensor = miner.get("target_temp_sensor")
+                        if temp_sensor:
+                            t_state = hass.states.get(temp_sensor)
+                            if t_state and t_state.state not in ["unknown", "unavailable"]:
+                                state["last_sensor_update"] = current_time
+                                try:
+                                    current_temp = float(t_state.state)
+                                    temp_on = float(miner.get("target_temp_on", 21.0))
+                                    temp_off = float(miner.get("target_temp_off", 22.0))
+                                    
+                                    # [NEU] Batterie SOC Abhängigkeit
+                                    allow_battery = miner.get("allow_battery", False)
+                                    battery_sensor = miner.get("battery_sensor")
+                                    battery_min_soc = float(miner.get("battery_min_soc", 100))
+                                    battery_soc = 100 # Default für Logik falls deaktiviert
+                                    
+                                    if allow_battery and battery_sensor:
+                                        bat_state = hass.states.get(battery_sensor)
+                                        if bat_state and bat_state.state not in ["unknown", "unavailable"]:
+                                            battery_soc = float(bat_state.state)
+                                        else:
+                                            battery_soc = -1 # Sensor-Fehler
+                                    
+                                    if current_temp <= temp_on:
+                                        # SOC Hysterese: Zum Einschalten muessen es 2% ueber dem Limit sein
+                                        safety_min_soc = battery_min_soc + 2 if not is_on else battery_min_soc
+                                        if not allow_battery or (allow_battery and battery_soc >= safety_min_soc):
+                                            turn_on_condition = True
+                                            state["log_reason_on"] = f"(Temp {current_temp}°C <= {temp_on}°C" + (f", SOC {battery_soc}% >= {safety_min_soc}%)" if allow_battery else ")")
+                                        else:
+                                            _LOGGER.debug(f"[{miner_name}] Heizen blockiert: SOC {battery_soc}% < {safety_min_soc}%")
+
+                                    elif current_temp >= temp_off:
+                                        turn_off_condition = True
+                                        state["log_reason_off"] = f"(Temp {current_temp}°C >= {temp_off}°C)"
+                                        
+                                    if allow_battery and 0 <= battery_soc < battery_min_soc:
+                                        turn_off_condition = True
+                                        state["log_reason_off"] = f"(Heiz-Stopp: SOC {battery_soc}% < {battery_min_soc}%)"
+                                        
+                                except ValueError:
+                                    pass
                     elif mode == "offgrid":
                         battery_sensor = miner.get("battery_sensor")
                         if battery_sensor:
@@ -673,7 +716,7 @@ async def _mining_loop(hass):
                     # --- SENSOR WATCHDOG ---
                     # Wenn seit 5 Minuten keine gueltigen Sensordaten kamen -> Abschalten!
                     # Nur ausführen wenn wir in einem Automatik-Modus sind!
-                    if mode in ["pv", "soc", "offgrid"] and current_time - state.get("last_sensor_update", current_time) > 300:
+                    if mode in ["pv", "soc", "offgrid", "heating"] and current_time - state.get("last_sensor_update", current_time) > 300:
                         _LOGGER.warning(f"[{miner_name}] Sensor-Timeout (>5 Min)! Schalte sicherheitshalber AB.")
                         turn_on_condition = False
                         turn_off_condition = True
