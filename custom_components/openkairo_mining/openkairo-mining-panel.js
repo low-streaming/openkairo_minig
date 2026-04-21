@@ -1563,7 +1563,13 @@ class OpenKairoMiningPanel extends LitElement {
     if (!stateObj || stateObj.state === 'unavailable' || stateObj.state === 'unknown') {
       return fallback;
     }
-    const val = stateObj.state;
+    let val = stateObj.state;
+    
+    // Automatisch auf 1 Nachkommastelle runden, wenn es eine Zahl ist
+    if (!isNaN(parseFloat(val)) && isFinite(val) && val.toString().includes('.')) {
+      val = parseFloat(val).toFixed(1);
+    }
+    
     const u = unit || stateObj.attributes?.unit_of_measurement || '';
     return val + (u ? ' ' + u : '');
   }
