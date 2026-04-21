@@ -1,46 +1,42 @@
-# OpenKairo Mining 🚀 — Das Ultimative "Command Center" v1.3.6
+# OpenKairo Mining 🚀 — Das Ultimative "Command Center" v1.3.18
 
 [![OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg?style=for-the-badge)](https://home-assistant.io)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://hacs.xyz)
 
-Verwandle deinen Home Assistant in eine professionelle **Mining-Schaltzentrale**. Mit **OpenKairo Mining** steuerst du deine ASICs intelligent basierend auf PV-Überschuss, Batteriestatus und Bitcoin-Netzwerkdaten.
+Verwandle deinen Home Assistant in eine professionelle **Mining-Schaltzentrale**. Mit **OpenKairo Mining** steuerst du deine ASICs intelligent basierend auf PV-Überschuss, Raumtemperatur, Batteriestatus und Bitcoin-Netzwerkdaten.
 
 ---
 
-## 💎 Highlights der v1.3.6
+## 💎 Highlights der v1.3.18 - "The Heater Update"
 
-Dieses Kraftpaket-Update fokussiert sich auf maximale **Betriebssicherheit** und **Langzeit-Stabilität**. Wir haben die Kernsteuerung unter die Lupe genommen und für den professionellen Einsatz gehärtet.
+Dieses Update verwandelt passives Mining in eine aktive Energie-Ressource für dein Zuhause.
 
-> [!TIP]
-> **Neues "Logs" Tab**: Alle automatisierten Schaltvorgänge (Ramping, PV-Überschuss, Ausschalten, Watchdog-Fehler) werden nun in einem zentralen "Logs"-Tab im Dashboard inklusive Farbcodes übersichtlich chronologisch dokumentiert. Die Historie fasst nun die letzten 100 Aktionen umfänglich im RAM.
+### 🔥 Heiz-Modus (Mining as a Heater)
+Nutze deinen Miner als intelligente Heizung. Schalte deine Hardware basierend auf der Raumtemperatur und schone gleichzeitig deine Batterie durch den optionalen **SOC-Wächter**. Miner schalten nur dann für Wärme ein, wenn auch genug Strom im Akku vorhanden ist.
 
-### 🎨 Ultra-Premium Design Engine
-Wähle aus exklusiven Design-Presets direkt im Dashboard:
-| Theme | Stil | Besonderheit |
-| :--- | :--- | :--- |
-| **Midnight & Atlantis** | Deep Blue | Klassischer High-Tech Look |
-| **Matrix & Solar** | Cyberpunk | Maximaler Kontrast & Retro-Vibe |
-| **Lava Field** | Dynamic Red | Energie pur 🔥 |
-| **Gladbeck Edition** | Brand Overdrive | Spezial-Design für **Solarmodule Gladbeck** ☀️ |
+### 📱 Optimiert für die Hosentasche
+Das gesamte Dashboard wurde für die mobile Nutzung überarbeitet. 
+- **Flüssiger Ticker**: Bitcoin-Fees und Markt-Daten immer im Blick.
+- **Kompakte Karten**: Alle wichtigen Stats auf einem Screen, ohne Scrollen.
+- **Saubere Optik**: Automatische Rundung aller Werte für maximale Lesbarkeit.
 
-### ⚡ Native Hardware-Anbindung
-Vergiss komplizierte Setups. OpenKairo Mining arbeitet jetzt vollständig **nativ via pyasic**.
-- **Direkt-Anbindung**: Miner einfach per IP-Adresse hinzufügen.
-- **Volle Kontrolle**: Power-Limits, Reboots und Modus-Wechsel direkt aus HA.
-- **Kompatibilität**: Unterstützt Antminer (S9, S19, S21), Whatsminer, Avalon, Bitaxe und viele mehr.
+### ⚡ Native Hardware-Anbindung (pyasic)
+- **Plug & Play**: Miner per IP hinzufügen – fertig.
+- **Echtzeit-Steuerung**: Power-Limits (Watt), Reboots und Modus-Wechsel direkt aus dem Interface.
+- **Breiter Support**: Antminer (S9, S19, S21), Whatsminer, Avalon, Bitaxe, IceRiver und NerdMiner.
 
-### 🛡️ Hardware-Wächter 2.0 (Dual-Socket) & Ramping
-Maximale Sicherheit für deine Hardware:
-- **Sanfter Anlauf (Ramping)**: Dein Miner fährt stufenweise hoch (z.B. 100W -> 500W -> 1000W), anstatt sofort die volle Last zu ziehen und dein Netzteil zu belasten.
-- **Frozen Detection**: Erkennt aufgehängte Miner am verringerten Stromverbrauch.
-- **Dual-Power Support**: Unterstützung für Miner mit **zwei Netzkabeln**. Beide Steckdosen werden synchron geschaltet.
+---
 
-### 🚀 Stabilität & Sicherheit (v1.3.6)
-- **Sensor-Watchdog**: Automatischer Sicherheits-Stopp nach 5 Min. bei Datenverlust (z.B. Wechselrichter-Offline).
-- **Anti-Jitter (Deadband)**: Reduziert API-Last und Hardware-Verschleiß durch intelligente Toleranzbereiche (50W).
-- **Black-Screen Fix**: Vollständiges Speicher-Management verhindert Dashboard-Abstürze auf Tablets.
-- **SOC-Hysterese**: Schont den Akku durch definierte Ein-/Ausschaltzyklen (2% Puffer).
+## 🗺️ Roadmap (Was als nächstes kommt)
+
+Wir entwickeln OpenKairo ständig weiter. Hier ist ein Ausblick auf die kommenden Features:
+
+- [ ] **Miner-Gruppen**: Steuerung mehrerer Miner als logische Einheit (z.B. "Ganze Etage einschalten").
+- [ ] **Advanced MQTT Bridge**: Erweiterte Datenpunkte für externe Automatisierungen und Dashboards.
+- [ ] **History & Analytics**: Langzeit-Aufzeichnung der Mining-Erträge und Stromeffizienz direkt in der Integration.
+- [ ] **ESP32 Wallpanel v2**: Volle Unterstützung für die neue PlatformIO-Firmware für Wand-Displays.
+- [ ] **Auto-Tuning Finder**: Unterstützung für Firmware-spezifische Profile zur Effizienz-Maximierung.
 
 ---
 
@@ -48,7 +44,7 @@ Maximale Sicherheit für deine Hardware:
 
 ### 1. Installation via HACS
 1. In Home Assistant: **HACS** > **Integrationen** > drei Punkte > **Benutzerdefinierte Repositories**.
-2. URL: `https://github.com/openkairo/openKairo_Mining` (bzw. das korrekte Repo) > Kategorie: **Integration** hinzufügen.
+2. URL: `https://github.com/openkairo/openKairo_Mining` > Kategorie: **Integration** hinzufügen.
 3. Herunterladen und Home Assistant **neu starten**.
 
 ### 2. Dashboard & Miner einrichten
@@ -58,12 +54,9 @@ Maximale Sicherheit für deine Hardware:
 
 ---
 
-## 🚨 Troubleshooting & HA Core >= 2024.10 Kompatibilität
-
-> [!IMPORTANT]
-> **Update v1.3.5:** Dieses Release beinhaltet weitreichende Patches für neuere Home Assistant-Editionen.
-> - **500 Config Flow Error Fixed**: Problem mit fehlendem `FlowResult` in Home Assistant > 2024.8 beseitigt (`ConfigFlowResult` wird nun dynamisch verwendet).
-> - **Pyasic Installation Fixed**: Mit der Einführung des `uv` Paketmanagers in HA wurden Pre-Release Abhängigkeiten geblockt. Das `betterproto==2.0.0b7` Problem wurde behoben und `pyasic` lädt nun wieder sauber.
+## 🚨 Sicherheitshinweis
+> [!WARNING]
+> Der Betrieb von ASIC-Minern als Heizung erfordert eine stabile thermische Umgebung. Stelle sicher, dass die Abwärme sicher abgeführt wird und die Brandmeldung in den betroffenen Räumen aktiv ist.
 
 ---
 

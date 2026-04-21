@@ -1414,7 +1414,20 @@ class OpenKairoMiningPanel extends LitElement {
             </p>
             <ul style="color:#888; font-size: 0.9em; padding-left: 20px; margin-bottom: 0; line-height: 1.5;">
               <li><strong>Power Limit Slider:</strong> Reguliere die Wattzahl kompatibler Miner stufenlos im Dashboard.</li>
-              <li><strong>Hardware Buttons:</strong> Schalte zwischen LOW, NORM und HIGH Modus oder führe einen Reboot direkt vom Sofa aus durch.</li>
+              <li><strong>Hardware Buttons:</strong> Schalte zwischen LOW, NORM und HIGH Modus oder führe einen Reboot durch.</li>
+            </ul>
+          </div>
+
+          <div class="tech-box" style="border-top: 4px solid #e67e22; background: rgba(230, 126, 34, 0.03);">
+            <h3 style="margin-top:0; color:#e67e22; display: flex; align-items: center; gap: 10px;">
+              <span>🔥</span> Heiz-Modus (Mining as a Heater)
+            </h3>
+            <p style="color:#bbb; line-height:1.6;">
+              Verwandle Abwärme in Nutzwärme – intelligent gesteuert:
+            </p>
+            <ul style="color:#888; font-size: 0.9em; padding-left: 20px; margin-bottom: 0; line-height: 1.5;">
+              <li><strong>Temp-Steuerung:</strong> Automatische Ein-/Ausschaltung basierend auf HA-Temperatursensoren.</li>
+              <li><strong>SOC-Sperre:</strong> (Optional) Heize nur, wenn dein Haus-Akku ausreichend geladen ist.</li>
             </ul>
           </div>
 
