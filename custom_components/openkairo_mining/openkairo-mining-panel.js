@@ -1278,8 +1278,10 @@ class OpenKairoMiningPanel extends LitElement {
         ${(() => {
           try {
             if (this.activeTab === 'dashboard') return html`
-              ${this.renderActivityTicker()}
-              <div class="tab-content-anim">${this.renderDashboard()}</div>
+              <div class="tab-content-anim">
+                ${this.renderActivityTicker()}
+                ${this.renderDashboard()}
+              </div>
             `;
             if (this.activeTab === 'statistics') return html`<div class="tab-content-anim">${this.renderStatistics()}</div>`;
             if (this.activeTab === 'energy') return html`<div class="tab-content-anim">${this.renderEnergyStats()}</div>`;
@@ -1759,7 +1761,7 @@ class OpenKairoMiningPanel extends LitElement {
 
 
     return html`
-      <div class="dashboard-wrapper" style="display: flex; flex-direction: column; width: 100%; gap: 10px;">
+      <div class="dashboard-wrapper" style="display: flex; flex-direction: column; width: 100%; gap: 40px;">
         ${overviewHtml}
 
         ${totalPowerW > 0 ? html`
@@ -2052,8 +2054,8 @@ class OpenKairoMiningPanel extends LitElement {
                       <p><b>Aktueller PV-Wert:</b> <span class="highlight-val" style="${isStale ? 'color: #e67e22; animation: pulse 2s infinite;' : ''}">${pvValue}</span></p>
                       ${isStale ? html`<p style="color: #e67e22; font-size: 0.75em; margin-bottom: 5px;">⚠️ Sensordaten veraltet! (Timeout-Gefahr)</p>` : ''}
                       <div class="small-text mt-1" style="margin-bottom: 8px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
-                        Regeln: An &ge; <input type="number" .value="${miner.pv_on}" @change="${(e) => this.quickUpdateMiner(miner.id, 'pv_on', e.target.value)}" style="width: 70px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #0bc4e2; border-radius: 4px; font-weight: bold;"> W 
-                        | Aus &le; <input type="number" .value="${miner.pv_off}" @change="${(e) => this.quickUpdateMiner(miner.id, 'pv_off', e.target.value)}" style="width: 70px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #0bc4e2; border-radius: 4px; font-weight: bold;"> W
+                        Regeln: An &ge; <input type="number" class="tech-input" .value="${miner.pv_on}" @change="${(e) => this.quickUpdateMiner(miner.id, 'pv_on', e.target.value)}"> W 
+                        | Aus &le; <input type="number" class="tech-input" .value="${miner.pv_off}" @change="${(e) => this.quickUpdateMiner(miner.id, 'pv_off', e.target.value)}"> W
                       </div>
                       ${miner.allow_battery ? html`
                         <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px;">
@@ -2086,8 +2088,8 @@ class OpenKairoMiningPanel extends LitElement {
                     <div class="tech-box">
                       <p><b>Aktueller SOC:</b> <span class="highlight-val">${batterySOCValue || 'N/A'}</span></p>
                       <div class="small-text mt-1" style="margin-bottom: 8px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
-                        Regeln: An &ge; <input type="number" .value="${miner.soc_on !== undefined ? miner.soc_on : 90}" @change="${(e) => this.quickUpdateMiner(miner.id, 'soc_on', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #0bc4e2; border-radius: 4px; font-weight: bold;"> % 
-                        | Aus &le; <input type="number" .value="${miner.soc_off !== undefined ? miner.soc_off : 30}" @change="${(e) => this.quickUpdateMiner(miner.id, 'soc_off', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #0bc4e2; border-radius: 4px; font-weight: bold;"> %
+                        Regeln: An &ge; <input type="number" class="tech-input" .value="${miner.soc_on !== undefined ? miner.soc_on : 90}" @change="${(e) => this.quickUpdateMiner(miner.id, 'soc_on', e.target.value)}"> % 
+                        | Aus &le; <input type="number" class="tech-input" .value="${miner.soc_off !== undefined ? miner.soc_off : 30}" @change="${(e) => this.quickUpdateMiner(miner.id, 'soc_off', e.target.value)}"> %
                       </div>
                     </div>
                   ` : ''}
@@ -2174,8 +2176,8 @@ class OpenKairoMiningPanel extends LitElement {
                                 </button>
                             </div>
                             <div class="small-text mt-1" style="margin-top: 10px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
-                                Off wenn &lt; <input type="number" .value="${miner.standby_power || 100}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_power', e.target.value)}" style="width: 60px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #e74c3c; border-radius: 4px; font-weight: bold;"> W 
-                                für &ge; <input type="number" .value="${miner.standby_delay || 10}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_delay', e.target.value)}" style="width: 50px; padding: 4px; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #e74c3c; border-radius: 4px; font-weight: bold;"> Min.
+                                Off wenn &lt; <input type="number" class="tech-input" .value="${miner.standby_power || 100}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_power', e.target.value)}"> W 
+                                für &ge; <input type="number" class="tech-input" .value="${miner.standby_delay || 10}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_delay', e.target.value)}"> Min.
                             </div>
                           </div>
                         </div>`;
@@ -3391,16 +3393,18 @@ class OpenKairoMiningPanel extends LitElement {
 
       /* --- ACTIVITY TICKER STYLES --- */
       .activity-ticker {
-        background: rgba(0, 0, 0, 0.5);
+        background: rgba(0, 0, 0, 0.4);
         backdrop-filter: blur(15px);
-        border-bottom: 2px solid rgba(var(--theme-accent-1-rgb), 0.2);
-        height: 40px;
+        border-bottom: 1px solid rgba(var(--theme-accent-1-rgb), 0.2);
+        height: 38px;
         overflow: hidden;
         position: relative;
         z-index: 101;
         display: flex;
         align-items: center;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        margin-bottom: 25px;
+        border-radius: 8px;
       }
 
       .ticker-content {
@@ -3665,7 +3669,7 @@ class OpenKairoMiningPanel extends LitElement {
       
       .content { 
         max-width: 1600px; 
-        margin: 50px auto 0 auto;
+        margin: 80px auto 0 auto;
       }
       
       /* Techy Cards */
@@ -3880,6 +3884,20 @@ class OpenKairoMiningPanel extends LitElement {
         margin-top: 20px;
         box-shadow: inset 0 2px 15px rgba(0,0,0,0.3);
       }
+      .tech-input {
+        width: 70px; 
+        padding: 4px 8px; 
+        background: rgba(0,0,0,0.5); 
+        border: 1px solid #444; 
+        color: var(--theme-primary); 
+        border-radius: 4px; 
+        font-weight: bold;
+        font-family: monospace;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .tech-input:focus { border-color: var(--theme-primary); }
+      
       .highlight-val { font-size: 1.25em; font-weight: 800; color: var(--theme-text-main); font-family: monospace; letter-spacing: 1px; }
       
       .slider-container {
@@ -3975,16 +3993,30 @@ class OpenKairoMiningPanel extends LitElement {
       
       @media (max-width: 768px) {
         :host { padding: 15px 10px; }
-        .header h1 { font-size: 2.4em; }
-        .header { margin-bottom: 25px; }
-        .subtitle { font-size: 1em; }
+        .header h1 { font-size: 1.8em; }
+        .header { margin-bottom: 20px; }
+        .subtitle { font-size: 0.9em; letter-spacing: 1px; }
         
-        .tabs { gap: 8px; margin-bottom: 25px; }
+        .tabs { 
+          display: flex;
+          overflow-x: auto;
+          white-space: nowrap;
+          gap: 10px; 
+          margin-bottom: 20px; 
+          padding: 5px 2px 15px 2px;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none; /* Firefox */
+          mask-image: linear-gradient(to right, black 85%, transparent);
+          -webkit-mask-image: linear-gradient(to right, black 85%, transparent);
+        }
+        .tabs::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+
         .tab { 
-          padding: 12px 10px; 
+          padding: 10px 18px; 
           font-size: 0.9em; 
-          min-width: calc(50% - 10px); /* 2 columns on mobile */
-          max-width: 100%;
+          flex: 0 0 auto;
+          min-width: auto;
+          max-width: none;
         }
         
         .card { padding: 20px 15px; border-radius: 12px; }
@@ -4101,13 +4133,13 @@ class OpenKairoMiningPanel extends LitElement {
         .wallet-info div:last-child { font-size: 1.4em !important; }
         
         .overview-section { 
-          grid-template-columns: repeat(2, 1fr) !important; 
-          gap: 10px !important; 
+          grid-template-columns: 1fr !important; 
+          gap: 12px !important; 
           margin-bottom: 20px !important;
         }
-        .overview-section .card { padding: 15px !important; }
-        .overview-section .card div:nth-child(2) { font-size: 1.5em !important; margin-top: 10px !important; }
-        .overview-section .card span { font-size: 0.65em !important; }
+        .overview-section .card { padding: 18px !important; }
+        .overview-section .card div:nth-child(2) { font-size: 1.8em !important; margin-top: 8px !important; }
+        .overview-section .card span { font-size: 0.7em !important; }
         
         .tabs { margin: 0 5px 15px 5px !important; gap: 8px !important; }
 
@@ -4136,15 +4168,38 @@ class OpenKairoMiningPanel extends LitElement {
         }
         .ticker-content:hover { animation-play-state: paused; }
         
-        .miner-card { padding: 15px !important; margin-bottom: 15px !important; }
+        .miner-card { padding: 18px !important; margin-bottom: 15px !important; }
         .miner-header { flex-direction: column; align-items: flex-start; gap: 10px; }
         .btn-mining { padding: 15px !important; font-size: 1.1em !important; letter-spacing: 2px !important; }
         
-        .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
-        .stat-card { padding: 10px !important; }
-        .stat-val { font-size: 1.1em !important; }
+        .stats-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+        .stat-card { padding: 15px !important; }
+        .stat-val { font-size: 1.25em !important; }
         
         .miner-details { grid-template-columns: 1fr !important; }
+        
+        /* Form Optimierungen */
+        .form-row { flex-direction: column !important; gap: 0 !important; }
+        .form-group { margin-bottom: 15px !important; width: 100% !important; }
+        .form-group input, .form-group select { padding: 14px !important; font-size: 16px !important; } /* 16px prevents iOS zoom */
+        
+        .tech-input { width: 85px !important; height: 38px !important; font-size: 1.1em !important; }
+        .power-limit-box input[type="number"] { width: 85px !important; height: 36px !important; }
+
+        .miner-list-item { 
+          flex-direction: column !important; 
+          align-items: flex-start !important; 
+          gap: 15px !important; 
+          padding: 20px !important;
+        }
+        .miner-list-item .actions { 
+          width: 100% !important; 
+          justify-content: flex-end !important; 
+          border-top: 1px solid rgba(255,255,255,0.05);
+          padding-top: 12px;
+        }
+        .miner-list-item div:first-child { width: 100%; overflow: hidden; }
+        .miner-list-item div:first-child p { word-break: break-all; }
       }
 
       /* Speziell für sehr schmale Handys */
