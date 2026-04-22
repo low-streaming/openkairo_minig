@@ -92,8 +92,13 @@ class MinerControlModeSelect(CoordinatorEntity, SelectEntity):
             if m.get("miner_ip") == self.coordinator.miner_ip:
                 _LOGGER.info(f"[{self.coordinator.miner_ip}] Changing automation mode: {m.get('mode')} -> {option}")
                 
-                # Merke den letzten aktiven Automatik-Modus für das Dashboard
-                if option != "manual":
+                # Wenn wir auf Manuell schalten, merken wir uns den aktuellen Modus für später
+                if option == "manual":
+                    current_mode = m.get("mode")
+                    if current_mode and current_mode != "manual":
+                        m["last_auto_mode"] = current_mode
+                else:
+                    # Wenn wir in einen Automatik-Modus schalten, ist das unser neuer Start-Wert
                     m["last_auto_mode"] = option
                 
                 # Wenn auf Manuell geschaltet wird -> Alles aus (Not-Aus Logik)

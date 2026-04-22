@@ -912,8 +912,16 @@ class OpenKairoMiningPanel extends LitElement {
   }
 
   stopAutomationAndHardware(miner) {
-    // 1. Set mode to manual (stops automation)
-    this.quickUpdateMiner(miner.id, 'mode', 'manual');
+    // 1. Merke den aktuellen Modus, bevor wir auf Manuell schalten
+    const index = this.config.miners.findIndex(m => m.id === miner.id);
+    if (index > -1) {
+      const currentMode = this.config.miners[index].mode;
+      if (currentMode && currentMode !== 'manual') {
+        this.config.miners[index].last_auto_mode = currentMode;
+      }
+      this.config.miners[index].mode = 'manual';
+      this.saveConfig(true);
+    }
     
     // 2. Turn off all related power switches
     if (!this.hass) return;
@@ -1015,11 +1023,20 @@ class OpenKairoMiningPanel extends LitElement {
   }
 
   saveForm() {
+    // Merke den letzten aktiven Automatik-Modus auch beim Speichern des gesamten Formulars
+    if (this.editForm.mode && this.editForm.mode !== 'manual') {
+      this.editForm.last_auto_mode = this.editForm.mode;
+    }
+
     if (this.editingMinerId === 'new') {
       this.config.miners.push(this.editForm);
     } else {
       const index = this.config.miners.findIndex(m => m.id === this.editingMinerId);
       if (index > -1) {
+        // Bestehende last_auto_mode beibehalten, falls das Formular sie nicht hat
+        if (!this.editForm.last_auto_mode && this.config.miners[index].last_auto_mode) {
+          this.editForm.last_auto_mode = this.config.miners[index].last_auto_mode;
+        }
         this.config.miners[index] = this.editForm;
       }
     }
@@ -2097,7 +2114,7 @@ class OpenKairoMiningPanel extends LitElement {
                       </button>
                     ` : html`
                       <button class="btn-control mode-normal" @click="${() => this.quickUpdateMiner(miner.id, 'mode', miner.last_auto_mode || 'pv')}" style="padding: 2px 8px; font-size: 0.75em; flex: none; width: auto; height: 24px; letter-spacing: 0.5px; margin-left: 10px;">
-                        START
+                        START (${modeMap[miner.last_auto_mode || 'pv'] || 'PV'})
                       </button>
                     `}
                   </p>
