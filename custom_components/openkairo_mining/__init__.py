@@ -4,6 +4,8 @@ import os
 import time
 import asyncio
 import pydantic
+from datetime import datetime, timedelta
+import homeassistant.util.dt as dt_util
 
 # Pydantic Fix für pyasic unter Python 3.14 (Home Assistant 2024.x)
 try:
@@ -325,60 +327,107 @@ class OpenKairoMiningApiView(HomeAssistantView):
             "logs": logs
         })
 
- 
+    
     async def post(self, request):
         hass = request.app["hass"]
-        data = await request.json()
-        
-        # [NEW] Handle remote actions from Display/Dashboard
-        if "action" in data:
-            action = data["action"]
-            config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
+        try:
+            data = await request.json()
             
-            for m in config.get("miners", []):
-                ip = m.get("miner_ip")
-                if not ip: continue
-                
-                if action == "restart":
-                    await hass.services.async_call(DOMAIN, "restart_backend", {"ip_address": ip})
-                elif action == "reboot":
-                    await hass.services.async_call(DOMAIN, "reboot", {"ip_address": ip})
-            
-            from aiohttp import web
-            return web.json_response({"status": "success", "action": action})
+            # [NEW] Handle remote actions from Display/Dashboard
+            if "action" in data:
+                action = data["action"]
+                config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
+                for m in config.get("miners", []):
+                    ip = m.get("miner_ip")
+                    if not ip: continue
+                    if action == "restart":
+                        await hass.services.async_call(DOMAIN, "restart_backend", {"ip_address": ip})
+                    elif action == "reboot":
+                        await hass.services.async_call(DOMAIN, "reboot", {"ip_address": ip})
+                from aiohttp import web
+                return web.json_response({"status": "success", "action": action})
 
-        # [NEW] Handle specific miner config updates (e.g. SOC values)
-        if "update_miner_config" in data:
-            mid = data["update_miner_config"]
-            params = data.get("params", {})
-            config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
-            
-            for m in config.get("miners", []):
-                if m.get("id") == mid or m.get("miner_ip") == mid:
+            # [NEW] Handle specific miner config updates (e.g. SOC values)
+            if "update_miner_config" in data:
+                mid = data["update_miner_config"]
+                params = data.get("params", {})
+                config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
+                for m in config.get("miners", []):
+                    if m.get("id") == mid or m.get("miner_ip") == mid:
+                        for key, val in params.items():
+                            m[key] = val
+                        break
+                await hass.async_add_executor_job(_save_config, hass, config)
+                from aiohttp import web
+                return web.json_response({"status": "success", "updated": mid})
+
+            # [NEW] Handle global config updates for all miners
+            if "update_global_config" in data:
+                params = data.get("params", {})
+                config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
+                for m in config.get("miners", []):
                     for key, val in params.items():
                         m[key] = val
-                    break
-            
-            await hass.async_add_executor_job(_save_config, hass, config)
-            from aiohttp import web
-            return web.json_response({"status": "success", "updated": mid})
+                await hass.async_add_executor_job(_save_config, hass, config)
+                from aiohttp import web
+                return web.json_response({"status": "success", "updated": "all"})
 
-        # [NEW] Handle global config updates for all miners
-        if "update_global_config" in data:
-            params = data.get("params", {})
-            config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
+            # Default: Save the entire config
+            await hass.async_add_executor_job(_save_config, hass, data)
+            new_config = await hass.async_add_executor_job(_load_config, hass)
+            hass.data[DOMAIN]["config"] = new_config
             
-            for m in config.get("miners", []):
-                for key, val in params.items():
-                    m[key] = val
-            
-            await hass.async_add_executor_job(_save_config, hass, config)
             from aiohttp import web
-            return web.json_response({"status": "success", "updated": "all"})
+            return web.json_response({"status": "ok", "message": "Konfiguration gespeichert"})
+        except Exception as e:
+            _LOGGER.error(f"Error in API POST: {e}")
+            from aiohttp import web
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
 
-        await hass.async_add_executor_job(_save_config, hass, data)
-        from aiohttp import web
-        return web.json_response({"status": "success"})
+
+async def get_avg_night_load(hass, entity_id, days=3):
+    """Calculates the average night load (22:00 - 06:00) of a sensor over the last few days."""
+    try:
+        from homeassistant.components.recorder import history
+        
+        end_time = dt_util.utcnow()
+        start_time = end_time - timedelta(days=days)
+        
+        # [optimization] we use the core history API directly
+        all_states = await hass.async_add_executor_job(
+            history.state_changes_during_period,
+            hass,
+            start_time,
+            end_time,
+            entity_id
+        )
+        
+        states = all_states.get(entity_id, [])
+        if not states:
+            return 0
+            
+        total_p = 0
+        count = 0
+        for s in states:
+            if s.state in ["unknown", "unavailable", None]:
+                continue
+            
+            # Check if it was during 'night' (default 22:00 - 06:00 local time)
+            local_dt = dt_util.as_local(s.last_changed)
+            if local_dt.hour >= 22 or local_dt.hour < 6:
+                try:
+                    val = float(s.state)
+                    # We only care about positive discharge/load
+                    if val > 0:
+                        total_p += val
+                        count += 1
+                except: pass
+                                
+        return total_p / count if count > 0 else 0
+    except Exception as e:
+        _LOGGER.error(f"Error calculating AI history: {e}")
+        return 0
+
 
 def _add_log_entry(hass, message):
     if DOMAIN not in hass.data:
@@ -712,11 +761,104 @@ async def _mining_loop(hass):
                                         state["log_reason_off"] = f"(Offgrid SOC {battery_soc}% <= Stop {soc_stop}%)"
                                 except ValueError:
                                     pass
+                                    
+                    elif mode == "ai_discharge":
+                        # KI-gesteuerte Entladung (Leert den Akku bis zum Morgen)
+                        battery_sensor = miner.get("battery_sensor")
+                        # Wir nutzen bevorzugt einen dedizierten Batteriesensor (W), sonst Hausverbrauch
+                        power_sensor = miner.get("battery_power_sensor") or miner.get("power_consumption_sensor")
+                        
+                        capacity = float(miner.get("battery_capacity", 10)) # kWh
+                        target_soc = float(miner.get("target_soc", 10)) # %
+                        target_time_str = miner.get("target_time", "07:00")
+                        
+                        if battery_sensor and power_sensor:
+                            bat_state = hass.states.get(battery_sensor)
+                            if bat_state and bat_state.state not in ["unknown", "unavailable"]:
+                                state["last_sensor_update"] = current_time
+                                try:
+                                    current_soc = float(bat_state.state)
+                                    state["ai_status"] = "Analysiere Hausverbrauch..."
+                                    
+                                    # Historischen Nachtverbrauch prüfen (Cache für 1 Std)
+                                    cache_key = f"ai_load_{power_sensor}"
+                                    last_cache = hass.data[DOMAIN].get(f"{cache_key}_time", 0)
+                                    if current_time - last_cache > 3600:
+                                        # Wir führen das im Hintergrund aus, um den Loop nicht zu blockieren
+                                        async def fetch_history():
+                                            load = await get_avg_night_load(hass, power_sensor)
+                                            hass.data[DOMAIN][cache_key] = load
+                                            hass.data[DOMAIN][f"{cache_key}_time"] = time.time()
+                                        hass.async_create_task(fetch_history())
+                                    
+                                    avg_load = hass.data[DOMAIN].get(cache_key)
+                                    if avg_load is None:
+                                        avg_load = 250 # Fallback 250W solange kein Wert da ist
+                                        state["ai_status"] = "Warte auf Historie (Nutze 250W Fallback)..."
+                                    else:
+                                        state["ai_status"] = "Berechnung aktiv"
+                                    
+                                    # Ziel-Uhrzeit berechnen (Robustes Parsing)
+                                    now = dt_util.now()
+                                    try:
+                                        if ':' in target_time_str:
+                                            parts = target_time_str.split(':')
+                                            t_hour = int(parts[0])
+                                            t_min = int(parts[1])
+                                        else:
+                                            t_hour, t_min = 7, 0
+                                    except:
+                                        t_hour, t_min = 7, 0
+                                        
+                                    target_dt = now.replace(hour=t_hour, minute=t_min, second=0, microsecond=0)
+                                    if target_dt <= now:
+                                        target_dt += timedelta(days=1)
+                                    
+                                    hours_left = (target_dt - now).total_seconds() / 3600
+                                    
+                                    # Erwarteter Energiebedarf Haus (Wh)
+                                    house_energy_needed = avg_load * hours_left
+                                    
+                                    # Verfügbare Energie im Akku bis Ziel-SOC (Wh)
+                                    battery_energy_available = max(0, (current_soc - target_soc) / 100 * capacity * 1000)
+                                    
+                                    # Restenergie zum Minen (Wh)
+                                    mining_energy_available = battery_energy_available - house_energy_needed
+                                    
+                                    miner_power = float(miner.get("soft_target_power", 1200))
+                                    
+                                    if mining_energy_available <= 0:
+                                        turn_off_condition = True
+                                        state["log_reason_off"] = f"(AI: Keine Reserve - Haus braucht {int(house_energy_needed)}Wh, Akku hat {int(battery_energy_available)}Wh)"
+                                        state["ai_start_time"] = "--:--"
+                                        state["ai_runtime"] = 0
+                                        state["ai_status"] = "Keine Reserve (Haus benötigt alles)"
+                                    else:
+                                        runtime_hours = mining_energy_available / miner_power
+                                        # Maximiere Laufzeit auf Stunden bis Zielzeit
+                                        runtime_hours = min(runtime_hours, hours_left)
+                                        
+                                        start_time_dt = target_dt - timedelta(hours=runtime_hours)
+                                        
+                                        state["ai_start_time"] = start_time_dt.strftime("%H:%M")
+                                        state["ai_runtime"] = round(runtime_hours, 1)
+                                        state["ai_status"] = "Startzeit berechnet"
+                                        
+                                        if now >= start_time_dt:
+                                            turn_on_condition = True
+                                            state["log_reason_on"] = f"(AI Startzeit erreicht: {state['ai_start_time']}. Dauer: {state['ai_runtime']}h)"
+                                        else:
+                                            turn_off_condition = True
+                                            state["log_reason_off"] = f"(AI Wartet auf Startzeit: {state['ai_start_time']})"
+                                            
+                                except Exception as ai_err:
+                                    _LOGGER.error(f"AI Discharge Error: {ai_err}")
+                                    state["ai_status"] = f"Fehler: {str(ai_err)}"
                     
                     # --- SENSOR WATCHDOG ---
                     # Wenn seit 5 Minuten keine gueltigen Sensordaten kamen -> Abschalten!
                     # Nur ausführen wenn wir in einem Automatik-Modus sind!
-                    if mode in ["pv", "soc", "offgrid", "heating"] and current_time - state.get("last_sensor_update", current_time) > 300:
+                    if mode in ["pv", "soc", "offgrid", "heating", "ai_discharge"] and current_time - state.get("last_sensor_update", current_time) > 300:
                         _LOGGER.warning(f"[{miner_name}] Sensor-Timeout (>5 Min)! Schalte sicherheitshalber AB.")
                         turn_on_condition = False
                         turn_off_condition = True

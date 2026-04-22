@@ -59,7 +59,7 @@ class MinerWorkModeSelect(CoordinatorEntity, SelectEntity):
 
 class MinerControlModeSelect(CoordinatorEntity, SelectEntity):
     """Control the automation mode of the miner (manual, pv, soc, etc.)."""
-    _attr_options = ["manual", "pv", "soc", "heating", "offgrid"]
+    _attr_options = ["manual", "pv", "soc", "heating", "offgrid", "ai_discharge"]
 
     def __init__(self, coordinator):
         super().__init__(coordinator)

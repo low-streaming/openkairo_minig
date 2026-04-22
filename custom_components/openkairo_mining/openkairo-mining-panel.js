@@ -1642,7 +1642,8 @@ class OpenKairoMiningPanel extends LitElement {
       'pv': 'PV-Überschuss',
       'soc': 'Batterie SOC',
       'offgrid': 'Offgrid PV (SOC Kurve)',
-      'heating': 'Heiz-Modus'
+      'heating': 'Heiz-Modus',
+      'ai_discharge': 'AI Akku-Optimierer'
     };
 
     // --- OVERVIEW AGGREGATION ---
@@ -2175,6 +2176,21 @@ class OpenKairoMiningPanel extends LitElement {
                     </div>
                   ` : ''}
 
+                  ${miner.mode === 'ai_discharge' ? html`
+                    <div class="tech-box" style="border-color: #9b59b6; background: rgba(155, 89, 182, 0.05);">
+                      <p><strong style="color: #9b59b6;">🤖 AI-Optimierung:</strong></p>
+                      <p>Ziel: <span class="highlight-val">${miner.target_soc || 10}%</span> bis <span class="highlight-val">${miner.target_time || '07:00'}</span></p>
+                      <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px; margin-top: 8px;">
+                        ${stateObj && stateObj.ai_start_time && stateObj.ai_start_time !== '--:--' ? html`
+                          <p>Geplante Startzeit: <span class="highlight-val" style="color: #9b59b6;">${stateObj.ai_start_time}</span></p>
+                          <p class="small-text mt-1">Dauer: ${stateObj.ai_runtime || 0}h | Basierend auf ${miner.battery_capacity || 0} kWh Akku</p>
+                        ` : html`
+                          <p class="small-text" style="color: #aaa;">${stateObj && stateObj.ai_status ? stateObj.ai_status : 'Berechne Startzeit... (Warte auf Sensordaten)'}</p>
+                        `}
+                      </div>
+                    </div>
+                  ` : ''}
+
                   ${miner.mode === 'heating' ? html`
                     <div class="tech-box" style="border-color: #e67e22; background: rgba(230, 126, 34, 0.05);">
                       <p><b>Raumtemperatur:</b> <span class="highlight-val" style="color: #e67e22;">${this._formatValue(this.hass?.states[miner.target_temp_sensor], '°C', 'N/A')}</span></p>
@@ -2692,6 +2708,7 @@ class OpenKairoMiningPanel extends LitElement {
             <option value="soc" ?selected="${this.editForm.mode === 'soc'}">Batterie SOC</option>
             <option value="offgrid" ?selected="${this.editForm.mode === 'offgrid'}">Offgrid PV (SOC Kurve)</option>
             <option value="heating" ?selected="${this.editForm.mode === 'heating'}">Heiz-Modus (Temperatur-Steuerung)</option>
+            <option value="ai_discharge" ?selected="${this.editForm.mode === 'ai_discharge'}">🤖 AI Akku-Optimierer (Predictive)</option>
           </select>
         </div>
 
@@ -2916,6 +2933,53 @@ class OpenKairoMiningPanel extends LitElement {
                     <input type="number" min="0" step="1" name="min_run_time" .value="${this.editForm.min_run_time || 5}" @input="${this.handleFormInput}">
                     <small>Schont die Hardware.</small>
                 </div>
+            </div>
+          </div>
+        ` : ''}
+
+        ${this.editForm.mode === 'ai_discharge' ? html`
+          <div class="mode-section btc-section" style="border-color: #9b59b6; background: rgba(155, 89, 182, 0.05);">
+            <h3 style="color: #9b59b6; margin-top: 0; margin-bottom: 20px;">🤖 AI Akku-Optimierer (Intelligentes Entladen)</h3>
+            <p style="font-size: 0.85em; color: #bbb; margin-bottom: 15px;">
+                Die KI berechnet anhand des historischen Hausverbrauchs, wann der Miner nachts starten muss, 
+                damit der Akku morgens genau den Zielwert erreicht.
+            </p>
+            
+            <div class="form-row">
+                <div class="form-group flex-2">
+                    <label>Hausakku SOC-Sensor (%)</label>
+                    <openkairo-entity-picker name="battery_sensor" placeholder="-- Batterie % Sensor --" .value="${this.editForm.battery_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                </div>
+                <div class="form-group flex-1">
+                    <label>Akku Kapazität (kWh)</label>
+                    <input type="number" step="0.1" name="battery_capacity" .value="${this.editForm.battery_capacity || 10}" @input="${this.handleFormInput}">
+                    <small>Usable Capacity.</small>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Stromverbrauch-Sensor Haus/Akku (Watt)</label>
+                <openkairo-entity-picker name="battery_power_sensor" placeholder="-- Entlade-Leistung Sensor (W) --" .value="${this.editForm.battery_power_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                <small>Wird für die historische Analyse des Nachtverbrauchs genutzt.</small>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label>Ziel-Uhrzeit (Morgens)</label>
+                    <input type="text" name="target_time" placeholder="07:30" .value="${this.editForm.target_time || '07:00'}" @input="${this.handleFormInput}">
+                    <small>Format HH:MM</small>
+                </div>
+                <div class="form-group flex-1">
+                    <label>Ziel-SOC am Morgen (%)</label>
+                    <input type="number" min="0" max="100" name="target_soc" .value="${this.editForm.target_soc || 10}" @input="${this.handleFormInput}">
+                    <small>Restladung im Akku.</small>
+                </div>
+            </div>
+
+            <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <label>🛡️ Min. Laufzeit (Minuten)</label>
+                <input type="number" min="0" step="1" name="min_run_time" .value="${this.editForm.min_run_time || 15}" @input="${this.handleFormInput}">
+                <small>Schont die Hardware.</small>
             </div>
           </div>
         ` : ''}
