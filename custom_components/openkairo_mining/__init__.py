@@ -384,8 +384,7 @@ class OpenKairoMiningApiView(HomeAssistantView):
             from aiohttp import web
             return web.json_response({"status": "error", "message": str(e)}, status=500)
 
-
-async def get_avg_night_load(hass, entity_id, days=3):
+async def get_avg_night_load(hass, entity_id, days=3):
     """Calculates the average night load (22:00 - 06:00) of a sensor over the last few days."""
     try:
         from homeassistant.components.recorder import history
@@ -393,7 +392,6 @@ async def get_avg_night_load(hass, entity_id, days=3):
         end_time = dt_util.utcnow()
         start_time = end_time - timedelta(days=days)
         
-        # [optimization] we use the core history API directly
         all_states = await hass.async_add_executor_job(
             history.state_changes_during_period,
             hass,
@@ -412,21 +410,21 @@ async def get_avg_night_load(hass, entity_id, days=3):
             if s.state in ["unknown", "unavailable", None]:
                 continue
             
-            # Check if it was during 'night' (default 22:00 - 06:00 local time)
             local_dt = dt_util.as_local(s.last_changed)
             if local_dt.hour >= 22 or local_dt.hour < 6:
                 try:
-                    val = float(s.state)
-                    # We only care about positive discharge/load
-                    if val > 0:
+                    val = abs(float(s.state))
+                    # Ignore values < 10W (Likely standby or noise)
+                    if val > 10:
                         total_p += val
                         count += 1
                 except: pass
-                                
+                                
         return total_p / count if count > 0 else 0
     except Exception as e:
-        _LOGGER.error(f"Error calculating AI history: {e}")
+        _LOGGER.error(f"Error calculating AI history for {entity_id}: {e}")
         return 0
+
 
 
 def _add_log_entry(hass, message):
@@ -772,13 +770,21 @@ async def _mining_loop(hass):
                         target_soc = float(miner.get("target_soc", 10)) # %
                         target_time_str = miner.get("target_time", "07:00")
                         
-                        if battery_sensor and power_sensor:
+                        if not battery_sensor:
+                            state["ai_status"] = "Konfigurationsfehler: Hausakku SOC-Sensor fehlt"
+                        elif not power_sensor:
+                            state["ai_status"] = "Konfigurationsfehler: Stromverbrauch-Sensor fehlt"
+                        else:
                             bat_state = hass.states.get(battery_sensor)
-                            if bat_state and bat_state.state not in ["unknown", "unavailable"]:
+                            if not bat_state:
+                                state["ai_status"] = f"Sensor nicht gefunden: {battery_sensor}"
+                            elif bat_state.state in ["unknown", "unavailable"]:
+                                state["ai_status"] = f"Sensor {battery_sensor} offline"
+                            else:
                                 state["last_sensor_update"] = current_time
                                 try:
                                     current_soc = float(bat_state.state)
-                                    state["ai_status"] = "Analysiere Hausverbrauch..."
+                                    state["ai_status"] = "Berechnung aktiv..."
                                     
                                     # Historischen Nachtverbrauch prüfen (Cache für 1 Std)
                                     cache_key = f"ai_load_{power_sensor}"
@@ -795,10 +801,8 @@ async def _mining_loop(hass):
                                     if avg_load is None:
                                         avg_load = 250 # Fallback 250W solange kein Wert da ist
                                         state["ai_status"] = "Warte auf Historie (Nutze 250W Fallback)..."
-                                    else:
-                                        state["ai_status"] = "Berechnung aktiv"
                                     
-                                    # Ziel-Uhrzeit berechnen (Robustes Parsing)
+                                    # Ziel-Uhrzeit berechnen
                                     now = dt_util.now()
                                     try:
                                         if ':' in target_time_str:
@@ -825,35 +829,42 @@ async def _mining_loop(hass):
                                     # Restenergie zum Minen (Wh)
                                     mining_energy_available = battery_energy_available - house_energy_needed
                                     
-                                    miner_power = float(miner.get("soft_target_power", 1200))
+                                    miner_power = 1200 # Default
+                                    cfg_power = miner.get("soft_target_power")
+                                    if is_on and p_sensor_val and p_sensor_val > 5:
+                                        miner_power = p_sensor_val
+                                    elif cfg_power:
+                                        miner_power = float(cfg_power)
+                                    else:
+                                        miner_power = 18 if "nerd" in miner_name.lower() else 1200
                                     
                                     if mining_energy_available <= 0:
                                         turn_off_condition = True
                                         state["log_reason_off"] = f"(AI: Keine Reserve - Haus braucht {int(house_energy_needed)}Wh, Akku hat {int(battery_energy_available)}Wh)"
                                         state["ai_start_time"] = "--:--"
                                         state["ai_runtime"] = 0
-                                        state["ai_status"] = "Keine Reserve (Haus benötigt alles)"
+                                        state["ai_status"] = f"Hausbedarf ({int(house_energy_needed)}Wh) > Akku ({int(battery_energy_available)}Wh)"
                                     else:
                                         runtime_hours = mining_energy_available / miner_power
-                                        # Maximiere Laufzeit auf Stunden bis Zielzeit
                                         runtime_hours = min(runtime_hours, hours_left)
                                         
                                         start_time_dt = target_dt - timedelta(hours=runtime_hours)
                                         
                                         state["ai_start_time"] = start_time_dt.strftime("%H:%M")
                                         state["ai_runtime"] = round(runtime_hours, 1)
-                                        state["ai_status"] = "Startzeit berechnet"
                                         
                                         if now >= start_time_dt:
                                             turn_on_condition = True
-                                            state["log_reason_on"] = f"(AI Startzeit erreicht: {state['ai_start_time']}. Dauer: {state['ai_runtime']}h)"
+                                            state["ai_status"] = f"Aktiv bis {target_time_str} ({int(mining_energy_available)}Wh Reserve)"
+                                            state["log_reason_on"] = f"(AI Startzeit erreicht: {state['ai_start_time']})"
                                         else:
                                             turn_off_condition = True
+                                            state["ai_status"] = f"Start geplant um {state['ai_start_time']} Uhr"
                                             state["log_reason_off"] = f"(AI Wartet auf Startzeit: {state['ai_start_time']})"
                                             
                                 except Exception as ai_err:
-                                    _LOGGER.error(f"AI Discharge Error: {ai_err}")
-                                    state["ai_status"] = f"Fehler: {str(ai_err)}"
+                                    _LOGGER.error(f"AI Discharge Error for {miner_name}: {ai_err}")
+                                    state["ai_status"] = f"Berechnungsfehler: {str(ai_err)[:30]}"
                     
                     # --- SENSOR WATCHDOG ---
                     # Wenn seit 5 Minuten keine gueltigen Sensordaten kamen -> Abschalten!
