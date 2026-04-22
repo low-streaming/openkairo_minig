@@ -17,7 +17,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     name = config_entry.title
     coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name)
     
-    entities = [MinerWorkModeSelect(coordinator)]
+    entities = [
+        MinerWorkModeSelect(coordinator),
+        MinerControlModeSelect(coordinator)
+    ]
     async_add_entities(entities)
 
 class MinerWorkModeSelect(CoordinatorEntity, SelectEntity):
@@ -53,3 +56,68 @@ class MinerWorkModeSelect(CoordinatorEntity, SelectEntity):
                     await self.coordinator.async_request_refresh()
                 except Exception as e:
                     _LOGGER.error(f"Error setting work mode: {e}")
+
+class MinerControlModeSelect(CoordinatorEntity, SelectEntity):
+    """Control the automation mode of the miner (manual, pv, soc, etc.)."""
+    _attr_options = ["manual", "pv", "soc", "heating", "offgrid"]
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_has_entity_name = True
+        ip_slug = coordinator.miner_ip.replace(".", "_")
+        self._attr_unique_id = f"{DOMAIN}_{ip_slug}_control_mode"
+        self._attr_name = "Steuerungsmodus"
+        self._attr_icon = "mdi:robot-config"
+
+    @property
+    def device_info(self):
+        return get_device_info(DOMAIN, self.coordinator)
+
+    @property
+    def current_option(self):
+        config = self.hass.data.get(DOMAIN, {}).get("config", {})
+        miners = config.get("miners", [])
+        miner = next((m for m in miners if m.get("miner_ip") == self.coordinator.miner_ip), None)
+        if miner:
+            return miner.get("mode", "manual")
+        return "manual"
+
+    async def async_select_option(self, option: str) -> None:
+        from .__init__ import _save_config, _add_log_entry
+        config = self.hass.data.get(DOMAIN, {}).get("config", {})
+        miners = config.get("miners", [])
+        
+        found = False
+        for m in miners:
+            if m.get("miner_ip") == self.coordinator.miner_ip:
+                _LOGGER.info(f"[{self.coordinator.miner_ip}] Changing automation mode: {m.get('mode')} -> {option}")
+                
+                # Merke den letzten aktiven Automatik-Modus für das Dashboard
+                if option != "manual":
+                    m["last_auto_mode"] = option
+                
+                # Wenn auf Manuell geschaltet wird -> Alles aus (Not-Aus Logik)
+                if option == "manual":
+                    switches = [m.get("switch"), m.get("switch_2"), m.get("standby_switch"), m.get("standby_switch_2")]
+                    switches = [s for s in switches if s]
+                    
+                    if not switches:
+                        # Auto-Discovery Fallback
+                        ip_slug = self.coordinator.miner_ip.replace(".", "_")
+                        p1 = f"switch.{DOMAIN}_{ip_slug}_switch"
+                        p2 = f"switch.{DOMAIN}_{ip_slug}_mining_aktiv"
+                        if self.hass.states.get(p1): switches.append(p1)
+                        elif self.hass.states.get(p2): switches.append(p2)
+                        
+                    if switches:
+                        _LOGGER.info(f"[{self.coordinator.miner_ip}] Manual mode selected: Turning off hardware {switches}")
+                        await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
+
+                m["mode"] = option
+                found = True
+                break
+        
+        if found:
+            await self.hass.async_add_executor_job(_save_config, self.hass, config)
+            _add_log_entry(self.hass, f"🔄 {self.coordinator.miner_name}: Steuermodus auf '{option.upper()}' geändert (via HA)")
+            self.async_write_ha_state()

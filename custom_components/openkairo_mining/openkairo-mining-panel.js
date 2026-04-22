@@ -880,30 +880,47 @@ class OpenKairoMiningPanel extends LitElement {
     }
   }
 
-  toggleMiner(miner) {
-    if (!this.hass) return;
-    let entityId = typeof miner === 'string' ? miner : miner.switch;
+  _getMinerSwitchEntities(miner) {
+    const entities = [];
+    if (miner.switch) entities.push(miner.switch);
+    if (miner.switch_2) entities.push(miner.switch_2);
+    if (miner.standby_switch) entities.push(miner.standby_switch);
+    if (miner.standby_switch_2) entities.push(miner.standby_switch_2);
     
     // Auto-Discovery Fallback if no switch is configured
-    if (!entityId && typeof miner === 'object' && miner.miner_ip) {
+    if (entities.length === 0 && miner.miner_ip) {
         const ipSlug = miner.miner_ip.replace(/\./g, '_');
-        // Versuche den Standardnamen der Integration
-        const discovered = `switch.openkairo_mining_${ipSlug}_switch`;
-        if (this.hass.states[discovered]) {
-            entityId = discovered;
-        } else {
-            // Alternativer Name (mining_switch unique_id suffix)
-            const alt = `switch.openkairo_mining_${ipSlug}_mining_aktiv`;
-             if (this.hass.states[alt]) entityId = alt;
-        }
+        const p1 = `switch.openkairo_mining_${ipSlug}_switch`;
+        const p2 = `switch.openkairo_mining_${ipSlug}_mining_aktiv`;
+        if (this.hass?.states[p1]) entities.push(p1);
+        else if (this.hass?.states[p2]) entities.push(p2);
     }
+    return entities;
+  }
 
-    if (!entityId) {
+  toggleMiner(miner) {
+    if (!this.hass) return;
+    const entities = this._getMinerSwitchEntities(miner);
+    
+    if (entities.length === 0) {
         console.warn("Could not find a switch to toggle for miner:", miner);
         return;
     }
     
-    this.hass.callService("switch", "toggle", { entity_id: entityId });
+    // Toggle the first one found as binary state master
+    this.hass.callService("switch", "toggle", { entity_id: entities[0] });
+  }
+
+  stopAutomationAndHardware(miner) {
+    // 1. Set mode to manual (stops automation)
+    this.quickUpdateMiner(miner.id, 'mode', 'manual');
+    
+    // 2. Turn off all related power switches
+    if (!this.hass) return;
+    const entities = this._getMinerSwitchEntities(miner);
+    if (entities.length > 0) {
+      this.hass.callService("switch", "turn_off", { entity_id: entities });
+    }
   }
 
   callMinerService(miner, serviceName, serviceData = {}) {
@@ -967,10 +984,16 @@ class OpenKairoMiningPanel extends LitElement {
   quickUpdateMiner(id, key, value) {
     const index = this.config.miners.findIndex(m => m.id === id);
     if (index > -1) {
+      // Merke den letzten aktiven Automatik-Modus
+      if (key === 'mode' && value !== 'manual') {
+        this.config.miners[index]['last_auto_mode'] = value;
+      }
+      
       if (typeof value === 'boolean') {
         this.config.miners[index][key] = value;
       } else {
-        this.config.miners[index][key] = parseFloat(value);
+        const numVal = parseFloat(value);
+        this.config.miners[index][key] = isNaN(numVal) ? value : numVal;
       }
       this.saveConfig(true);
       this.requestUpdate();
@@ -2066,7 +2089,18 @@ class OpenKairoMiningPanel extends LitElement {
 
                 
                 <div class="miner-details">
-                  <p><b>Modus:</b> <span class="accent-text">${modeMap[miner.mode] || 'Unbekannt'}</span></p>
+                  <p style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; margin-top: 0;">
+                    <span><b>Modus:</b> <span class="accent-text">${modeMap[miner.mode] || 'Unbekannt'}</span></span>
+                    ${miner.mode !== 'manual' ? html`
+                      <button class="btn-control action warn" @click="${() => this.stopAutomationAndHardware(miner)}" style="padding: 2px 8px; font-size: 0.75em; flex: none; width: auto; height: 24px; letter-spacing: 0.5px; margin-left: 10px;">
+                        STOPP
+                      </button>
+                    ` : html`
+                      <button class="btn-control mode-normal" @click="${() => this.quickUpdateMiner(miner.id, 'mode', miner.last_auto_mode || 'pv')}" style="padding: 2px 8px; font-size: 0.75em; flex: none; width: auto; height: 24px; letter-spacing: 0.5px; margin-left: 10px;">
+                        START
+                      </button>
+                    `}
+                  </p>
                   <p><b>Dose:</b> ${friendlySwitchName || 'Nicht gesetzt'} ${friendlySwitchName2 ? html` + ${friendlySwitchName2}` : ''}</p>
                   
                   ${miner.mode === 'pv' ? html`
