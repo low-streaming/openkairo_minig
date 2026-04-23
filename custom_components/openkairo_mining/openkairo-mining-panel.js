@@ -2182,8 +2182,13 @@ class OpenKairoMiningPanel extends LitElement {
                       <p>Ziel: <span class="highlight-val">${miner.target_soc || 10}%</span> bis <span class="highlight-val">${miner.target_time || '07:00'}</span></p>
                       <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px; margin-top: 8px;">
                         ${stateObj && stateObj.ai_start_time && stateObj.ai_start_time !== '--:--' ? html`
-                          <p>Geplante Startzeit: <span class="highlight-val" style="color: #9b59b6;">${stateObj.ai_start_time}</span></p>
-                          <p class="small-text mt-1">Dauer: ${stateObj.ai_runtime || 0}h | Basierend auf ${miner.battery_capacity || 0} kWh Akku</p>
+                          ${stateObj.is_on ? html`
+                            <p style="color: #2ecc71;"><strong>● Aktiv:</strong> ${stateObj.ai_status || 'Läuft...'}</p>
+                            <p class="small-text mt-1">Gestartet um ${stateObj.ai_start_time} | Geplante Dauer: ${stateObj.ai_runtime || 0}h</p>
+                          ` : html`
+                            <p>Geplante Startzeit: <span class="highlight-val" style="color: #9b59b6;">${stateObj.ai_start_time}</span></p>
+                            <p class="small-text mt-1">Dauer: ${stateObj.ai_runtime || 0}h | Basierend auf ${miner.battery_capacity || 0} kWh Akku</p>
+                          `}
                         ` : html`
                           <p class="small-text" style="color: #aaa;">${stateObj && stateObj.ai_status ? stateObj.ai_status : 'Berechne Startzeit... (Warte auf Sensordaten)'}</p>
                         `}
@@ -2977,6 +2982,31 @@ class OpenKairoMiningPanel extends LitElement {
             </div>
 
             <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <label>⚡ Voraussichtlicher Miner-Verbrauch (Watt)</label>
+                <input type="number" name="soft_target_power" .value="${this.editForm.soft_target_power || (this.editForm.name && this.editForm.name.toLowerCase().includes('nerd') ? 2 : 1200)}" @input="${this.handleFormInput}">
+                <small>Wird für die KI-Planung genutzt (wichtig für Geräte wie Nerdminer/Bitaxe).</small>
+            </div>
+
+            <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #9b59b6; font-weight: bold;">
+                    <input type="checkbox" name="weather_optimization_enabled" .checked="${this.editForm.weather_optimization_enabled}" @change="${this.handleFormInput}" style="width: 20px; height: 20px; accent-color: #9b59b6;">
+                    Wetter-Optimierung (Beta)
+                </label>
+                <p style="color: #888; font-size: 0.85em; margin-top: 10px;">
+                    Bezieht die Solar-Prognose für morgen in die Planung ein. Wenn viel Sonne gemeldet wird, 
+                    darf der Akku nachts tiefer entladen werden.
+                </p>
+                
+                ${this.editForm.weather_optimization_enabled ? html`
+                <div class="form-group mt-3">
+                    <label>PV-Anlagengröße (kWp)</label>
+                    <input type="number" step="0.1" name="pv_peak_power" .value="${this.editForm.pv_peak_power || 10}" @input="${this.handleFormInput}">
+                    <small>Wird zur Schätzung des morgigen Ertrags genutzt.</small>
+                </div>
+                ` : ''}
+            </div>
+
+            <div class="form-group mt-2">
                 <label>🛡️ Min. Laufzeit (Minuten)</label>
                 <input type="number" min="0" step="1" name="min_run_time" .value="${this.editForm.min_run_time || 15}" @input="${this.handleFormInput}">
                 <small>Schont die Hardware.</small>

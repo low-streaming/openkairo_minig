@@ -426,6 +426,33 @@ class OpenKairoMiningApiView(HomeAssistantView):
         return 0
 
 
+async def get_solar_forecast(hass):
+    """Fetches solar radiation forecast from Open-Meteo based on HA location."""
+    try:
+        lat = hass.config.latitude
+        lon = hass.config.longitude
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=shortwave_radiation_sum&timezone=auto&shortwave_radiation_unit=mj_per_m_square"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=10) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if "daily" in data and "shortwave_radiation_sum" in data["daily"]:
+                        # Index 0 is today, Index 1 is tomorrow
+                        rad_tomorrow = data["daily"]["shortwave_radiation_sum"][1]
+                        
+                        # Sanity Check: Wenn der Wert > 500 ist, ist es vermutlich Wh/m2 statt MJ/m2
+                        if rad_tomorrow > 500:
+                            rad_tomorrow = rad_tomorrow * 0.0036 # Wh/m2 zu MJ/m2
+                        elif rad_tomorrow > 100: # Immer noch zu hoch für MJ/m2 (evtl. kJ/m2)
+                             rad_tomorrow = rad_tomorrow / 1000 # kJ/m2 zu MJ/m2
+                             
+                        return float(rad_tomorrow)
+    except Exception as e:
+        _LOGGER.error(f"Error fetching solar forecast: {e}")
+    return None
+
+
 
 def _add_log_entry(hass, message):
     if DOMAIN not in hass.data:
@@ -602,7 +629,7 @@ async def _mining_loop(hass):
                             # Reset watchdog if plug is off or sensor unavailable
                             state["standby_since"] = None
 
-                if mode in ["pv", "soc", "offgrid", "heating"]:
+                if mode in ["pv", "soc", "offgrid", "heating", "ai_discharge"]:
                     delay_minutes = float(miner.get("delay_minutes", 0))
                     delay_seconds = delay_minutes * 60
                     
@@ -800,7 +827,34 @@ async def _mining_loop(hass):
                                     avg_load = hass.data[DOMAIN].get(cache_key)
                                     if avg_load is None:
                                         avg_load = 250 # Fallback 250W solange kein Wert da ist
-                                        state["ai_status"] = "Warte auf Historie (Nutze 250W Fallback)..."
+                                    state["ai_status"] = "Warte auf Historie (Nutze 250W Fallback)..."
+                                    
+                                    # Wetter-Optimierung (Optional)
+                                    weather_enabled = miner.get("weather_optimization_enabled", False)
+                                    weather_info = ""
+                                    if weather_enabled:
+                                        cache_key = "solar_forecast_v2"
+                                        last_cache = hass.data[DOMAIN].get(f"{cache_key}_time", 0)
+                                        if time.time() - last_cache > 3600:
+                                            async def fetch_solar():
+                                                rad = await get_solar_forecast(hass)
+                                                if rad is not None:
+                                                    hass.data[DOMAIN][cache_key] = rad
+                                                    hass.data[DOMAIN][f"{cache_key}_time"] = time.time()
+                                            hass.async_create_task(fetch_solar())
+                                        
+                                        forecast_rad = hass.data[DOMAIN].get(cache_key)
+                                        if forecast_rad is not None:
+                                            if forecast_rad > 18:
+                                                target_soc = max(0, target_soc - 5)
+                                                weather_info = f" (Sonne morgen: {int(forecast_rad)} MJ/m²! Ziel -5%)"
+                                            elif forecast_rad < 5:
+                                                target_soc = min(100, target_soc + 5)
+                                                weather_info = f" (Trüb morgen: {int(forecast_rad)} MJ/m²! Ziel +5%)"
+                                            else:
+                                                weather_info = f" (Wetter: {int(forecast_rad)} MJ/m²)"
+                                        else:
+                                            weather_info = " (Wetterdaten laden...)"
                                     
                                     # Ziel-Uhrzeit berechnen
                                     now = dt_util.now()
@@ -831,7 +885,15 @@ async def _mining_loop(hass):
                                     
                                     miner_power = 1200 # Default
                                     cfg_power = miner.get("soft_target_power")
-                                    if is_on and p_sensor_val and p_sensor_val > 5:
+                                    p_sensor_val = 0
+                                    p_sensor_entity = miner.get("power_consumption_sensor")
+                                    if p_sensor_entity:
+                                        p_s = hass.states.get(p_sensor_entity)
+                                        if p_s and p_s.state not in ["unknown", "unavailable"]:
+                                            try: p_sensor_val = float(p_s.state)
+                                            except: pass
+                                    
+                                    if is_on and p_sensor_val > 5:
                                         miner_power = p_sensor_val
                                     elif cfg_power:
                                         miner_power = float(cfg_power)
@@ -850,16 +912,19 @@ async def _mining_loop(hass):
                                         
                                         start_time_dt = target_dt - timedelta(hours=runtime_hours)
                                         
-                                        state["ai_start_time"] = start_time_dt.strftime("%H:%M")
+                                        # Startzeit nur aktualisieren wenn wir noch warten
+                                        if not is_on or not state.get("ai_start_time"):
+                                            state["ai_start_time"] = start_time_dt.strftime("%H:%M")
+                                        
                                         state["ai_runtime"] = round(runtime_hours, 1)
                                         
                                         if now >= start_time_dt:
                                             turn_on_condition = True
-                                            state["ai_status"] = f"Aktiv bis {target_time_str} ({int(mining_energy_available)}Wh Reserve)"
+                                            state["ai_status"] = f"Aktiv bis {target_time_str}{weather_info}"
                                             state["log_reason_on"] = f"(AI Startzeit erreicht: {state['ai_start_time']})"
                                         else:
                                             turn_off_condition = True
-                                            state["ai_status"] = f"Start geplant um {state['ai_start_time']} Uhr"
+                                            state["ai_status"] = f"Start geplant um {state['ai_start_time']} Uhr{weather_info}"
                                             state["log_reason_off"] = f"(AI Wartet auf Startzeit: {state['ai_start_time']})"
                                             
                                 except Exception as ai_err:
