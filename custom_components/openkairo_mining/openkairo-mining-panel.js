@@ -3003,6 +3003,15 @@ class OpenKairoMiningPanel extends LitElement {
                     <input type="number" step="0.1" name="pv_peak_power" .value="${this.editForm.pv_peak_power || 10}" @input="${this.handleFormInput}">
                     <small>Wird zur Schätzung des morgigen Ertrags genutzt.</small>
                 </div>
+                
+                <div class="form-group mt-3">
+                    <label>Manueller Standort (Breitengrad / Längengrad)</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="number" step="0.0001" placeholder="Lat (z.B. 51.5)" name="weather_lat" .value="${this.editForm.weather_lat || ''}" @input="${this.handleFormInput}">
+                        <input type="number" step="0.0001" placeholder="Lon (z.B. 7.2)" name="weather_lon" .value="${this.editForm.weather_lon || ''}" @input="${this.handleFormInput}">
+                    </div>
+                    <small>Tipp: Leer lassen, um Home Assistant Standard zu nutzen.</small>
+                </div>
                 ` : ''}
             </div>
 

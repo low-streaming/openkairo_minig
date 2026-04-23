@@ -137,7 +137,33 @@ async def async_setup_services(hass):
             except Exception as e:
                 _LOGGER.error(f"Set Power Limit failed: {e}")
 
+    async def handle_set_integration_mode(call):
+        ip = call.data.get("ip_address")
+        new_mode = call.data.get("mode")
+        config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
+        updated = False
+        for m in config.get("miners", []):
+            if m.get("miner_ip") == ip or m.get("id") == ip:
+                m["mode"] = new_mode
+                updated = True
+                break
+        if updated:
+            from .__init__ import _save_config
+            await hass.async_add_executor_job(_save_config, hass, config)
+            _LOGGER.info(f"Updated integration mode for {ip} to {new_mode}")
+
     hass.services.async_register(DOMAIN, SERVICE_REBOOT, handle_reboot, schema=SERVICE_BASE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_RESTART, handle_restart, schema=SERVICE_BASE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_SET_WORK_MODE, handle_set_work_mode, schema=SERVICE_WORK_MODE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_SET_POWER_LIMIT, handle_set_power_limit, schema=SERVICE_POWER_LIMIT_SCHEMA)
+    
+    # [NEW] Service for Automations to switch between PV / AI / SOC etc.
+    hass.services.async_register(
+        DOMAIN, 
+        "set_integration_mode", 
+        handle_set_integration_mode, 
+        schema=vol.Schema({
+            vol.Required("ip_address"): cv.string,
+            vol.Required("mode"): cv.string,
+        })
+    )

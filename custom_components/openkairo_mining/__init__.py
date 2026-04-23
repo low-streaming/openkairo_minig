@@ -2,6 +2,7 @@ import logging
 import json
 import os
 import time
+import aiohttp
 import asyncio
 import pydantic
 from datetime import datetime, timedelta
@@ -384,7 +385,8 @@ class OpenKairoMiningApiView(HomeAssistantView):
             from aiohttp import web
             return web.json_response({"status": "error", "message": str(e)}, status=500)
 
-async def get_avg_night_load(hass, entity_id, days=3):
+
+async def get_avg_night_load(hass, entity_id, days=3):
     """Calculates the average night load (22:00 - 06:00) of a sensor over the last few days."""
     try:
         from homeassistant.components.recorder import history
@@ -404,8 +406,7 @@ class OpenKairoMiningApiView(HomeAssistantView):
         if not states:
             return 0
             
-        total_p = 0
-        count = 0
+        valid_values = []
         for s in states:
             if s.state in ["unknown", "unavailable", None]:
                 continue
@@ -416,21 +417,30 @@ class OpenKairoMiningApiView(HomeAssistantView):
                     val = abs(float(s.state))
                     # Ignore values < 10W (Likely standby or noise)
                     if val > 10:
-                        total_p += val
-                        count += 1
+                        valid_values.append(val)
                 except: pass
                                 
-        return total_p / count if count > 0 else 0
+        if not valid_values:
+            return 0
+            
+        # KI-Filter: Sortieren und das 10. Perzentil nehmen.
+        # So filtern wir Großverbraucher (wie den Miner oder Backofen) zu 90% heraus
+        # und finden den echten, "nackten" Haus-Grundverbrauch.
+        valid_values.sort()
+        idx = int(len(valid_values) * 0.1)
+        return valid_values[idx]
     except Exception as e:
         _LOGGER.error(f"Error calculating AI history for {entity_id}: {e}")
         return 0
 
 
-async def get_solar_forecast(hass):
-    """Fetches solar radiation forecast from Open-Meteo based on HA location."""
+async def get_solar_forecast(hass, override_lat=None, override_lon=None):
+    """Fetches solar radiation forecast from Open-Meteo based on HA location or manual override."""
     try:
-        lat = hass.config.latitude
-        lon = hass.config.longitude
+        # Check for manual overrides in miner config if available (lat/lon passed as args or fetched here)
+        # For simplicity, we can pass them as arguments or fetch from the first miner with weather enabled
+        lat = override_lat if override_lat else hass.config.latitude
+        lon = override_lon if override_lon else hass.config.longitude
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=shortwave_radiation_sum&timezone=auto&shortwave_radiation_unit=mj_per_m_square"
         
         async with aiohttp.ClientSession() as session:
@@ -441,13 +451,17 @@ async def get_solar_forecast(hass):
                         # Index 0 is today, Index 1 is tomorrow
                         rad_tomorrow = data["daily"]["shortwave_radiation_sum"][1]
                         
-                        # Sanity Check: Wenn der Wert > 500 ist, ist es vermutlich Wh/m2 statt MJ/m2
-                        if rad_tomorrow > 500:
-                            rad_tomorrow = rad_tomorrow * 0.0036 # Wh/m2 zu MJ/m2
-                        elif rad_tomorrow > 100: # Immer noch zu hoch für MJ/m2 (evtl. kJ/m2)
-                             rad_tomorrow = rad_tomorrow / 1000 # kJ/m2 zu MJ/m2
-                             
-                        return float(rad_tomorrow)
+                        # DEBUG LOG (GEZWUNGEN ALS WARNING)
+                        _LOGGER.warning(f"[Wetter-Debug] API URL: {url}")
+                        _LOGGER.warning(f"[Wetter-Debug] Rohwert von API: {rad_tomorrow}")
+                        
+                        # Sanity Check: Wenn der Wert > 100 ist, kann es kein MJ/m2 sein.
+                        # Wir loggen das, geben aber den Wert zurück.
+                        val = float(rad_tomorrow)
+                        if val > 100:
+                            _LOGGER.warning(f"[Wetter-Debug] WARNUNG: Wert {val} ist zu hoch für MJ/m2! Vermutlich Wh/m2.")
+                        
+                        return val
     except Exception as e:
         _LOGGER.error(f"Error fetching solar forecast: {e}")
     return None
@@ -818,10 +832,10 @@ async def _mining_loop(hass):
                                     last_cache = hass.data[DOMAIN].get(f"{cache_key}_time", 0)
                                     if current_time - last_cache > 3600:
                                         # Wir führen das im Hintergrund aus, um den Loop nicht zu blockieren
-                                        async def fetch_history():
-                                            load = await get_avg_night_load(hass, power_sensor)
-                                            hass.data[DOMAIN][cache_key] = load
-                                            hass.data[DOMAIN][f"{cache_key}_time"] = time.time()
+                                        async def fetch_history(ck=cache_key, ps=power_sensor):
+                                            load = await get_avg_night_load(hass, ps)
+                                            hass.data[DOMAIN][ck] = load
+                                            hass.data[DOMAIN][f"{ck}_time"] = time.time()
                                         hass.async_create_task(fetch_history())
                                     
                                     avg_load = hass.data[DOMAIN].get(cache_key)
@@ -833,28 +847,33 @@ async def _mining_loop(hass):
                                     weather_enabled = miner.get("weather_optimization_enabled", False)
                                     weather_info = ""
                                     if weather_enabled:
-                                        cache_key = "solar_forecast_v2"
+                                        cache_key = "solar_forecast_v7"
                                         last_cache = hass.data[DOMAIN].get(f"{cache_key}_time", 0)
                                         if time.time() - last_cache > 3600:
-                                            async def fetch_solar():
-                                                rad = await get_solar_forecast(hass)
+                                            async def fetch_solar(ck=cache_key, lat=miner.get("weather_lat"), lon=miner.get("weather_lon")):
+                                                rad = await get_solar_forecast(hass, lat, lon)
                                                 if rad is not None:
-                                                    hass.data[DOMAIN][cache_key] = rad
-                                                    hass.data[DOMAIN][f"{cache_key}_time"] = time.time()
+                                                    hass.data[DOMAIN][ck] = rad
+                                                    hass.data[DOMAIN][f"{ck}_time"] = time.time()
                                             hass.async_create_task(fetch_solar())
                                         
                                         forecast_rad = hass.data[DOMAIN].get(cache_key)
                                         if forecast_rad is not None:
+                                            try:
+                                                forecast_rad = float(forecast_rad)
+                                            except:
+                                                pass
+
                                             if forecast_rad > 18:
                                                 target_soc = max(0, target_soc - 5)
-                                                weather_info = f" (Sonne morgen: {int(forecast_rad)} MJ/m²! Ziel -5%)"
+                                                weather_info = f" | ☀️ Sonne ({int(forecast_rad)} MJ/m²) → Ziel -5%"
                                             elif forecast_rad < 5:
                                                 target_soc = min(100, target_soc + 5)
-                                                weather_info = f" (Trüb morgen: {int(forecast_rad)} MJ/m²! Ziel +5%)"
+                                                weather_info = f" | ☁️ Trüb ({int(forecast_rad)} MJ/m²) → Ziel +5%"
                                             else:
-                                                weather_info = f" (Wetter: {int(forecast_rad)} MJ/m²)"
+                                                weather_info = f" | 🌤️ Mix ({int(forecast_rad)} MJ/m²)"
                                         else:
-                                            weather_info = " (Wetterdaten laden...)"
+                                            weather_info = " | ⏳ Lade Wetter..."
                                     
                                     # Ziel-Uhrzeit berechnen
                                     now = dt_util.now()
@@ -902,10 +921,10 @@ async def _mining_loop(hass):
                                     
                                     if mining_energy_available <= 0:
                                         turn_off_condition = True
-                                        state["log_reason_off"] = f"(AI: Keine Reserve - Haus braucht {int(house_energy_needed)}Wh, Akku hat {int(battery_energy_available)}Wh)"
                                         state["ai_start_time"] = "--:--"
                                         state["ai_runtime"] = 0
-                                        state["ai_status"] = f"Hausbedarf ({int(house_energy_needed)}Wh) > Akku ({int(battery_energy_available)}Wh)"
+                                        state["log_reason_off"] = f"(AI: Keine Reserve - Haus braucht {int(house_energy_needed)}Wh, Akku hat {int(battery_energy_available)}Wh){weather_info}"
+                                        state["ai_status"] = f"Haus ({int(house_energy_needed)}Wh) vs Akku ({int(battery_energy_available)}Wh){weather_info}"
                                     else:
                                         runtime_hours = mining_energy_available / miner_power
                                         runtime_hours = min(runtime_hours, hours_left)
@@ -921,11 +940,11 @@ async def _mining_loop(hass):
                                         if now >= start_time_dt:
                                             turn_on_condition = True
                                             state["ai_status"] = f"Aktiv bis {target_time_str}{weather_info}"
-                                            state["log_reason_on"] = f"(AI Startzeit erreicht: {state['ai_start_time']})"
+                                            state["log_reason_on"] = f"(AI Startzeit erreicht: {state['ai_start_time']}{weather_info})"
                                         else:
                                             turn_off_condition = True
                                             state["ai_status"] = f"Start geplant um {state['ai_start_time']} Uhr{weather_info}"
-                                            state["log_reason_off"] = f"(AI Wartet auf Startzeit: {state['ai_start_time']})"
+                                            state["log_reason_off"] = f"(AI Wartet auf Startzeit: {state['ai_start_time']}{weather_info})"
                                             
                                 except Exception as ai_err:
                                     _LOGGER.error(f"AI Discharge Error for {miner_name}: {ai_err}")
