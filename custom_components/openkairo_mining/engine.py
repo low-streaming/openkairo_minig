@@ -494,6 +494,7 @@ class MiningEngine:
                 self.hass.async_create_task(fetch_history())
             
             avg_load = self.hass.data[DOMAIN].get(cache_key, 250)
+            state["ai_avg_p"] = int(avg_load) # Always report house load
             
             # Weather optimization
             weather_enabled = miner.get("weather_optimization_enabled", False)
@@ -511,8 +512,14 @@ class MiningEngine:
                 
                 forecast_rad = self.hass.data[DOMAIN].get(w_cache)
                 if forecast_rad is not None:
-                    if forecast_rad > 18: target_soc = max(0, target_soc - 5); weather_info = " | ☀️ Ziel -5%"
-                    elif forecast_rad < 5: target_soc = min(100, target_soc + 5); weather_info = " | ☁️ Ziel +5%"
+                    if forecast_rad > 18: 
+                        target_soc = max(0, target_soc - 5)
+                        weather_info = f" | ☀️ Sonne ({int(forecast_rad)} MJ/m²) -> Ziel -5%"
+                    elif forecast_rad < 5: 
+                        target_soc = min(100, target_soc + 5)
+                        weather_info = f" | ☁️ Wolken ({int(forecast_rad)} MJ/m²) -> Ziel +5%"
+                    else:
+                        weather_info = f" | 🌤️ Sonne ({int(forecast_rad)} MJ/m²)"
 
             # Calculate target time
             now = dt_util.now()
@@ -529,15 +536,17 @@ class MiningEngine:
             if is_on and state.get("power", 0) > 5: miner_power = state["power"]
 
             if mining_energy_available <= 0:
-                state["ai_status"] = f"Haus ({int(house_energy_needed)}Wh) > Akku"
+                state["ai_status"] = f"Haus ({int(house_energy_needed)}Wh) vs Akku ({int(battery_energy_available)}Wh){weather_info}"
                 state["log_reason_off"] = f"(AI: Keine Reserve{weather_info})"
+                state["ai_start_time"] = "--:--"
+                state["ai_runtime"] = 0.0
+                state["ai_energy_wh"] = 0
                 return False, True
             else:
                 runtime_hours = min(mining_energy_available / miner_power, hours_left)
                 start_time_dt = target_dt - timedelta(hours=runtime_hours)
                 state["ai_start_time"] = start_time_dt.strftime("%H:%M")
                 state["ai_runtime"] = round(runtime_hours, 1)
-                state["ai_avg_p"] = int(avg_load)
                 state["ai_energy_wh"] = int(mining_energy_available)
                 
                 if now >= start_time_dt:
@@ -545,7 +554,7 @@ class MiningEngine:
                     state["log_reason_on"] = f"(AI Startzeit erreicht: {state['ai_start_time']})"
                     return True, False
                 else:
-                    state["ai_status"] = f"Start geplant um {state['ai_start_time']} Uhr"
+                    state["ai_status"] = f"Start geplant um {state['ai_start_time']} Uhr{weather_info}"
                     state["log_reason_off"] = f"(AI Wartet auf Startzeit)"
                     return False, True
         except: return False, False
