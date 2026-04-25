@@ -154,9 +154,19 @@ class MiningEngine:
                 config = self.hass.data.get(DOMAIN, {}).get("config", {})
                 miners = config.get("miners", [])
                 sorted_miners = sorted(miners, key=lambda x: int(x.get("priority", 99)))
-                
-                global_pv_surplus = None 
-                
+
+                # Initialize global surplus if house power sensor is set
+                global_pv_surplus = None
+                house_sensor = config.get("house_power_sensor")
+                if house_sensor:
+                    house_state = self.hass.states.get(house_sensor)
+                    if house_state and house_state.state not in ["unknown", "unavailable"]:
+                        try:
+                            # house_power is typically positive for consumption, negative for injection (surplus)
+                            # so surplus = -house_power
+                            global_pv_surplus = -float(house_state.state)
+                        except: pass
+
                 for miner in sorted_miners:
                     try:
                         global_pv_surplus = await self._process_miner(miner, global_pv_surplus)
@@ -527,6 +537,8 @@ class MiningEngine:
                 start_time_dt = target_dt - timedelta(hours=runtime_hours)
                 state["ai_start_time"] = start_time_dt.strftime("%H:%M")
                 state["ai_runtime"] = round(runtime_hours, 1)
+                state["ai_avg_p"] = int(avg_load)
+                state["ai_energy_wh"] = int(mining_energy_available)
                 
                 if now >= start_time_dt:
                     state["ai_status"] = f"Aktiv bis {target_time_str}{weather_info}"

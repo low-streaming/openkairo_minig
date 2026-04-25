@@ -130,8 +130,17 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
                                 # Heuristic: If it has hashrate or shares, it's likely a miner
                                 if "hashrate" in json_data or "shares" in json_data or "freq" in json_data:
                                     model = json_data.get("model", "NerdMiner/Bitaxe")
+                                    if "bitaxe" in str(json_data).lower(): model = "Bitaxe"
                                     _LOGGER.info(f"[{ip_address}] Generic HTTP Miner ({model}) found via {url}")
-                                    return {"title": model, "miner": None} # Validation only needs title
+                                    
+                                    class GenericMinerStub:
+                                        def __init__(self, ip, model):
+                                            self.ip = ip
+                                            self._is_stub = True
+                                            self.make = "ESP32"
+                                            self.model = model
+                                            
+                                    return {"title": f"{model} ({ip_address})", "miner": GenericMinerStub(ip_address, model)}
                             except Exception: pass
                 except Exception: continue
         return None
