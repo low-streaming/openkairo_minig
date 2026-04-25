@@ -685,11 +685,26 @@ class MiningEngine:
                     bat_sensor = miner.get("battery_sensor")
                     if bat_sensor:
                         soc = float(self.hass.states.get(bat_sensor).state)
-                        s_start, s_max = float(miner.get("offgrid_soc_start", 90)), float(miner.get("offgrid_soc_max", 98))
-                        p_min, p_max = float(miner.get("offgrid_min_power", 400)), float(miner.get("offgrid_max_power", 1400))
-                        if soc <= s_start: target_power = p_min
-                        elif soc >= s_max: target_power = p_max
-                        else: target_power = p_min + ((soc - s_start) / (s_max - s_start) * (p_max - p_min))
+                        s_start = float(miner.get("offgrid_soc_start", 90))
+                        s_max = float(miner.get("offgrid_soc_max", 98))
+                        p_min = float(miner.get("offgrid_min_power", 400))
+                        p_max = float(miner.get("offgrid_max_power", 1400))
+                        
+                        s_mid = miner.get("offgrid_soc_mid")
+                        p_mid = miner.get("offgrid_mid_power")
+                        
+                        if s_mid and p_mid:
+                            s_mid, p_mid = float(s_mid), float(p_mid)
+                            if soc <= s_start: target_power = p_min
+                            elif soc >= s_max: target_power = p_max
+                            elif soc <= s_mid:
+                                target_power = p_min + ((soc - s_start) / (max(0.1, s_mid - s_start)) * (p_mid - p_min))
+                            else:
+                                target_power = p_mid + ((soc - s_mid) / (max(0.1, s_max - s_mid)) * (p_max - p_mid))
+                        else:
+                            if soc <= s_start: target_power = p_min
+                            elif soc >= s_max: target_power = p_max
+                            else: target_power = p_min + ((soc - s_start) / (max(0.1, s_max - s_start)) * (p_max - p_min))
                 
                 if abs(current_power - target_power) > 50:
                     await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": round(target_power)})

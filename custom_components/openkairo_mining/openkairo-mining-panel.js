@@ -1670,9 +1670,9 @@ class OpenKairoMiningPanel extends LitElement {
       'manual': 'Manuell',
       'pv': 'PV-Überschuss',
       'soc': 'Batterie SOC',
-      'offgrid': 'Offgrid PV (SOC Kurve)',
+      'offgrid': 'Offgrid PV (SOC Kurve) (Beta)',
       'heating': 'Heiz-Modus',
-      'ai_discharge': 'AI Akku-Optimierer'
+      'ai_discharge': 'AI Akku-Optimierer (Beta)'
     };
 
     // --- OVERVIEW AGGREGATION ---
@@ -2195,7 +2195,11 @@ class OpenKairoMiningPanel extends LitElement {
                     <div class="tech-box" style="border-color: rgba(255, 152, 0, 0.3); background: rgba(255, 152, 0, 0.05);">
                       <p><b>Offgrid SOC:</b> <span class="highlight-val" style="color: #ff9800;">${batterySOCValue || 'N/A'}</span></p>
                       <div class="small-text mt-1" style="display: flex; flex-direction: column; gap: 4px;">
-                        <div>Kurve: ${miner.offgrid_soc_start}% (${miner.offgrid_min_power}W) &rarr; ${miner.offgrid_soc_max}% (${miner.offgrid_max_power}W)</div>
+                        <div>
+                          Kurve: ${miner.offgrid_soc_start}% (${miner.offgrid_min_power}W) 
+                          &rarr; ${miner.offgrid_soc_mid ? html`${miner.offgrid_soc_mid}% (${miner.offgrid_mid_power}W) &rarr; ` : ''}
+                          ${miner.offgrid_soc_max}% (${miner.offgrid_max_power}W)
+                        </div>
                         <div style="color: #e74c3c;">Stopp bei: ${miner.offgrid_soc_stop}%</div>
                       </div>
                     </div>
@@ -2774,9 +2778,9 @@ class OpenKairoMiningPanel extends LitElement {
             <option value="manual" ?selected="${this.editForm.mode === 'manual'}">Manuell (Nur Überwachung)</option>
             <option value="pv" ?selected="${this.editForm.mode === 'pv'}">PV-Überschuss (Einspeisung)</option>
             <option value="soc" ?selected="${this.editForm.mode === 'soc'}">Batterie SOC</option>
-            <option value="offgrid" ?selected="${this.editForm.mode === 'offgrid'}">Offgrid PV (SOC Kurve)</option>
+            <option value="offgrid" ?selected="${this.editForm.mode === 'offgrid'}">Offgrid PV (SOC Kurve) (Beta)</option>
             <option value="heating" ?selected="${this.editForm.mode === 'heating'}">Heiz-Modus (Temperatur-Steuerung)</option>
-            <option value="ai_discharge" ?selected="${this.editForm.mode === 'ai_discharge'}">🤖 AI Akku-Optimierer (Predictive)</option>
+            <option value="ai_discharge" ?selected="${this.editForm.mode === 'ai_discharge'}">🤖 AI Akku-Optimierer (Predictive) (Beta)</option>
           </select>
         </div>
 
@@ -2901,7 +2905,7 @@ class OpenKairoMiningPanel extends LitElement {
 
         ${this.editForm.mode === 'offgrid' ? html`
           <div class="mode-section btc-section" style="border-color: #ff9800; background: rgba(255, 152, 0, 0.05);">
-            <h3 style="color: #ff9800; margin-top: 0; margin-bottom: 20px;">🏝️ Offgrid PV (SOC Kurve)</h3>
+            <h3 style="color: #ff9800; margin-top: 0; margin-bottom: 20px;">🏝️ Offgrid PV (SOC Kurve) (Beta)</h3>
             <p style="font-size: 0.85em; color: #bbb; margin-bottom: 15px;">Ideal für Inselsysteme. Der Miner agiert als "Dump-Load" und erhöht seine Leistung linear zum Batteriefüllstand.</p>
             
             <div class="form-group">
@@ -2924,13 +2928,25 @@ class OpenKairoMiningPanel extends LitElement {
 
             <div class="form-row mt-3">
                 <div class="form-group flex-1">
+                    <label>SOC Mittel-Punkt (%)</label>
+                    <input type="number" name="offgrid_soc_mid" min="0" max="100" .value="${this.editForm.offgrid_soc_mid || 94}" @input="${this.handleFormInput}">
+                    <small>Optionaler Zwischenschritt.</small>
+                </div>
+                <div class="form-group flex-1">
                     <label>SOC für Max-Leistung (%)</label>
                     <input type="number" name="offgrid_soc_max" min="0" max="100" .value="${this.editForm.offgrid_soc_max || 98}" @input="${this.handleFormInput}">
                     <small>Punkt für maximale Leistung.</small>
                 </div>
+            </div>
+
+            <div class="form-row mt-3">
                 <div class="form-group flex-1">
                     <label>Minimal-Leistung (Watt)</label>
                     <input type="number" name="offgrid_min_power" .value="${this.editForm.offgrid_min_power || 400}" @input="${this.handleFormInput}">
+                </div>
+                <div class="form-group flex-1">
+                    <label>Mittlere Leistung (Watt)</label>
+                    <input type="number" name="offgrid_mid_power" .value="${this.editForm.offgrid_mid_power || 800}" @input="${this.handleFormInput}">
                 </div>
                 <div class="form-group flex-1">
                     <label>Maximal-Leistung (Watt)</label>
@@ -3007,7 +3023,7 @@ class OpenKairoMiningPanel extends LitElement {
 
         ${this.editForm.mode === 'ai_discharge' ? html`
           <div class="mode-section btc-section" style="border-color: #9b59b6; background: rgba(155, 89, 182, 0.05);">
-            <h3 style="color: #9b59b6; margin-top: 0; margin-bottom: 20px;">🤖 AI Akku-Optimierer (Intelligentes Entladen)</h3>
+            <h3 style="color: #9b59b6; margin-top: 0; margin-bottom: 20px;">🤖 AI Akku-Optimierer (Intelligentes Entladen) (Beta)</h3>
             <p style="font-size: 0.85em; color: #bbb; margin-bottom: 15px;">
                 Die KI berechnet anhand des historischen Hausverbrauchs, wann der Miner nachts starten muss, 
                 damit der Akku morgens genau den Zielwert erreicht.
