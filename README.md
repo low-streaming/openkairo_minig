@@ -1,4 +1,4 @@
-# OpenKairo Mining 🚀 — Das Ultimative "Command Center" v1.3.18
+# OpenKairo Mining 🚀 — Das Ultimative "Command Center" v1.3.20
 
 [![OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg?style=for-the-badge)](https://home-assistant.io)
@@ -8,9 +8,12 @@ Verwandle deinen Home Assistant in eine professionelle **Mining-Schaltzentrale**
 
 ---
 
-## 💎 Highlights der v1.3.18 - "The Heater Update"
+## 💎 Highlights der v1.3.20 - "The Intelligence Update"
 
-Dieses Update verwandelt passives Mining in eine aktive Energie-Ressource für dein Zuhause.
+Dieses Update bringt smarte Logik und maximale Kontrolle in dein Setup.
+
+### 🤖 AI Akku-Optimierer & SOC-Intelligenz
+Nutze künstliche Intelligenz, um dein Mining nachts perfekt auf deinen Hausverbrauch und die Solar-Prognose abzustimmen. Mit der neuen **3-Punkt SOC-Kurve** hast du volle Kontrolle über das Leistungs-Skalierung deiner Hardware in Offgrid-Systemen.
 
 ### 🔥 Heiz-Modus (Mining as a Heater)
 Nutze deinen Miner als intelligente Heizung. Schalte deine Hardware basierend auf der Raumtemperatur und schone gleichzeitig deine Batterie durch den optionalen **SOC-Wächter**. Miner schalten nur dann für Wärme ein, wenn auch genug Strom im Akku vorhanden ist.
@@ -18,8 +21,8 @@ Nutze deinen Miner als intelligente Heizung. Schalte deine Hardware basierend au
 ### 📱 Optimiert für die Hosentasche
 Das gesamte Dashboard wurde für die mobile Nutzung überarbeitet. 
 - **Flüssiger Ticker**: Bitcoin-Fees und Markt-Daten immer im Blick.
-- **Kompakte Karten**: Alle wichtigen Stats auf einem Screen, ohne Scrollen.
-- **Saubere Optik**: Automatische Rundung aller Werte für maximale Lesbarkeit.
+- **Kompakte Karten**: Alle wichtigen Stats auf einem Screen.
+- **Beta-Labels**: Volle Transparenz über den Status neuer Features.
 
 ### ⚡ Native Hardware-Anbindung (pyasic)
 - **Plug & Play**: Miner per IP hinzufügen – fertig.
