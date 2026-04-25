@@ -1267,9 +1267,12 @@ class OpenKairoMiningPanel extends LitElement {
                 <div style="position: absolute; bottom: 5px; right: 5px; width: 18px; height: 18px; background: #00ff00; border: 3px solid #000; border-radius: 50%; box-shadow: 0 0 10px #00ff00;"></div>
               </div>
               <div class="portfolio-data">
-                <div style="color: var(--theme-text-dim); font-size: 0.65em; text-transform: uppercase; letter-spacing: 3px; font-weight: 900; opacity: 0.7;">Total Portfolio</div>
+                <div style="color: var(--theme-text-dim); font-size: 0.65em; text-transform: uppercase; letter-spacing: 3px; font-weight: 900; opacity: 0.7;">Gesamt-Portfolio</div>
                 <div style="color: #fff; font-size: 2.5em; font-weight: 950; font-family: 'Space Mono', monospace; line-height: 1; display: flex; align-items: baseline; gap: 10px;">
                   ${walletState} <span style="font-size: 0.4em; color: var(--theme-accent-1); font-weight: 900; letter-spacing: 2px;">BTC</span>
+                </div>
+                <div style="color: var(--theme-accent-3); font-size: 1.1em; font-weight: 900; font-family: 'Space Mono', monospace; margin-top: 5px; opacity: 0.9;">
+                  ≈ ${((parseFloat(walletState) || 0) * (this.btcPriceEur || 0)).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                 </div>
               </div>
             </div>
@@ -1771,49 +1774,49 @@ class OpenKairoMiningPanel extends LitElement {
     const overviewHtml = html`
       <div class="overview-cards-grid">
           <!-- Card 1: Hashrate -->
-          <div class="stat-card" style="background: rgba(0,0,0,0.4); border-radius: 12px; padding: 25px; border-left: 5px solid var(--theme-accent-1); box-shadow: 0 10px 25px rgba(0,0,0,0.3); position: relative;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-               <div style="font-size: 0.65em; color: var(--theme-accent-1); text-transform: uppercase; font-weight: 900; letter-spacing: 2px;">Total Hashrate</div>
-               <div style="background: rgba(var(--theme-accent-1-rgb), 0.1); color: var(--theme-accent-1); font-size: 0.55em; padding: 3px 8px; border-radius: 4px; font-weight: 900; border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3);">Online: ${totalMinersOnline}/${this.config.miners.length}</div>
+          <div class="stat-card" style="border-left: 5px solid var(--theme-accent-1);">
+            <div class="card-header-row">
+               <div class="lbl" style="color: var(--theme-accent-1);">Gesamt-Hashrate</div>
+               <div class="badge" style="background: rgba(var(--theme-accent-1-rgb), 0.1); color: var(--theme-accent-1); border: 1px solid rgba(var(--theme-accent-1-rgb), 0.3);">Online: ${totalMinersOnline}/${this.config.miners.length}</div>
             </div>
-            <div style="font-size: 2.8em; font-weight: 950; font-family: 'Space Mono', monospace; color: #fff;">${totalHashrateTH.toFixed(2)}</div>
-            <div style="text-align: right; font-size: 0.7em; color: #666; font-weight: 900; margin-top: 5px;">TH/s</div>
+            <div class="stat-val">${totalHashrateTH.toFixed(2)}</div>
+            <div class="unit">TH/s</div>
           </div>
 
           <!-- Card 2: Revenue -->
-          <div class="stat-card" style="background: rgba(0,0,0,0.4); border-radius: 12px; padding: 25px; border-left: 5px solid #f39c12; box-shadow: 0 10px 25px rgba(0,0,0,0.3); position: relative;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-               <div style="font-size: 0.65em; color: #f39c12; text-transform: uppercase; font-weight: 900; letter-spacing: 2px;">Est. Daily Earnings</div>
-               <div style="background: rgba(243, 156, 18, 0.1); color: #f39c12; font-size: 0.55em; padding: 3px 8px; border-radius: 4px; font-weight: 900; border: 1px solid rgba(243, 156, 18, 0.3);">Pool Est.</div>
+          <div class="stat-card" style="border-left: 5px solid #f39c12;">
+            <div class="card-header-row">
+               <div class="lbl" style="color: #f39c12;">Erw. Tagesertrag</div>
+               <div class="badge" style="background: rgba(243, 156, 18, 0.1); color: #f39c12; border: 1px solid rgba(243, 156, 18, 0.3);">Pool-Schätzung</div>
             </div>
-            <div style="font-size: 2.8em; font-weight: 950; font-family: 'Space Mono', monospace; color: #fff;">${totalEuroRev.toFixed(2)}</div>
-            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 5px;">
-               <div style="font-size: 0.75em; color: #888; font-family: 'Space Mono', monospace;">≈ ${totalDailyRevBTC.toFixed(6)} BTC</div>
-               <div style="font-size: 0.7em; color: #666; font-weight: 900;">€</div>
+            <div class="stat-val">${totalEuroRev.toFixed(2)}</div>
+            <div class="sub-row">
+               <div class="sub-val">≈ ${totalDailyRevBTC.toFixed(6)} BTC</div>
+               <div class="unit">€</div>
             </div>
           </div>
 
           <!-- Card 3: Efficiency -->
-          <div class="stat-card" style="background: rgba(0,0,0,0.4); border-radius: 12px; padding: 25px; border-left: 5px solid #fff; box-shadow: 0 10px 25px rgba(0,0,0,0.3); position: relative;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-               <div style="font-size: 0.65em; color: #fff; text-transform: uppercase; font-weight: 900; letter-spacing: 2px;">Efficiency</div>
-               <div style="background: rgba(255, 255, 255, 0.1); color: #fff; font-size: 0.55em; padding: 3px 8px; border-radius: 4px; font-weight: 900; border: 1px solid rgba(255, 255, 255, 0.3);">Network Avg</div>
+          <div class="stat-card" style="border-left: 5px solid #fff;">
+            <div class="card-header-row">
+               <div class="lbl" style="color: #fff;">Effizienz</div>
+               <div class="badge" style="background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3);">Netzwerk-Ø</div>
             </div>
-            <div style="font-size: 2.8em; font-weight: 950; font-family: 'Space Mono', monospace; color: #fff;">${(totalPowerW / (totalHashrateTH || 1)).toFixed(1)}</div>
-            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 5px;">
-               <div style="font-size: 0.75em; color: #888; font-family: 'Space Mono', monospace;">${euroPerKwh.toFixed(2)} €/kWh</div>
-               <div style="font-size: 0.7em; color: #666; font-weight: 900;">J/TH</div>
+            <div class="stat-val">${(totalPowerW / (totalHashrateTH || 1)).toFixed(1)}</div>
+            <div class="sub-row">
+               <div class="sub-val">${euroPerKwh.toFixed(2)} €/kWh</div>
+               <div class="unit">J/TH</div>
             </div>
           </div>
 
           <!-- Card 4: Total Power -->
-          <div class="stat-card" style="background: rgba(0,0,0,0.4); border-radius: 12px; padding: 25px; border-left: 5px solid var(--theme-accent-4); box-shadow: 0 10px 25px rgba(0,0,0,0.3); position: relative;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-               <div style="font-size: 0.65em; color: var(--theme-accent-4); text-transform: uppercase; font-weight: 900; letter-spacing: 2px;">Total Power</div>
-               <div style="background: rgba(var(--theme-accent-4-rgb), 0.1); color: var(--theme-accent-4); font-size: 0.55em; padding: 3px 8px; border-radius: 4px; font-weight: 900; border: 1px solid rgba(var(--theme-accent-4-rgb), 0.3);">Live</div>
+          <div class="stat-card" style="border-left: 5px solid var(--theme-accent-4);">
+            <div class="card-header-row">
+               <div class="lbl" style="color: var(--theme-accent-4);">Gesamtverbrauch</div>
+               <div class="badge" style="background: rgba(var(--theme-accent-4-rgb), 0.1); color: var(--theme-accent-4); border: 1px solid rgba(var(--theme-accent-4-rgb), 0.3);">Live</div>
             </div>
-            <div style="font-size: 2.8em; font-weight: 950; font-family: 'Space Mono', monospace; color: #fff;">${(totalPowerW / 1000).toFixed(2)}</div>
-            <div style="text-align: right; font-size: 0.7em; color: #666; font-weight: 900; margin-top: 5px;">kW</div>
+            <div class="stat-val">${(totalPowerW / 1000).toFixed(2)}</div>
+            <div class="unit">kW</div>
           </div>
       </div>
     `;
@@ -1994,6 +1997,7 @@ class OpenKairoMiningPanel extends LitElement {
             
             const isActuallyMining = switchState === 'on' && (currentWatts > 10 || currentHash > 0.1);
             const isStandby = switchState === 'on' && !isActuallyMining;
+            const runtime = this.calculateRuntime(effectiveSwitch);
 
             const cardStateClass = stateObj?.ramping ? 'is-ramping' : (isActuallyMining ? 'is-on' : isStandby ? 'is-standby' : '');
 
@@ -2217,7 +2221,7 @@ class OpenKairoMiningPanel extends LitElement {
 
                         <div style="display: flex; flex-direction: column; gap: 8px;">
                           <div style="color: #9b59b6; font-weight: 800; font-size: 0.95em;">
-                            Geplante Startzeit: <span style="color: #fff; font-weight: 950; font-family: 'Space Mono', monospace; background: rgba(155, 89, 182, 0.2); padding: 1px 6px; border-radius: 4px;">${stateObj && stateObj.ai_start_time && stateObj.ai_start_time !== '--:--' ? stateObj.ai_start_time : 'Warten...'}</span>
+                            ${isActuallyMining ? 'Aktiv seit:' : 'Geplante Startzeit:'} <span style="color: #fff; font-weight: 950; font-family: 'Space Mono', monospace; background: rgba(155, 89, 182, 0.2); padding: 1px 6px; border-radius: 4px;">${stateObj && stateObj.ai_start_time && stateObj.ai_start_time !== '--:--' ? stateObj.ai_start_time : 'Warten...'}</span>
                           </div>
                           
                           <div style="color: #0bc4e2; font-weight: 800; font-size: 0.9em; opacity: 0.9; display: flex; flex-direction: column; gap: 4px;">
@@ -2337,29 +2341,43 @@ class OpenKairoMiningPanel extends LitElement {
                     </div>
                   `}
 
-                  <!-- [NEU] Hardware Schutz & Preis Info -->
-                  <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; opacity: 0.8;">
-                    ${miner.min_run_time ? html`
-                      <span class="badge" style="background: rgba(var(--theme-accent-4-rgb, 0, 255, 136), 0.1); color: var(--theme-accent-4); font-size: 0.7em;">🛡️ Min-Run: ${miner.min_run_time}m</span>
-                    ` : ''}
-                    ${miner.grid_price_limit ? html`
-                      <span class="badge" style="background: rgba(var(--theme-accent-1-rgb, 11, 196, 226), 0.1); color: var(--theme-accent-1); font-size: 0.7em;">🏷️ Max Price: ${miner.grid_price_limit}</span>
-                    ` : ''}
+                  <!-- Stats Row -->
+                  <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
+                    <div style="flex: 1; min-width: 80px; background: rgba(15,15,20,0.9); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(10px); box-shadow: 0 4px 20px rgba(0,0,0,0.4);">
+                      <div style="font-size: 0.7em; color: var(--theme-text-dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 800; opacity: 0.8; margin-bottom: 4px;">Verbrauch</div>
+                      <div style="font-size: 1.3em; font-weight: 950; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">${powerConsumptionValue}</div>
+                    </div>
+                    <div style="flex: 1; min-width: 80px; background: rgba(15,15,20,0.9); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(10px); box-shadow: 0 4px 20px rgba(0,0,0,0.4);">
+                      <div style="font-size: 0.7em; color: var(--theme-text-dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 800; opacity: 0.8; margin-bottom: 4px;">Tagesertrag</div>
+                      <div style="font-size: 1.3em; font-weight: 950; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">${dailyRevenue.toFixed(2)} <span style="font-size: 0.7em; opacity: 0.5;">€</span></div>
+                    </div>
                   </div>
-                </div>
+
+                  <!-- Runtime Row -->
+                  <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 12px; margin-top: 12px;">
+                    <div style="text-align: center; flex: 1; border-right: 1px solid rgba(255,255,255,0.15);">
+                      <div style="font-size: 0.7em; color: var(--theme-text-dim); text-transform: uppercase; opacity: 0.8; margin-bottom: 4px;">Heute</div>
+                      <div style="font-size: 1.1em; font-weight: 900; color: var(--theme-accent-2); text-shadow: 0 2px 4px rgba(0,0,0,0.5);">${Math.floor(runtime.todayMinutes / 60)}h ${Math.floor(runtime.todayMinutes % 60)}m</div>
+                    </div>
+                    <div style="text-align: center; flex: 1;">
+                      <div style="font-size: 0.7em; color: var(--theme-text-dim); text-transform: uppercase; opacity: 0.8; margin-bottom: 4px;">7 Tage</div>
+                      <div style="font-size: 1.1em; font-weight: 900; color: var(--theme-accent-2); text-shadow: 0 2px 4px rgba(0,0,0,0.5);">${Math.floor(runtime.weekMinutes / 60)}h ${Math.floor(runtime.weekMinutes % 60)}m</div>
+                    </div>
+                  </div>
 
                   <div class="miner-controls" style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
-                    <p style="margin: 0 0 10px 0; font-size: 0.8em; color: #888; text-transform: uppercase;">⚡ Hardware Steuerung (Direkt)</p>
+                    <p style="margin: 0 0 10px 0; font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 1px;">⚡ Hardware Steuerung (Direkt)</p>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                       <button class="btn-control mode-low" @click="${() => this.callHardwareService(miner, 'set_work_mode', 'low')}">LOW</button>
                       <button class="btn-control mode-normal" @click="${() => this.callHardwareService(miner, 'set_work_mode', 'normal')}">NORM</button>
                       <button class="btn-control mode-high" @click="${() => this.callHardwareService(miner, 'set_work_mode', 'high')}">HIGH</button>
                     </div>
                     <div style="display: flex; gap: 8px; margin-top: 8px;">
-                      <button class="btn-control action" @click="${() => this.callHardwareService(miner, 'restart_backend')}">🔄 Restart</button>
+                      <button class="btn-control action" @click="${() => this.callHardwareService(miner, 'restart_backend')}">🔄 Neustart</button>
                       <button class="btn-control action warn" @click="${() => this.callHardwareService(miner, 'reboot')}">⚡ Reboot</button>
                     </div>
                   </div>
+                </div>
               </div>
             `;
           } catch (e) {
@@ -4364,14 +4382,24 @@ class OpenKairoMiningPanel extends LitElement {
       .stat-card {
         background: rgba(0,0,0,0.4);
         border-radius: 12px;
-        padding: 25px;
+        padding: 22px;
         box-shadow: 0 10px 25px rgba(0,0,0,0.3);
         position: relative;
         transition: transform 0.3s;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 140px;
+        border: 1px solid rgba(255,255,255,0.05);
       }
-      .stat-card:hover { transform: translateY(-5px); }
-      .stat-val { font-size: 2.8em; font-weight: 950; font-family: 'Space Mono', monospace; color: #fff; line-height: 1.2; }
-      .stat-card .lbl { font-size: 0.65em; text-transform: uppercase; font-weight: 900; letter-spacing: 2px; margin-bottom: 10px; }
+      .stat-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); }
+      .stat-card .lbl { font-size: 0.85em; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
+      .stat-card .stat-val { font-size: 2.8em; font-weight: 950; line-height: 1; margin: 10px 0; font-family: 'Space Mono', monospace; }
+      .stat-card .unit { font-size: 1.3em; opacity: 0.8; font-weight: 800; align-self: flex-end; color: #fff; }
+      .stat-card .sub-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: auto; }
+      .stat-card .sub-val { font-size: 1.1em; opacity: 0.8; font-family: 'Space Mono', monospace; }
+      .stat-card .card-header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
+      .stat-card .badge { font-size: 0.65em; padding: 4px 8px; border-radius: 6px; font-weight: 950; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
       
 
       /* Custom Range Slider */
@@ -4721,13 +4749,13 @@ class OpenKairoMiningPanel extends LitElement {
         </div>
       ` : ''}
       <div class="ticker-item" title="Aktueller Bitcoin Preis">
-        <span class="ticker-label">Price:</span>
+        <span class="ticker-label">Preis:</span>
         <span class="ticker-val" style="color: var(--theme-accent-3); text-shadow: 0 0 10px rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.3);">
           ${this.btcPriceEur ? this.btcPriceEur.toLocaleString('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 }) : '...'}
         </span>
       </div>
       <div class="ticker-item" title="Empfohlene Gebühren (Fast | Medium | Low)">
-        <span class="ticker-label">Fees:</span>
+        <span class="ticker-label">Gebühren:</span>
         <span class="ticker-val" style="color: var(--theme-accent-1); text-shadow: 0 0 8px rgba(var(--theme-accent-1-rgb), 0.4);">${fees.fastestFee}</span>
         <span class="ticker-divider">/</span>
         <span class="ticker-val">${fees.halfHourFee}</span>
@@ -4736,7 +4764,7 @@ class OpenKairoMiningPanel extends LitElement {
         <span style="font-size: 0.7em; opacity: 0.4; margin-left: 2px;">sat/vB</span>
       </div>
       <div class="ticker-item">
-        <span class="ticker-label">Height:</span>
+        <span class="ticker-label">Höhe:</span>
         <span class="ticker-val" style="color: var(--theme-text-main); font-family: var(--theme-font);">${height?.toLocaleString()}</span>
       </div>
       <div class="ticker-item" title="Difficulty Adjustment">
@@ -4748,7 +4776,7 @@ class OpenKairoMiningPanel extends LitElement {
       </div>
       <div class="ticker-item">
         <span class="ticker-label">Halving:</span>
-        <span class="ticker-val" style="color: var(--theme-primary); font-family: var(--theme-font);">${halving?.toLocaleString()} <span style="font-size: 0.7em; opacity: 0.5;">blocks</span></span>
+        <span class="ticker-val" style="color: var(--theme-primary); font-family: var(--theme-font);">${halving?.toLocaleString()} <span style="font-size: 0.7em; opacity: 0.5;">Blöcke</span></span>
       </div>
     `;
 
