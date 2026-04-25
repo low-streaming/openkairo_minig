@@ -381,24 +381,23 @@ class OpenKairoMiningPanel extends LitElement {
     }
   }
 
-  async fetchBtcPriceHistory() {
-    try {
-      // Use CoinGecko API (CORS friendly) for granular 24h data
-      const response = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=eur&days=1');
-      const data = await response.json();
-      
-      if (data && data.prices && Array.isArray(data.prices)) {
-        // CoinGecko returns {"prices": [[timestamp, price], ...]}
-        this.btc_price_history = data.prices.map(p => ({
-          time: p[0],
-          EUR: p[1]
-        }));
-        this.requestUpdate();
-      }
-    } catch (e) {
-      console.error("Failed to fetch BTC price history from CoinGecko", e);
+    async fetchBtcPriceHistory() {
+        try {
+            const response = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=eur&days=1');
+            if (response.status === 429) return;
+            const data = await response.json();
+            
+            if (data && data.prices && Array.isArray(data.prices)) {
+                this.btc_price_history = data.prices.map(p => ({
+                    time: p[0],
+                    EUR: p[1]
+                }));
+                this.requestUpdate();
+            }
+        } catch (e) {
+            // Silently fail
+        }
     }
-  }
 
   _loadGoogleFont(fontName) {
     if (!fontName || fontName === 'Inter' || fontName === 'sans-serif' || this.loadedFonts.has(fontName)) return;
@@ -538,37 +537,33 @@ class OpenKairoMiningPanel extends LitElement {
     }
   }
 
-  async fetchKaspaData() {
-    try {
-      // 1. Fetch Kaspa Price (CoinGecko)
-      const priceResp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=kaspa&vs_currencies=eur,usd');
-      const priceData = await priceResp.json();
-      if (priceData && priceData.kaspa) {
-        this.kasPriceEur = parseFloat(priceData.kaspa.eur || 0);
-        this.kasPriceUsd = parseFloat(priceData.kaspa.usd || 0);
-      }
+    async fetchKaspaData() {
+        try {
+            const priceResp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=kaspa&vs_currencies=eur,usd');
+            if (priceResp.status === 429) return;
+            const priceData = await priceResp.json();
+            if (priceData && priceData.kaspa) {
+                this.kasPriceEur = parseFloat(priceData.kaspa.eur || 0);
+                this.kasPriceUsd = parseFloat(priceData.kaspa.usd || 0);
+            }
 
-      // 2. Fetch Kaspa Block Reward
-      const rewardResp = await fetch('https://api.kaspa.org/info/blockreward');
-      const rewardData = await rewardResp.json();
-      if (rewardData && rewardData.blockreward) {
-        this.kasReward = parseFloat(rewardData.blockreward);
-      }
+            const rewardResp = await fetch('https://api.kaspa.org/info/blockreward');
+            const rewardData = await rewardResp.json();
+            if (rewardData && rewardData.blockreward) {
+                this.kasReward = parseFloat(rewardData.blockreward);
+            }
 
-      // 3. Fetch Kaspa Network Hashrate
-      const hrResp = await fetch('https://api.kaspa.org/info/hashrate');
-      const hrData = await hrResp.json();
-      if (hrData && hrData.hashrate) {
-          // api.kaspa.org returns hashrate in TH/s (verified 2026-04-20)
-          this.kasNetworkHashrate = parseFloat(hrData.hashrate) || 0;
-      }
-      
-      console.info("[KAS Data] Price:", this.kasPriceEur, "Reward:", this.kasReward, "NetHR (TH/s):", this.kasNetworkHashrate);
-      this.requestUpdate();
-    } catch (e) {
-      console.error("Failed to fetch Kaspa data", e);
+            const hrResp = await fetch('https://api.kaspa.org/info/hashrate');
+            const hrData = await hrResp.json();
+            if (hrData && hrData.hashrate) {
+                this.kasNetworkHashrate = parseFloat(hrData.hashrate) || 0;
+            }
+            
+            this.requestUpdate();
+        } catch (e) {
+            // Silently fail
+        }
     }
-  }
 
   async fetchBtcDifficulty() {
     try {
@@ -1317,14 +1312,30 @@ class OpenKairoMiningPanel extends LitElement {
             </div>
           </div>
 
-          <div class="tabs" style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
-            <div class="tab ${this.activeTab === 'dashboard' ? 'active' : ''}" @click="${() => { this.activeTab = 'dashboard'; this.editingMinerId = null; }}">Dashboard</div>
-            <div class="tab ${this.activeTab === 'statistics' ? 'active' : ''}" @click="${() => { this.activeTab = 'statistics'; this.editingMinerId = null; }}">Graphen</div>
-            <div class="tab ${this.activeTab === 'design' ? 'active' : ''}" @click="${() => { this.activeTab = 'design'; this.editingMinerId = null; }}">🎨 Design</div>
-            ${this.config.show_energy_tab ? html`<div class="tab ${this.activeTab === 'energy' ? 'active' : ''}" @click="${() => { this.activeTab = 'energy'; this.editingMinerId = null; }}">⚡ Rentabilität</div>` : ''}
-            <div class="tab ${this.activeTab === 'settings' ? 'active' : ''}" @click="${() => { this.activeTab = 'settings'; this.editingMinerId = null; }}">Einstellungen</div>
-            <div class="tab ${this.activeTab === 'info' ? 'active' : ''}" @click="${() => { this.activeTab = 'info'; this.editingMinerId = null; }}">Hilfe</div>
-            <div class="tab ${this.activeTab === 'logs' ? 'active' : ''}" @click="${() => { this.activeTab = 'logs'; this.editingMinerId = null; }}">📜 Logs</div>
+          <div class="tabs">
+            <div class="tab ${this.activeTab === 'dashboard' ? 'active' : ''}" @click="${() => { this.activeTab = 'dashboard'; this.editingMinerId = null; }}">
+              <ha-icon icon="mdi:view-dashboard-outline"></ha-icon> Dashboard
+            </div>
+            <div class="tab ${this.activeTab === 'statistics' ? 'active' : ''}" @click="${() => { this.activeTab = 'statistics'; this.editingMinerId = null; }}">
+              <ha-icon icon="mdi:chart-timeline-variant"></ha-icon> Graphen
+            </div>
+            <div class="tab ${this.activeTab === 'design' ? 'active' : ''}" @click="${() => { this.activeTab = 'design'; this.editingMinerId = null; }}">
+              <ha-icon icon="mdi:palette-outline"></ha-icon> Design
+            </div>
+            ${this.config.show_energy_tab ? html`
+              <div class="tab ${this.activeTab === 'energy' ? 'active' : ''}" @click="${() => { this.activeTab = 'energy'; this.editingMinerId = null; }}">
+                <ha-icon icon="mdi:lightning-bolt-outline"></ha-icon> Rentabilität
+              </div>
+            ` : ''}
+            <div class="tab ${this.activeTab === 'settings' ? 'active' : ''}" @click="${() => { this.activeTab = 'settings'; this.editingMinerId = null; }}">
+              <ha-icon icon="mdi:cog-outline"></ha-icon> Setup
+            </div>
+            <div class="tab ${this.activeTab === 'info' ? 'active' : ''}" @click="${() => { this.activeTab = 'info'; this.editingMinerId = null; }}">
+              <ha-icon icon="mdi:help-circle-outline"></ha-icon> Hilfe
+            </div>
+            <div class="tab ${this.activeTab === 'logs' ? 'active' : ''}" @click="${() => { this.activeTab = 'logs'; this.editingMinerId = null; }}">
+              <ha-icon icon="mdi:script-text-outline"></ha-icon> Logs
+            </div>
           </div>
 
           ${this._renderTicker()}
@@ -1758,7 +1769,7 @@ class OpenKairoMiningPanel extends LitElement {
     const housePower = this.config.house_power_sensor ? parseFloat(this.hass?.states[this.config.house_power_sensor]?.state || 0) : 0;
     const batteryPower = this.config.battery_power_sensor ? parseFloat(this.hass?.states[this.config.battery_power_sensor]?.state || 0) : 0;
     const overviewHtml = html`
-      <div class="overview-cards-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px;">
+      <div class="overview-cards-grid">
           <!-- Card 1: Hashrate -->
           <div class="stat-card" style="background: rgba(0,0,0,0.4); border-radius: 12px; padding: 25px; border-left: 5px solid var(--theme-accent-1); box-shadow: 0 10px 25px rgba(0,0,0,0.3); position: relative;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
@@ -4343,6 +4354,25 @@ class OpenKairoMiningPanel extends LitElement {
       .form-group { margin-bottom: 22px; }
       .mt-3 { margin-top: 25px; }
       .form-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.95em; color: var(--theme-text-dim); }
+      
+      .overview-cards-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+      .stat-card {
+        background: rgba(0,0,0,0.4);
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        position: relative;
+        transition: transform 0.3s;
+      }
+      .stat-card:hover { transform: translateY(-5px); }
+      .stat-val { font-size: 2.8em; font-weight: 950; font-family: 'Space Mono', monospace; color: #fff; line-height: 1.2; }
+      .stat-card .lbl { font-size: 0.65em; text-transform: uppercase; font-weight: 900; letter-spacing: 2px; margin-bottom: 10px; }
+      
 
       /* Custom Range Slider */
       input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
@@ -4538,10 +4568,10 @@ class OpenKairoMiningPanel extends LitElement {
         .tab { padding: 10px 5px !important; font-size: 0.8em !important; flex: 1 1 45% !important; border-radius: 8px !important; }
         
         .ticker-container { 
-          padding: 15px 0 !important;
+          padding: 8px 0 !important;
           margin: 0 !important;
           border-radius: 0 !important;
-          background: rgba(0,0,0,0.6) !important;
+          background: rgba(0,0,0,0.4) !important;
           border-left: none !important;
           border-right: none !important;
           mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
@@ -4551,7 +4581,9 @@ class OpenKairoMiningPanel extends LitElement {
           animation: tickerScroll 25s linear infinite;
           width: auto !important;
           justify-content: flex-start !important;
-          gap: 60px !important;
+          gap: 40px !important;
+          font-size: 0.8em !important;
+          letter-spacing: 1px !important;
         }
         .ticker-mobile-extra {
           display: flex !important;
@@ -4566,8 +4598,55 @@ class OpenKairoMiningPanel extends LitElement {
         
         .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
         .stat-card { padding: 12px !important; min-height: 100px; }
-        .stat-val { font-size: 1.1em !important; }
+        .stat-val { font-size: 1.2em !important; }
         .stat-card .lbl { font-size: 0.55em !important; }
+
+        .overview-cards-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; margin-bottom: 20px !important; }
+        
+        .sponsoring-header { 
+          grid-template-columns: 1fr !important; 
+          padding: 15px !important; 
+          gap: 10px !important;
+          margin-bottom: 15px !important;
+        }
+        .header-left { flex-direction: column !important; gap: 10px !important; align-items: center !important; text-align: center !important; }
+        .header-center { display: none !important; } 
+        .header-right { text-align: center !important; align-items: center !important; margin-top: 5px !important; }
+        .header-right h1 { font-size: 1.5em !important; }
+        .portfolio-data { text-align: center !important; }
+        .portfolio-data div:last-child { font-size: 1.8em !important; }
+        
+        .tabs { 
+          display: grid !important;
+          grid-template-columns: repeat(2, 1fr) !important;
+          gap: 12px !important;
+          margin-bottom: 20px !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+          padding: 0 5px !important;
+        }
+        .tab { 
+          padding: 14px 10px !important; 
+          font-size: 0.85em !important; 
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          gap: 10px !important;
+          border-radius: 12px !important;
+          background: rgba(255,255,255,0.04) !important;
+          border: 1px solid rgba(255,255,255,0.08) !important;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+        }
+        .tab.active {
+          background: rgba(var(--theme-accent-1-rgb), 0.15) !important;
+          border-color: var(--theme-accent-1) !important;
+          color: var(--theme-accent-1) !important;
+          box-shadow: 0 0 15px rgba(var(--theme-accent-1-rgb), 0.3) !important;
+        }
+        .tab ha-icon { --mdc-icon-size: 18px !important; }
+        
         
         .api-stats { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; flex-wrap: unset !important; padding: 10px !important; }
         .api-stats .stat { min-width: unset !important; padding: 5px !important; }
