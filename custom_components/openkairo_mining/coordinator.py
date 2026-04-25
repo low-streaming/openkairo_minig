@@ -325,17 +325,23 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
 
             self._failure_count = 0
 
-            # [FIX] Enhanced Hashrate Scaling (BOS+, VNish, Stock)
+            # [FIX] Enhanced Hashrate Scaling (BOS+, VNish, Stock, Bitaxe)
             raw_hr = float(getattr(miner_data, "hashrate", 0) or 0)
-            if raw_hr > 1000000000: # > 1 GH/s in H/s
+            # Scaling rules:
+            # - If > 1e12: it's likely H/s (Antminer Stock) -> convert to TH/s
+            # - If > 1e9: it's likely GH/s (Bitaxe/NerdMiner) -> convert to TH/s (or keep GH/s?) 
+            #   The dashboard expects TH/s for large miners and GH/s for small ones.
+            #   Let's keep GH/s if it's < 1000 GH/s, otherwise TH/s.
+            
+            if raw_hr > 1e11: # > 100 GH/s in H/s
                  hr = round(raw_hr / 1e12, 2)
-            elif raw_hr > 5000:    # > 5 TH/s in GH/s
+            elif raw_hr > 5000: # > 5 TH/s in GH/s (some APIs)
                  hr = round(raw_hr / 1000, 2)
             else:
                  hr = round(raw_hr, 2)
 
             raw_exp = float(getattr(miner_data, "expected_hashrate", 0) or 0)
-            if raw_exp > 1000000000: exp_hr = round(raw_exp / 1e12, 2)
+            if raw_exp > 1e11: exp_hr = round(raw_exp / 1e12, 2)
             elif raw_exp > 5000: exp_hr = round(raw_exp / 1000, 2)
             else: exp_hr = round(raw_exp, 2)
             
@@ -375,6 +381,11 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             elif "vnish" in miner_fw:
                 if hr > 0: is_mining = True
                 if wattage < 100 and hr == 0: is_mining = False
+            
+            elif "bitaxe" in str(getattr(miner_data, "model", "")).lower():
+                # Bitaxe power is often very low in standby
+                if hr > 0: is_mining = True
+                if wattage < 5 and hr == 0: is_mining = False
 
             # Build Board/Fan Maps
             board_sensors = {}
