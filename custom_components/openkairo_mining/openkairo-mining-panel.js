@@ -2156,7 +2156,13 @@ class OpenKairoMiningPanel extends LitElement {
                     <div class="tech-box" style="border-color: rgba(255, 152, 0, 0.3); background: rgba(255, 152, 0, 0.05);">
                       <p><b>Offgrid SOC:</b> <span class="highlight-val" style="color: #ff9800;">${batterySOCValue || 'N/A'}</span></p>
                       <div class="small-text mt-1" style="display: flex; flex-direction: column; gap: 4px;">
-                        <div>Kurve: ${miner.offgrid_soc_start}% (${miner.offgrid_min_power}W) &rarr; ${miner.offgrid_soc_max}% (${miner.offgrid_max_po                   ${miner.mode === 'ai_discharge' ? html`
+                        <div>Kurve: ${miner.offgrid_soc_start}% (${miner.offgrid_min_power}W) &rarr; ${miner.offgrid_soc_max}% (${miner.offgrid_max_power}W)</div>
+                        <div style="color: #e74c3c;">Stopp bei: ${miner.offgrid_soc_stop}%</div>
+                      </div>
+                    </div>
+                  ` : ''}
+
+                  ${miner.mode === 'ai_discharge' ? html`
                     <div class="tech-box" style="border-color: #9b59b6; background: rgba(155, 89, 182, 0.05);">
                       <p style="display: flex; justify-content: space-between; align-items: center;">
                         <strong style="color: #9b59b6;">🤖 AI-Optimierung:</strong>
@@ -2180,10 +2186,6 @@ class OpenKairoMiningPanel extends LitElement {
                           `}
                         ` : html`
                           <p class="small-text" style="color: #aaa; text-align: center; padding: 10px;">${stateObj && stateObj.ai_status ? stateObj.ai_status : 'Berechne Startzeit... (Warte auf Sensordaten)'}</p>
-                        `}
-                      </div>
-                    </div>
-                  ` : ''}ateObj.ai_status ? stateObj.ai_status : 'Berechne Startzeit... (Warte auf Sensordaten)'}</p>
                         `}
                       </div>
                     </div>

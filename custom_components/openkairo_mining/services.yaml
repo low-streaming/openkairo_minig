@@ -37,9 +37,10 @@ set_power_limit:
       description: "Watt (z.B. 1200)"
       example: 1200
       required: true
+
 set_integration_mode:
   name: "Integration Modus setzen"
-  description: "Ändert den Betriebsmodus des Dashboards (AI, PV, SOC, etc.)."
+  description: "Ã„ndert den Betriebsmodus des Dashboards (AI, PV, SOC, etc.)."
   fields:
     ip_address:
       name: "IP-Adresse"
@@ -48,6 +49,6 @@ set_integration_mode:
       example: "192.168.2.185"
     mode:
       name: "Modus"
-      description: "Wähle: pv, ai_discharge, soc, offgrid, manual, heating"
+      description: "WÃ¤hle: pv, ai_discharge, soc, offgrid, manual, heating"
       required: true
       example: "pv"
