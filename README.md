@@ -1,4 +1,4 @@
-# OpenKairo Mining 🚀 — Das Ultimative "Command Center" v1.3.20
+# OpenKairo Mining 🚀 — Das Ultimative "Command Center" v1.3.21
 
 [![OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg?style=for-the-badge)](https://home-assistant.io)
@@ -8,7 +8,7 @@ Verwandle deinen Home Assistant in eine professionelle **Mining-Schaltzentrale**
 
 ---
 
-## 💎 Highlights der v1.3.20 - "The Intelligence Update"
+## 💎 Highlights der v1.3.21 - "The Intelligence Update"
 
 Dieses Update bringt smarte Logik und maximale Kontrolle in dein Setup.
 

@@ -2160,24 +2160,6 @@ class OpenKairoMiningPanel extends LitElement {
                           <p class="small-text mt-1">🔋 Unterstützung erlaubt bis min. ${miner.battery_min_soc}%</p>
                         </div>
                       ` : ''}
-                      ${miner.forecast_enabled && miner.forecast_sensor ? html`
-                        ${(() => {
-                           const fState = forecastValue ? forecastValue.state : 'N/A';
-                           const fMin = parseFloat(miner.forecast_min) || 0;
-                           const currentVal = parseFloat(fState) || 0;
-                           const isOk = !forecastValue || forecastValue.state === 'unavailable' || forecastValue.state === 'unknown' ? true : currentVal >= fMin;
-                           
-                           return html`
-                            <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px; margin-top: 8px;">
-                              <p style="display: flex; justify-content: space-between; align-items: center; margin: 0;">
-                                <span><b>⛅ Prognose heute:</b> <span class="highlight-val">${fState}</span></span>
-                                <span class="status-badge small ${isOk ? 'on' : 'off'}" style="padding: 2px 8px; font-size: 0.7em; width: auto; box-shadow: none;">${isOk ? 'OK' : 'ZU NIEDRIG'}</span>
-                              </p>
-                              <p class="small-text mt-1" style="color: ${isOk ? '#888' : '#e74c3c'};">Schaltet erst ein ab: ${fMin} kWh</p>
-                            </div>
-                           `;
-                        })()}
-                      ` : ''}
                     </div>
                   ` : ''}
                   
@@ -2344,6 +2326,25 @@ class OpenKairoMiningPanel extends LitElement {
                       </label>
                     </div>
                   `}
+
+                   ${miner.forecast_enabled && miner.forecast_sensor ? html`
+                        ${(() => {
+                           const fState = forecastValue ? forecastValue.state : 'N/A';
+                           const fMin = parseFloat(miner.forecast_min) || 0;
+                           const currentVal = parseFloat(fState) || 0;
+                           const isOk = !forecastValue || forecastValue.state === 'unavailable' || forecastValue.state === 'unknown' ? true : currentVal >= fMin;
+                           
+                           return html`
+                            <div class="tech-box" style="margin-top: 15px; border-color: #3498db; background: rgba(52, 152, 219, 0.05);">
+                              <p style="display: flex; justify-content: space-between; align-items: center; margin: 0;">
+                                <span><b>⛅ Prognose heute:</b> <span class="highlight-val">${fState}</span></span>
+                                <span class="status-badge small ${isOk ? 'on' : 'off'}" style="padding: 2px 8px; font-size: 0.7em; width: auto; box-shadow: none;">${isOk ? 'OK' : 'ZU NIEDRIG'}</span>
+                              </p>
+                              <p class="small-text mt-1" style="color: ${isOk ? '#888' : '#e74c3c'};">Zusatz-Info: Schwelle bei ${fMin} kWh</p>
+                            </div>
+                           `;
+                        })()}
+                      ` : ''}
 
                   <!-- Stats Row -->
                   <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
@@ -2591,6 +2592,15 @@ class OpenKairoMiningPanel extends LitElement {
                 @change="${(e) => { this.config.battery_power_sensor = e.target.value; this.saveConfig(true); }}">
               </openkairo-entity-picker>
             </div>
+            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 250px;">
+              <label>BTC Portfolio Sensor (Guthaben)</label>
+              <openkairo-entity-picker 
+                placeholder="-- Sensor wählen --" 
+                .value="${this.config.wallet_btc_sensor || ''}" 
+                .entities="${this.getEntitiesByDomain('sensor')}" 
+                @change="${(e) => { this.config.wallet_btc_sensor = e.target.value; this.saveConfig(true); }}">
+              </openkairo-entity-picker>
+            </div>
             <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
               <label>Profil Avatar URL (Optional)</label>
               <input type="text" .value="${this.config.profile_image || ''}" @change="${(e) => { this.config.profile_image = e.target.value; this.saveConfig(true); }}" placeholder="https://...">
@@ -2772,6 +2782,29 @@ class OpenKairoMiningPanel extends LitElement {
             </div>
         </div>
 
+        <div style="margin-top: 20px; padding: 15px; border: 1px dashed rgba(52, 152, 219, 0.3); border-radius: 8px; background: rgba(52, 152, 219, 0.05); margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+              <h4 style="margin: 0; color: #3498db; display: flex; align-items: center; gap: 8px;">🌤️ Solar-Vorhersage (Global/Visual)</h4>
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" .checked="${this.editForm.forecast_enabled !== false}" @change="${(e) => this.handleFormInput({ target: { name: 'forecast_enabled', type: 'checkbox', checked: e.target.checked } })}" style="width: 16px; height: 16px; margin: 0; accent-color: #3498db;">
+                <span style="font-size: 0.9em; font-weight: bold; color: var(--theme-text-main);">Aktiv</span>
+              </label>
+            </div>
+            
+            <div class="form-row" style="opacity: ${this.editForm.forecast_enabled !== false ? '1' : '0.5'}; pointer-events: ${this.editForm.forecast_enabled !== false ? 'auto' : 'none'};">
+                <div class="form-group flex-2">
+                    <label>Prognose-Sensor (z.B. Solcast Today)</label>
+                    <openkairo-entity-picker name="forecast_sensor" placeholder="-- Wetter/Prognose Sensor suchen --" .value="${this.editForm.forecast_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                </div>
+                <div class="form-group flex-1">
+                    <label>Min. Prognose (kWh)</label>
+                    <input type="number" step="0.1" name="forecast_min" .value="${this.editForm.forecast_min || 0}" @input="${this.handleFormInput}">
+                    <small>Zusatz-Regel für PV-Modi.</small>
+                </div>
+            </div>
+            <small style="color: #888; display: block; margin-top: -5px;">Zeigt die Prognose auf dem Dashboard an. In PV-Modi dient dies zusätzlich als Einschaltschwelle.</small>
+        </div>
+
         <div class="form-group mt-3">
           <label>Betriebsmodus</label>
           <select class="btc-select" name="mode" @change="${this.handleFormInput}">
@@ -2823,29 +2856,6 @@ class OpenKairoMiningPanel extends LitElement {
                 ` : html`
                 <p style="margin: 8px 0 0 30px; font-size: 0.85em; color: #888;">Der Miner startet normal bei erreichtem PV-Überschuss. Danach verhindert die Batterie das sofortige Abschalten bei Wolken/Einbrüchen, solange sie noch genügend (z.B. ≥ 60%) geladen ist.</p>
                 `}
-            </div>
-
-            <div style="margin-top: 20px; padding: 15px; border: 1px dashed rgba(52, 152, 219, 0.3); border-radius: 8px; background: rgba(52, 152, 219, 0.05);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                  <h4 style="margin: 0; color: #3498db; display: flex; align-items: center; gap: 8px;">🌤️ Solar-Vorhersage (Optional)</h4>
-                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                    <input type="checkbox" .checked="${this.editForm.forecast_enabled !== false}" @change="${(e) => this.handleFormInput({ target: { name: 'forecast_enabled', type: 'checkbox', checked: e.target.checked } })}" style="width: 16px; height: 16px; margin: 0; accent-color: #3498db;">
-                    <span style="font-size: 0.9em; font-weight: bold; color: var(--theme-text-main);">Aktiv</span>
-                  </label>
-                </div>
-                
-                <div class="form-row" style="opacity: ${this.editForm.forecast_enabled !== false ? '1' : '0.5'}; pointer-events: ${this.editForm.forecast_enabled !== false ? 'auto' : 'none'};">
-                    <div class="form-group flex-2">
-                        <label>Prognose-Sensor (z.B. Solcast Today)</label>
-                        <openkairo-entity-picker name="forecast_sensor" placeholder="-- Wetter/Prognose Sensor suchen --" .value="${this.editForm.forecast_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
-                    </div>
-                    <div class="form-group flex-1">
-                        <label>Min. Prognose (kWh)</label>
-                        <input type="number" step="0.1" name="forecast_min" .value="${this.editForm.forecast_min || 0}" @input="${this.handleFormInput}">
-                        <small>Nur starten, wenn Ertrag heute ≥ X.</small>
-                    </div>
-                </div>
-                <small style="color: #888; display: block; margin-top: -5px;">Schaltet den Miner erst ein, wenn die Tagesprognose diesen Wert erreicht. Ideal um Akkus bei schlechtem Wetter zu schonen.</small>
             </div>
 
             <div class="form-row mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
