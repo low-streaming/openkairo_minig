@@ -22,6 +22,7 @@ Nutze deinen Miner als intelligente Heizung. Schalte deine Hardware basierend au
 Das gesamte Dashboard wurde für die mobile Nutzung überarbeitet. 
 - **Flüssiger Ticker**: Bitcoin-Fees und Markt-Daten immer im Blick.
 - **Kompakte Karten**: Alle wichtigen Stats auf einem Screen.
+- **Globaler Forecast**: Die Wetterprognose kann jetzt in jedem Modus konfiguriert und angezeigt werden.
 - **Beta-Labels**: Volle Transparenz über den Status neuer Features.
 
 ### ⚡ Native Hardware-Anbindung (pyasic)
