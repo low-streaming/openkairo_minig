@@ -317,6 +317,15 @@ class OpenKairoMiningPanel extends LitElement {
     this.historyData = {};
     this.mempool = { fees: null, height: null, halving: null };
 
+    // Debug helper for black screens (early catch)
+    window.addEventListener('unhandledrejection', (event) => {
+      if (event.reason && (event.reason.name === 'AbortError' || event.reason.message?.includes('Transition'))) {
+        event.preventDefault();
+        return;
+      }
+      console.error('CRITICAL: Unhandled Promise Rejection:', event.reason);
+    });
+
     this.fetchingHistory = {};
     this.simulatorModels = {};
     this.switchHistoryData = {};
@@ -350,14 +359,8 @@ class OpenKairoMiningPanel extends LitElement {
     this.fetchBtcPriceHistory().catch(e => console.error("fetchBtcHist fail:", e));
     this.fetchKaspaData().catch(e => console.error("fetchKaspa fail:", e));
 
-    // Debug helper for black screens
-    window.addEventListener('unhandledrejection', (event) => {
-      if (event.reason && (event.reason.name === 'AbortError' || event.reason.message?.includes('Transition'))) {
-        event.preventDefault();
-        return;
-      }
-      console.error('Unhandled Promise Rejection:', event.reason);
-    });
+    // Error listener moved to constructor for earlier catching
+    console.log("OpenKairoMiningPanel: firstUpdated called");
     
     // Refresh miner states/config every 15 seconds (matching backend loop)
     this.intervals.push(setInterval(() => {
@@ -1244,33 +1247,43 @@ class OpenKairoMiningPanel extends LitElement {
     root.style.setProperty('--theme-glow-op', layout.glow);
 
     // Set host attribute for CSS targeting
-    this.setAttribute('theme', theme);
+    // MOVED TO updated() to prevent infinite loops during render
   }
 
 
+  updated(changedProperties) {
+    if (changedProperties.has('config') || changedProperties.has('hass')) {
+      this._applyThemeStyles();
+      const theme = this.config?.theme || 'cyberpunk';
+      if (this.getAttribute('theme') !== theme) {
+        this.setAttribute('theme', theme);
+      }
+    }
+  }
+
   render() {
+    // DIAGNOSTIC RENDER
+    console.log("OpenKairoMiningPanel: render() execution started");
+    
     try {
-      if (!this.config) {
+      if (!this.config || (this.config.miners && this.config.miners.length === 0 && !this.hass)) {
         return html`
-          <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #111; color: #fff;">
+          <div style="height: 100vh; width: 100vw; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; color: #fff; position: fixed; top: 0; left: 0; z-index: 9999;">
+             <div style="color: #0bc4e2; font-size: 2em; font-weight: bold; margin-bottom: 20px;">OpenKairo Mining</div>
              <ha-circular-progress active></ha-circular-progress>
-             <div style="margin-top: 20px; font-size: 1.2em;">Lade Mining-Konfiguration...</div>
-             <div style="margin-top: 10px; font-size: 0.8em; color: #666;">(Falls dies länger als 5 Sekunden dauert, lade bitte die Seite neu)</div>
+             <div style="margin-top: 25px; font-size: 1.1em;">Initialisiere Dashboard...</div>
+             <div style="margin-top: 10px; font-size: 0.8em; color: #555;">Warte auf Daten von Home Assistant</div>
           </div>
         `;
       }
       
       const theme = this.config.theme || 'cyberpunk';
       const walletSensor = this.config.wallet_btc_sensor;
-      const walletState = (this.hass && walletSensor && this.hass.states[walletSensor]) ? this.hass.states[walletSensor].state : '0.0000';
+      const walletState = (this.hass && this.hass.states && walletSensor && this.hass.states[walletSensor]) ? this.hass.states[walletSensor].state : '0.0000';
       const profileImg = this.config.profile_image || 'https://openkairo.de/wp-content/uploads/2024/01/openkairo-logo-icon.png';
 
-      // Apply variables to host
-      try {
-        this._applyThemeStyles();
-      } catch (err) {
-        console.warn("Non-critical theme error:", err);
-      }
+      // Side-effects moved to updated() lifecycle method
+      // this._applyThemeStyles();
 
       return html`
         ${this.config.background_animations_enabled !== false ? html`<div class="theme-bg-overlay"></div>` : ''}
