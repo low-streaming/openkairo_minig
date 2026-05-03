@@ -605,14 +605,14 @@ class OpenKairoMiningPanel extends LitElement {
       const response = await this.hass.callApi('GET', `history/period/${startStr}?filter_entity_id=${entityId}&minimal_response`);
       if (response && response.length > 0) {
         this.historyData = { ...this.historyData, [entityId]: response[0] };
-        this.requestUpdate();
       } else {
         this.historyData = { ...this.historyData, [entityId]: [] };
-        this.requestUpdate();
       }
     } catch (e) {
       console.error("Failed to fetch history for " + entityId, e);
       this.historyData = { ...this.historyData, [entityId]: [] };
+    } finally {
+      this.fetchingHistory[entityId] = false;
       this.requestUpdate();
     }
   }
@@ -1252,7 +1252,9 @@ class OpenKairoMiningPanel extends LitElement {
 
 
   updated(changedProperties) {
-    if (changedProperties.has('config') || changedProperties.has('hass')) {
+    // Only update theme styles if config actually changed.
+    // hass changes too frequently (on every state change in HA) to run this every time.
+    if (changedProperties.has('config')) {
       this._applyThemeStyles();
       const theme = this.config?.theme || 'cyberpunk';
       if (this.getAttribute('theme') !== theme) {
@@ -1263,8 +1265,7 @@ class OpenKairoMiningPanel extends LitElement {
 
   render() {
     // DIAGNOSTIC RENDER
-    console.log("OpenKairoMiningPanel: render() execution started. Config:", !!this.config, "Hass:", !!this.hass);
-    if (this.hass && this.hass.states) console.log("State count:", Object.keys(this.hass.states).length);
+    // Diagnostic logging removed to improve performance during frequent state updates
     
     try {
       if (!this.config || (this.config.miners && this.config.miners.length === 0 && !this.hass)) {
@@ -3716,7 +3717,6 @@ class OpenKairoMiningPanel extends LitElement {
       :host([theme="gladbeck"]) .card, 
       :host([theme="gladbeck"]) .miner-card,
       :host([theme="gladbeck"]) .tech-box {
-        backdrop-filter: blur(25px) saturate(180%);
         background: rgba(0, 31, 63, 0.4) !important;
         border: 1px solid rgba(0, 120, 187, 0.4);
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(0, 120, 187, 0.1);
@@ -3791,7 +3791,6 @@ class OpenKairoMiningPanel extends LitElement {
       /* --- ACTIVITY TICKER STYLES --- */
       .activity-ticker {
         background: rgba(0, 0, 0, 0.4);
-        backdrop-filter: blur(15px);
         border-bottom: 1px solid rgba(var(--theme-accent-1-rgb), 0.2);
         height: 38px;
         overflow: hidden;
@@ -3858,7 +3857,6 @@ class OpenKairoMiningPanel extends LitElement {
         background: linear-gradient(135deg, rgba(var(--theme-accent-1-rgb), 0.05) 0%, rgba(var(--theme-accent-2-rgb), 0.02) 100%), var(--theme-bg-header, rgba(18, 18, 20, 0.6));
         border-radius: var(--theme-radius);
         border: 1px solid rgba(var(--theme-accent-1-rgb), 0.15);
-        backdrop-filter: blur(30px) saturate(150%);
         box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.05);
         flex-wrap: wrap;
         position: relative;
@@ -4086,8 +4084,6 @@ class OpenKairoMiningPanel extends LitElement {
         box-shadow: 0 25px 60px rgba(0,0,0,0.7), inset 0 1px 1px rgba(255,255,255,0.08); 
         margin-bottom: 25px; 
         border: 1px solid var(--theme-border-color); 
-        backdrop-filter: blur(30px) saturate(160%);
-        -webkit-backdrop-filter: blur(30px) saturate(160%);
         position: relative;
         overflow: hidden;
       }
@@ -4170,8 +4166,6 @@ class OpenKairoMiningPanel extends LitElement {
         position: relative;
         border: 1px solid var(--theme-border-color);
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.37);
-        backdrop-filter: blur(15px);
-        -webkit-backdrop-filter: blur(15px);
         transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
         overflow: hidden;
       }
@@ -4217,7 +4211,6 @@ class OpenKairoMiningPanel extends LitElement {
         background: rgba(0,0,0,0.6); color: var(--theme-text-dim); text-align: center; width: 100%; font-size: 1.2em;
         letter-spacing: 2px; border: 1px solid rgba(255,255,255,0.1);
         display: flex; align-items: center; justify-content: center;
-        backdrop-filter: blur(15px);
         box-shadow: 0 10px 25px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.1);
         transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         text-transform: uppercase;
@@ -4319,7 +4312,6 @@ class OpenKairoMiningPanel extends LitElement {
         display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; 
         background: rgba(255,255,255,0.03); padding: 15px; border-radius: 12px; margin-bottom: 25px; 
         border: 1px solid rgba(255,255,255,0.05);
-        backdrop-filter: blur(5px);
         box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
       }
       .api-stats .stat { display: flex; flex-direction: column; align-items: center; }
@@ -4355,7 +4347,6 @@ class OpenKairoMiningPanel extends LitElement {
         background: rgba(30, 30, 35, 0.6); border: 1px solid var(--theme-border-color); border-radius: 10px; color: var(--theme-text-dim);
         font-size: 0.8em; padding: 10px 14px; cursor: pointer; transition: all 0.3s;
         font-weight: 800; letter-spacing: 1px; flex: 1; text-align: center;
-        backdrop-filter: blur(5px);
         text-transform: uppercase;
         box-shadow: 0 4px 10px rgba(0,0,0,0.2);
       }
@@ -4628,7 +4619,6 @@ class OpenKairoMiningPanel extends LitElement {
         padding: 15px 40px;
         margin: 10px 0 25px 0;
         box-shadow: inset 0 2px 20px rgba(0,0,0,0.8);
-        backdrop-filter: blur(15px);
       }
       .ticker-item {
         display: flex;
