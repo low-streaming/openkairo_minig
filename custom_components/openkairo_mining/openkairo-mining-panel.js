@@ -1093,7 +1093,7 @@ class OpenKairoMiningPanel extends LitElement {
 
 
   _hexToRgb(hex) {
-    if (!hex) return "11, 196, 226";
+    if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return "11, 196, 226";
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
@@ -1263,7 +1263,8 @@ class OpenKairoMiningPanel extends LitElement {
 
   render() {
     // DIAGNOSTIC RENDER
-    console.log("OpenKairoMiningPanel: render() execution started");
+    console.log("OpenKairoMiningPanel: render() execution started. Config:", !!this.config, "Hass:", !!this.hass);
+    if (this.hass && this.hass.states) console.log("State count:", Object.keys(this.hass.states).length);
     
     try {
       if (!this.config || (this.config.miners && this.config.miners.length === 0 && !this.hass)) {
