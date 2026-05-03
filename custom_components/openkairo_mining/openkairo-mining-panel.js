@@ -2302,19 +2302,24 @@ class OpenKairoMiningPanel extends LitElement {
                               <div style="position: absolute; top: 0; left: 0; height: 100%; width: ${watchdogProgress}%; background: rgba(231, 76, 60, 0.1); z-index: 0; transition: width 15s linear;"></div>
                           ` : ''}
                           <div style="position: relative; z-index: 1;">
-                            <div style="position: absolute; right: 15px; top: 15px;">
-                               <div class="badge" style="background: rgba(var(--theme-accent-1-rgb), 0.2); color: #fff; border: 1px solid rgba(var(--theme-accent-1-rgb), 0.5); border-radius: 6px; padding: 6px 14px; font-weight: 900; display: flex; align-items: center; gap: 8px; font-size: 0.8em; cursor: pointer; text-transform: uppercase; box-shadow: 0 0 15px rgba(var(--theme-accent-1-rgb), 0.3);" @click="${() => this.toggleMiner(miner.standby_switch)}">
-                                  <span>🔌</span> Plug
-                               </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
+                                <label style="margin: 0; display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                    <input type="checkbox" .checked="${miner.standby_watchdog_enabled}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_watchdog_enabled', e.target.checked)}" style="width: 18px; height: 18px; margin: 0; accent-color: #e74c3c;">
+                                    <b style="font-size: 1.1em;">🛡️ Watchdog:</b> <span class="highlight-val" style="color: ${stState === 'on' ? '#d62cf6' : '#e74c3c'}; text-transform: uppercase; font-weight: 900; font-size: 1.1em; margin-left: 5px;">${stState === 'on' ? 'ON' : 'OFF'}</span>
+                                </label>
+                                <div class="badge" style="background: rgba(var(--theme-accent-1-rgb), 0.2); color: #fff; border: 1px solid rgba(var(--theme-accent-1-rgb), 0.5); border-radius: 6px; padding: 6px 14px; font-weight: 900; display: flex; align-items: center; gap: 8px; font-size: 0.8em; cursor: pointer; text-transform: uppercase; box-shadow: 0 0 15px rgba(var(--theme-accent-1-rgb), 0.3);" @click="${() => this.toggleMiner(miner.standby_switch)}">
+                                   <span>🔌</span> Plug
+                                </div>
                             </div>
-                            <label style="margin: 0; display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                                <input type="checkbox" .checked="${miner.standby_watchdog_enabled}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_watchdog_enabled', e.target.checked)}" style="width: 18px; height: 18px; margin: 0; accent-color: #e74c3c;">
-                                <b style="font-size: 1.1em;">🛡️ Watchdog:</b> <span class="highlight-val" style="color: ${stState === 'on' ? '#d62cf6' : '#e74c3c'}; text-transform: uppercase; font-weight: 900; font-size: 1.1em; margin-left: 5px;">${stState === 'on' ? 'ON' : 'OFF'}</span>
-                            </label>
-                            <div class="small-text mt-1" style="margin-top: 10px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
-                                Off wenn &lt; <input type="number" class="tech-input" .value="${miner.standby_power || 100}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_power', e.target.value)}"> W 
-                                für &ge; <input type="number" class="tech-input" .value="${miner.standby_delay || 10}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_delay', e.target.value)}"> Min.
+                            <div class="small-text mt-1 watchdog-controls" style="margin-top: 10px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
+                                <span>Off wenn &lt; <input type="number" class="tech-input" .value="${miner.standby_power || 100}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_power', e.target.value)}"> W</span>
+                                <span>für &ge; <input type="number" class="tech-input" .value="${miner.standby_delay || 10}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_delay', e.target.value)}"> Min.</span>
                             </div>
+                            ${watchdogWarning ? html`
+                                <div style="margin-top: 10px; color: #e74c3c; font-weight: 800; font-size: 0.9em; display: flex; align-items: center; gap: 5px; animation: pulse 2s infinite;">
+                                    ${watchdogWarning}
+                                </div>
+                            ` : ''}
                           </div>
                         </div>`;
                     })()}
@@ -4238,7 +4243,12 @@ class OpenKairoMiningPanel extends LitElement {
         70% { box-shadow: 0 0 0 12px rgba(var(--theme-primary-rgb), 0); }
         100% { box-shadow: 0 0 0 0 rgba(var(--theme-primary-rgb), 0); }
       }
-      
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.6; }
+        100% { opacity: 1; }
+      }
+
       .btn-power {
         background: rgba(30, 30, 35, 0.5); border: 1px solid var(--theme-border-color); border-radius: var(--theme-radius); color: var(--theme-text-dim);
         font-size: 1.5em; padding: 0 20px; cursor: pointer; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -4747,6 +4757,28 @@ class OpenKairoMiningPanel extends LitElement {
         .header-left { flex-direction: column !important; }
         .header-right { margin-top: 10px; }
         .header-right h1 { font-size: 1.8em !important; justify-content: center; }
+
+        /* Watchdog Mobile Optimization */
+        .watchdog-controls {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: flex-start !important;
+          gap: 12px !important;
+          margin-top: 15px !important;
+        }
+        .watchdog-controls span {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          width: 100%;
+          color: var(--theme-text-main);
+          font-weight: 600;
+        }
+        .watchdog-controls .tech-input {
+          width: 90px !important;
+          height: 40px !important;
+          margin: 0 5px;
+        }
       }
 
       /* Speziell für sehr schmale Handys */
