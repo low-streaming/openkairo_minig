@@ -1384,6 +1384,11 @@ class OpenKairoMiningPanel extends LitElement {
 
           ${this._renderTicker()}
           ${this.renderActivityTicker()}
+          ${this.activeTab !== 'dashboard' ? html`
+            <button class="mobile-back-btn" @click="${() => { this.activeTab = 'dashboard'; this.editingMinerId = null; window.scrollTo(0,0); }}">
+              <ha-icon icon="mdi:arrow-left" style="--mdc-icon-size: 18px;"></ha-icon> Menü
+            </button>
+          ` : ''}
 
           <div class="content">
         ${(() => {
@@ -3227,8 +3232,8 @@ class OpenKairoMiningPanel extends LitElement {
     const tripledLogs = [...this.logs, ...this.logs, ...this.logs];
     return html`
       <div class="activity-ticker">
-        <div class="ticker-content">
-          ${tripledLogs.map(log => html`<div class="ticker-item">${log}</div>`)}
+        <div class="activity-ticker-content">
+          ${tripledLogs.map(log => html`<div class="activity-ticker-item">${log}</div>`)}
         </div>
       </div>
     `;
@@ -3803,13 +3808,13 @@ class OpenKairoMiningPanel extends LitElement {
         border-radius: 8px;
       }
 
-      .ticker-content {
+      .activity-ticker-content {
         display: flex;
         white-space: nowrap;
-        animation: ticker-scroll 40s infinite linear;
+        animation: ticker-scroll 60s infinite linear;
       }
 
-      .ticker-item {
+      .activity-ticker-item {
         color: var(--theme-accent-1);
         font-family: 'Courier New', monospace;
         font-size: 0.85em;
@@ -3827,17 +3832,17 @@ class OpenKairoMiningPanel extends LitElement {
           background: rgba(0,0,0,0.2);
           border-bottom: 1px solid var(--theme-border-color);
         }
-        .ticker-content {
+        .activity-ticker-content {
           animation: none;
           justify-content: center;
           padding: 0 20px;
         }
-        .ticker-item {
+        .activity-ticker-item {
           margin-right: 40px;
           letter-spacing: 1px;
         }
         /* Hide duplicated logs on desktop to keep it static and clean */
-        .ticker-item:nth-child(n+21) {
+        .activity-ticker-item:nth-child(n+21) {
           display: none;
         }
       }
@@ -4608,6 +4613,11 @@ class OpenKairoMiningPanel extends LitElement {
         text-shadow: 0 0 15px rgba(11, 196, 226, 0.6);
       }
 
+      /* Mobile back button - hidden on desktop */
+      .mobile-back-btn {
+        display: none;
+      }
+
       /* Bitcoin Ticker Styles */
       .ticker-container {
         display: flex;
@@ -4683,8 +4693,8 @@ class OpenKairoMiningPanel extends LitElement {
           mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
           -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
         }
-        .ticker-content {
-          animation: tickerScroll 25s linear infinite;
+        .ticker-container .ticker-content {
+          animation: tickerScroll 35s linear infinite;
           width: auto !important;
           justify-content: flex-start !important;
           gap: 40px !important;
@@ -4696,7 +4706,15 @@ class OpenKairoMiningPanel extends LitElement {
           align-items: center;
           gap: 60px;
         }
-        .ticker-content:hover { animation-play-state: paused; }
+        .ticker-container .ticker-content:hover { animation-play-state: paused; }
+        .activity-ticker-content {
+          animation: ticker-scroll 80s linear infinite !important;
+          white-space: nowrap;
+        }
+        .activity-ticker-item {
+          margin-right: 8vw !important;
+          font-size: 0.75em !important;
+        }
         
         .miner-card { padding: 15px !important; margin-bottom: 12px !important; }
         .miner-header { flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -4752,8 +4770,28 @@ class OpenKairoMiningPanel extends LitElement {
           box-shadow: 0 0 15px rgba(var(--theme-accent-1-rgb), 0.3) !important;
         }
         .tab ha-icon { --mdc-icon-size: 18px !important; }
-        
-        
+
+        .mobile-back-btn {
+          display: flex !important;
+          position: fixed !important;
+          bottom: 24px !important;
+          left: 16px !important;
+          z-index: 9999 !important;
+          align-items: center !important;
+          gap: 8px !important;
+          padding: 12px 20px !important;
+          background: rgba(var(--theme-accent-1-rgb), 0.92) !important;
+          color: #000 !important;
+          border: none !important;
+          border-radius: 30px !important;
+          font-weight: 900 !important;
+          font-size: 0.85em !important;
+          letter-spacing: 1px !important;
+          cursor: pointer !important;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 15px rgba(var(--theme-accent-1-rgb), 0.3) !important;
+          text-transform: uppercase !important;
+        }
+
         .api-stats { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; flex-wrap: unset !important; padding: 10px !important; }
         .api-stats .stat { min-width: unset !important; padding: 5px !important; }
         
