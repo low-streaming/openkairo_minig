@@ -1384,11 +1384,18 @@ class OpenKairoMiningPanel extends LitElement {
 
           ${this._renderTicker()}
           ${this.renderActivityTicker()}
-          ${this.activeTab !== 'dashboard' ? html`
-            <button class="mobile-back-btn" @click="${() => { this.activeTab = 'dashboard'; this.editingMinerId = null; window.scrollTo(0,0); }}">
-              <ha-icon icon="mdi:arrow-left" style="--mdc-icon-size: 18px;"></ha-icon> Menü
-            </button>
-          ` : ''}
+          <button class="mobile-back-btn" @click="${() => {
+            if (this.activeTab !== 'dashboard') {
+              this.activeTab = 'dashboard';
+              this.editingMinerId = null;
+              window.scrollTo(0, 0);
+            } else {
+              window.history.back();
+            }
+          }}">
+            <ha-icon icon="mdi:arrow-left" style="--mdc-icon-size: 18px;"></ha-icon>
+            ${this.activeTab !== 'dashboard' ? 'Dashboard' : 'HA Menü'}
+          </button>
 
           <div class="content">
         ${(() => {
