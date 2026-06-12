@@ -1527,126 +1527,501 @@ class OpenKairoMiningPanel extends LitElement {
   }
 
   renderInfo() {
+    const sectionStyle = 'margin-top: 40px;';
+    const h2Style = 'display: flex; align-items: center; gap: 12px; margin: 0 0 20px 0; color: #fff; font-size: 1.25em; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;';
+    const tableStyle = 'width: 100%; border-collapse: collapse; font-size: 0.88em;';
+    const thStyle = 'text-align: left; padding: 8px 12px; color: var(--theme-accent-1); border-bottom: 1px solid rgba(255,255,255,0.08); font-weight: 600;';
+    const tdStyle = 'padding: 7px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #bbb; vertical-align: top;';
+    const tdKeyStyle = 'padding: 7px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--theme-accent-1); font-family: monospace; font-size: 0.95em; white-space: nowrap; vertical-align: top;';
+    const badgeStyle = (color) => `display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.8em; font-weight: 700; background: ${color}22; color: ${color}; border: 1px solid ${color}44; white-space: nowrap;`;
+
     return html`
-      <div class="card" style="padding: 30px;">
-        <h2 style="display: flex; align-items: center; gap: 15px; margin-top: 0;">
-          <span style="font-size: 1.5em;">🚀</span> OpenKairo Dashboard v1.3.19
-        </h2>
-        <p style="font-size: 1.1em; color: var(--theme-text-main); line-height: 1.6;">
-          <strong>Dein ultimatives Mining Control Center.</strong> <br>
-          Dieses Dashboard vereint alle Innovationen der letzten Monate in einer Oberfläche. Hier erfährst du, was OpenKairo so besonders macht:
-        </p>
+      <div style="padding: 30px; max-width: 1100px; margin: 0 auto;">
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-top: 30px;">
-          
-          <div class="tech-box" style="border-top: 4px solid var(--theme-accent-1); background: rgba(var(--theme-accent-1-rgb), 0.03);">
-            <h3 style="margin-top:0; color:var(--theme-accent-1); display: flex; align-items: center; gap: 10px;">
-              <span>⚡</span> Direkte Steuerung & Power-Limit
-            </h3>
-            <p style="color:#bbb; line-height:1.6;">
-              Kontrolliere deine Hardware direkt aus dem Dashboard ohne Umwege:
-            </p>
-            <ul style="color:#888; font-size: 0.9em; padding-left: 20px; margin-bottom: 0; line-height: 1.5;">
-              <li><strong>Power Limit Slider:</strong> Reguliere die Wattzahl kompatibler Miner stufenlos im Dashboard.</li>
-              <li><strong>Hardware Buttons:</strong> Schalte zwischen LOW, NORM und HIGH Modus oder führe einen Reboot durch.</li>
-            </ul>
-          </div>
-
-          <div class="tech-box" style="border-top: 4px solid #e67e22; background: rgba(230, 126, 34, 0.03);">
-            <h3 style="margin-top:0; color:#e67e22; display: flex; align-items: center; gap: 10px;">
-              <span>🔥</span> Heiz-Modus (Mining as a Heater)
-            </h3>
-            <p style="color:#bbb; line-height:1.6;">
-              Verwandle Abwärme in Nutzwärme – intelligent gesteuert:
-            </p>
-            <ul style="color:#888; font-size: 0.9em; padding-left: 20px; margin-bottom: 0; line-height: 1.5;">
-              <li><strong>Temp-Steuerung:</strong> Automatische Ein-/Ausschaltung basierend auf HA-Temperatursensoren.</li>
-              <li><strong>SOC-Sperre:</strong> (Optional) Heize nur, wenn dein Haus-Akku ausreichend geladen ist.</li>
-            </ul>
-          </div>
-
-          <div class="tech-box" style="border-top: 4px solid var(--theme-accent-4); background: rgba(var(--theme-accent-4-rgb), 0.03);">
-            <h3 style="margin-top:0; color:var(--theme-accent-4); display: flex; align-items: center; gap: 10px;">
-              <span>🤖</span> Smarter Profit-Rechner (Auto-Fallback)
-            </h3>
-            <p style="color:#bbb; line-height:1.6;">
-              Du weißt immer genau, was hängen bleibt – auch wenn deine Pool-Daten mal nicht da sind:
-            </p>
-            <ul style="color:#888; font-size: 0.9em; padding-left: 20px; margin-bottom: 0; line-height: 1.5;">
-              <li><strong>Auto-Schätzung:</strong> Findet kein Pool-Sensor, nutzt das Dashboard die Live-Netzwerkdaten zur automatischen Ertrags-Vorschau.</li>
-              <li><strong>Echtzeit-Statistiken:</strong> Verfolgt deine 7-Tage Historie live aus der Home Assistant Datenbank.</li>
-            </ul>
-          </div>
-
-          <div class="tech-box" style="border-top: 4px solid var(--theme-accent-3); background: rgba(var(--theme-accent-3-rgb), 0.03);">
-            <h3 style="margin-top:0; color:var(--theme-accent-3); display: flex; align-items: center; gap: 10px;">
-              <span>📊</span> Präzise Markt-Daten & Ticker
-            </h3>
-            <p style="color:#bbb; line-height:1.6;">
-              Keine Schätzwerte mehr. Wir nutzen hochpräzise Schnittstellen:
-            </p>
-            <ul style="color:#888; font-size: 0.9em; padding-left: 20px; margin-bottom: 0; line-height: 1.5;">
-              <li><strong>High-Precision Price:</strong> Bitcoin Preise mit zwei Nachkommastellen für dein gesamtes Portfolio.</li>
-              <li><strong>Live Network Data:</strong> Aktuelle Gebühren (Fees), Halving-Countdown und Block-Height in Echtzeit vom Mempool.</li>
-            </ul>
-          </div>
-
-          <div class="tech-box" style="border-top: 4px solid var(--theme-accent-2); background: rgba(var(--theme-accent-2-rgb), 0.03);">
-            <h3 style="margin-top:0; color:var(--theme-accent-2); display: flex; align-items: center; gap: 10px;">
-              <span>🎨</span> Premium Design Studio
-            </h3>
-            <p style="color:#bbb; line-height:1.6;">
-              Dein Dashboard, dein Style. Wähle aus exklusiven Design-Presets:
-            </p>
-            <ul style="color:#888; font-size: 0.9em; padding-left: 20px; margin-bottom: 0; line-height: 1.5;">
-              <li><strong>Themen:</strong> Midnight Glow, Atlantis, Lava Field, Matrix und Solar.</li>
-              <li><strong>Anpassung:</strong> Jedes Design wurde für maximale Performance und eine premium Ästhetik optimiert.</li>
-            </ul>
-          </div>
-
+        <!-- Header -->
+        <div style="text-align: center; margin-bottom: 40px;">
+          <div style="font-size: 3em; margin-bottom: 10px;">⛏️</div>
+          <h1 style="margin: 0 0 8px 0; font-size: 1.8em; color: #fff;">OpenKairo Mining</h1>
+          <div style="color: var(--theme-accent-1); font-size: 1.05em; font-weight: 600; margin-bottom: 10px;">Benutzerhandbuch — Version 1.4.0</div>
+          <p style="color: #888; max-width: 620px; margin: 0 auto; line-height: 1.6;">
+            Vollständige Dokumentation der MiningEngine, aller Automations-Modi, Sicherheitsfunktionen,
+            Leistungsskalierung, Statistiken und MQTT-Integration.
+          </p>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-top: 20px;">
-          
-          <div class="tech-box" style="border-left: 4px solid #ff9800; background: rgba(255,152,0,0.03);">
-             <h3 style="margin-top:0; color:#ff9800; display: flex; align-items: center; gap: 10px;">
-              <span>🎢</span> Ramping & Soft-Start
-            </h3>
-            <p style="color:#bbb; line-height:1.6;">
-              Schone deine Hardware und dein Stromnetz. Anstatt sofort auf 100% zu springen, fährt das System die Leistung stufenweise hoch oder runter.
-            </p>
-            <ul style="color:#888; font-size: 0.85em; padding-left: 20px; margin-bottom: 0;">
-              <li><strong>Schonung:</strong> Verhindert Spannungsspitzen und schont das Netzteil.</li>
-              <li><strong>Visualisierung:</strong> Während des Vorgangs pulsieren die Status-Badges <strong>orange</strong>.</li>
-            </ul>
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 1. ÜBERBLICK -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="tech-box" style="${sectionStyle}">
+          <h2 style="${h2Style}"><span>🗺️</span> Überblick & Architektur</h2>
+          <p style="color:#bbb; line-height:1.7;">
+            OpenKairo Mining ist eine <strong>Home Assistant Custom Integration</strong>, die eine eigene
+            <strong>MiningEngine</strong> im Hintergrund betreibt. Die Engine läuft als dauerhafter
+            asyncio-Loop (Takt: 15 Sekunden) und steuert alle konfigurierten Miner vollautomatisch.
+          </p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 18px;">
+            <div style="background: rgba(255,255,255,0.03); border-radius: 10px; padding: 14px;">
+              <div style="font-weight: 700; color: var(--theme-accent-1); margin-bottom: 6px;">Dashboard (dieses Panel)</div>
+              <div style="color: #888; font-size: 0.88em; line-height: 1.5;">LitElement Web-Component — läuft direkt im HA-Browser. Zeigt Echtzeit-Zustände und ermöglicht alle Konfigurationsänderungen.</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.03); border-radius: 10px; padding: 14px;">
+              <div style="font-weight: 700; color: #e67e22; margin-bottom: 6px;">MiningEngine (Backend)</div>
+              <div style="color: #888; font-size: 0.88em; line-height: 1.5;">Läuft als Python-Coroutine in HA. Liest Sensoren, berechnet Entscheidungen, setzt Power-Limits und protokolliert alles im Activity Log.</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.03); border-radius: 10px; padding: 14px;">
+              <div style="font-weight: 700; color: var(--theme-accent-3); margin-bottom: 6px;">HA Sensor-Entitäten</div>
+              <div style="color: #888; font-size: 0.88em; line-height: 1.5;">Pro Miner werden Statistik-Sensoren (Laufzeit, Energie, Starts) automatisch in HA angelegt — nutzbar in Automationen und Dashboards.</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.03); border-radius: 10px; padding: 14px;">
+              <div style="font-weight: 700; color: #9b59b6; margin-bottom: 6px;">MQTT Publisher (optional)</div>
+              <div style="color: #888; font-size: 0.88em; line-height: 1.5;">Veröffentlicht alle Miner-Zustände auf konfigurierbarem MQTT-Topic für externe Systeme, Monitoring oder Node-RED.</div>
+            </div>
           </div>
-
-          <div class="tech-box" style="border-left: 4px solid #fff; background: rgba(255,255,255,0.03);">
-             <h3 style="margin-top:0; color:#fff; display: flex; align-items: center; gap: 10px;">
-              <span>🔒</span> Hardware Wächter 2.0
-            </h3>
-            <p style="color:#bbb; line-height:1.6;">
-              Vollautomatische Überwachung deiner Miner. Wenn etwas hängen bleibt, greift das System ein und startet die Hardware neu – inklusive Countdown-Timer im Dashboard.
-            </p>
-          </div>
-
-          <div class="tech-box" style="border-left: 4px solid var(--theme-accent-1); background: rgba(var(--theme-accent-1-rgb), 0.03);">
-             <h3 style="margin-top:0; color:var(--theme-accent-1); display: flex; align-items: center; gap: 10px;">
-              <span>☀️</span> PV & SOC Intelligenz
-            </h3>
-            <p style="color:#bbb; line-height:1.6;">
-              Maximiere die Nutzung deines Solarstroms. Miner schalten basierend auf deiner Einspeisung oder deinem Batterie-Ladestand (Hysterese-gesteuert).
-            </p>
-          </div>
-
         </div>
 
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 2. AUTOMATIONS-MODI -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="tech-box" style="${sectionStyle}">
+          <h2 style="${h2Style}"><span>🤖</span> Automations-Modi</h2>
+          <p style="color:#bbb; line-height:1.7; margin-bottom: 20px;">
+            Jeder Miner hat einen eigenen Modus, der bestimmt, wie die MiningEngine ihn steuert.
+            Den Modus wählst du im Miner-Formular unter <strong>Einstellungen → Miner bearbeiten → Automations-Modus</strong>.
+          </p>
+
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+
+            <div style="border-left: 4px solid #aaa; background: rgba(255,255,255,0.02); border-radius: 0 10px 10px 0; padding: 14px 18px;">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <span style="${badgeStyle('#aaa')}">manual</span>
+                <span style="font-weight: 700; color: #fff;">Manuell</span>
+              </div>
+              <p style="color: #888; margin: 0; font-size: 0.9em; line-height: 1.5;">
+                Der Miner läuft, wenn sein HA-Schalter eingeschaltet ist — kein automatisches Ein/Ausschalten durch die Engine.
+                Ideal zum Testen oder für einen dauerhaft laufenden Miner. Power-Limit und Soft-Start/-Stop bleiben aktiv.
+              </p>
+            </div>
+
+            <div style="border-left: 4px solid var(--theme-accent-1); background: rgba(var(--theme-accent-1-rgb), 0.03); border-radius: 0 10px 10px 0; padding: 14px 18px;">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <span style="${badgeStyle('var(--theme-accent-1)')}">pv</span>
+                <span style="font-weight: 700; color: #fff;">PV-Überschuss</span>
+              </div>
+              <p style="color: #888; margin: 0 0 8px 0; font-size: 0.9em; line-height: 1.5;">
+                Schaltet den Miner ein, wenn genug Solarüberschuss vorhanden ist. Dazu wird ein <strong>PV-Sensor</strong>
+                (Watt-Einspeisung oder Überschuss) konfiguriert. Ist der Wert ≥ <code>min_power</code>, startet der Miner.
+                Die Leistung wird kontinuierlich an den verfügbaren Überschuss angepasst (Skalierung). Fällt der Wert unter
+                <code>min_power</code>, stoppt der Miner wieder.
+              </p>
+              <div style="font-size: 0.82em; color: #666;">Benötigt: pv_sensor · Optional: battery_sensor (SOC-Sperre), scaling_mode</div>
+            </div>
+
+            <div style="border-left: 4px solid #27ae60; background: rgba(39,174,96,0.03); border-radius: 0 10px 10px 0; padding: 14px 18px;">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <span style="${badgeStyle('#27ae60')}">soc</span>
+                <span style="font-weight: 700; color: #fff;">Batterie SOC</span>
+              </div>
+              <p style="color: #888; margin: 0 0 8px 0; font-size: 0.9em; line-height: 1.5;">
+                Steuert den Miner ausschließlich anhand des Batterie-Ladezustands (State of Charge).
+                Konfiguriere <code>soc_start</code> (Einschaltschwelle) und <code>soc_stop</code> (Ausschaltschwelle).
+                Die <strong>Hysterese</strong> (<code>battery_hysteresis</code>) verhindert ständiges Ein-/Ausschalten um den Schwellwert.
+              </p>
+              <div style="font-size: 0.82em; color: #666;">Benötigt: battery_sensor · Felder: soc_start, soc_stop, battery_hysteresis</div>
+            </div>
+
+            <div style="border-left: 4px solid #e67e22; background: rgba(230,126,34,0.03); border-radius: 0 10px 10px 0; padding: 14px 18px;">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <span style="${badgeStyle('#e67e22')}">heating</span>
+                <span style="font-weight: 700; color: #fff;">Heiz-Modus (Mining as a Heater)</span>
+              </div>
+              <p style="color: #888; margin: 0 0 8px 0; font-size: 0.9em; line-height: 1.5;">
+                Nutzt die Abwärme des Miners zum Heizen. Der Miner läuft, solange die Raumtemperatur unter
+                <code>heat_temp_stop</code> liegt, und stoppt, wenn <code>heat_temp_start</code> überschritten wird.
+                Optional kann eine SOC-Mindestgrenze gesetzt werden, damit das Heizen nur bei ausreichend geladenem Akku erfolgt.
+              </p>
+              <div style="font-size: 0.82em; color: #666;">Benötigt: heat_temp_sensor · Felder: heat_temp_start, heat_temp_stop · Optional: battery_sensor, soc_stop</div>
+            </div>
+
+            <div style="border-left: 4px solid #8e44ad; background: rgba(142,68,173,0.03); border-radius: 0 10px 10px 0; padding: 14px 18px;">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <span style="${badgeStyle('#8e44ad')}">offgrid</span>
+                <span style="font-weight: 700; color: #fff;">Offgrid PV (SOC-Kurve) — Beta</span>
+              </div>
+              <p style="color: #888; margin: 0 0 8px 0; font-size: 0.9em; line-height: 1.5;">
+                Spezialmodus für netzunabhängige Systeme. Die erlaubte Leistung des Miners wird dynamisch
+                anhand einer SOC-Kurve berechnet: Je höher der Akkustand, desto mehr Leistung ist erlaubt.
+                Kombiniert PV-Überschuss und SOC-Logik für maximale Eigennutzung ohne Netzeinspeisung.
+              </p>
+              <div style="font-size: 0.82em; color: #666;">Benötigt: pv_sensor, battery_sensor · Felder: soc_start, soc_stop</div>
+            </div>
+
+            <div style="border-left: 4px solid #e74c3c; background: rgba(231,76,60,0.03); border-radius: 0 10px 10px 0; padding: 14px 18px;">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <span style="${badgeStyle('#e74c3c')}">ai_discharge</span>
+                <span style="font-weight: 700; color: #fff;">AI Akku-Optimierer — Beta</span>
+              </div>
+              <p style="color: #888; margin: 0 0 8px 0; font-size: 0.9em; line-height: 1.5;">
+                Experimenteller Modus, der auf Basis von Strompreissignalen und Akkustand entscheidet,
+                ob der Miner mit Akkustrom betrieben werden soll. Günstige Überschussphasen werden genutzt,
+                teure Stunden werden gemieden. Erfordert einen Strompreis-Sensor (z. B. Tibber, aWATTar).
+              </p>
+              <div style="font-size: 0.82em; color: #666;">Benötigt: battery_sensor, price_sensor · Felder: grid_price_limit, soc_start, soc_stop</div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 3. SOFT START / SOFT STOP / LEISTUNGSSKALIERUNG -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="tech-box" style="${sectionStyle}">
+          <h2 style="${h2Style}"><span>🎢</span> Soft-Start, Soft-Stop &amp; Leistungsskalierung</h2>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px;">
+            <div>
+              <h3 style="color: #ff9800; margin: 0 0 10px 0; font-size: 1em;">Soft-Start</h3>
+              <p style="color:#888; font-size:0.9em; line-height:1.6; margin:0;">
+                Startet der Miner, wird die Leistung nicht sofort auf den Zielwert gesetzt, sondern schrittweise hochgefahren —
+                von <code>min_power</code> in Schritten bis <code>max_power</code> (oder dem aktuellen Sollwert).
+                Der Status-Badge pulsiert dabei <strong style="color:#ff9800;">orange</strong>.
+                Schont das Netzteil und verhindert Spannungsspitzen im Hausnetz.
+              </p>
+            </div>
+            <div>
+              <h3 style="color: #3498db; margin: 0 0 10px 0; font-size: 1em;">Soft-Stop</h3>
+              <p style="color:#888; font-size:0.9em; line-height:1.6; margin:0;">
+                Beim Abschalten wird die Leistung zuerst auf <code>min_power</code> reduziert, bevor der Schalter ausgeht.
+                Verhindert abrupte Laständerungen und verlängert die Lebensdauer der Hardware.
+              </p>
+            </div>
+            <div>
+              <h3 style="color: var(--theme-accent-1); margin: 0 0 10px 0; font-size: 1em;">Kontinuierliche Skalierung (PV-Modus)</h3>
+              <p style="color:#888; font-size:0.9em; line-height:1.6; margin:0;">
+                Im PV-Modus passt die Engine die Leistung jeden Takt (15s) an den aktuellen Solarüberschuss an.
+                Zwei Skalierungsmethoden stehen zur Wahl: <strong>Stufenweise</strong> oder <strong>Proportional</strong>.
+              </p>
+            </div>
+          </div>
+
+          <h3 style="color:#fff; margin: 20px 0 12px 0; font-size: 1em;">Skalierungsmodi im Detail</h3>
+          <table style="${tableStyle}">
+            <thead>
+              <tr>
+                <th style="${thStyle}">Modus</th>
+                <th style="${thStyle}">Beschreibung</th>
+                <th style="${thStyle}">Relevante Felder</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="${tdStyle}"><span style="${badgeStyle('#ff9800')}">steps</span></td>
+                <td style="${tdStyle}">Leistung ändert sich in festen Schritten. Die maximale Änderung pro Takt ist durch <code>power_step_limit</code> begrenzt (0 = unbegrenzt). Standard-Schrittgröße: Differenz × <code>scaling_factor</code>.</td>
+                <td style="${tdStyle}"><code>scaling_factor</code>, <code>power_step_limit</code></td>
+              </tr>
+              <tr>
+                <td style="${tdStyle}"><span style="${badgeStyle('#2ecc71')}">proportional</span></td>
+                <td style="${tdStyle}">Die neue Leistung wird direkt proportional zum PV-Überschuss gesetzt, multipliziert mit <code>scaling_factor</code>. Reagiert schneller auf große Änderungen, ist aber weniger glatt.</td>
+                <td style="${tdStyle}"><code>scaling_factor</code>, <code>soc_proportional_scaling</code></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="margin-top: 16px; padding: 12px 16px; background: rgba(255,152,0,0.05); border-left: 3px solid #ff9800; border-radius: 0 8px 8px 0;">
+            <strong style="color: #ff9800;">Hinweis:</strong>
+            <span style="color: #888; font-size: 0.9em;"> <code>soc_proportional_scaling</code> aktiviert eine SOC-basierte Korrektur des Skalierungsfaktors: Bei hohem SOC wird mehr Leistung erlaubt, bei niedrigem SOC weniger. Nur wirksam wenn auch ein <code>battery_sensor</code> gesetzt ist.</span>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 4. SICHERHEIT & GRENZEN -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="tech-box" style="${sectionStyle}">
+          <h2 style="${h2Style}"><span>🌡️</span> Sicherheit &amp; Grenzen</h2>
+          <p style="color:#bbb; line-height:1.7; margin-bottom: 16px;">
+            Die Safety-Layer schützt deine Hardware vor Überhitzung und verhindert unnötigen Verschleiß durch
+            zu kurze Laufzyklen. Alle Felder werden im Miner-Formular unter <strong>Sicherheit &amp; Grenzen</strong> konfiguriert.
+          </p>
+          <table style="${tableStyle}">
+            <thead>
+              <tr>
+                <th style="${thStyle}">Feld</th>
+                <th style="${thStyle}">Einheit</th>
+                <th style="${thStyle}">Funktion</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="${tdKeyStyle}">max_temp</td>
+                <td style="${tdStyle}">°C</td>
+                <td style="${tdStyle}">Maximale Betriebstemperatur. Überschreitet der <code>temp_sensor</code> diesen Wert, schaltet die Engine den Miner sofort ab (Status: <strong style="color:#e74c3c;">TEMP-ALARM</strong>). Leer = deaktiviert.</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">max_runtime</td>
+                <td style="${tdStyle}">Minuten</td>
+                <td style="${tdStyle}">Maximale Laufzeit pro Session. Nach Ablauf wird der Miner gestoppt und muss durch die Automationslogik wieder gestartet werden. Leer = unbegrenzt.</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">min_off_time</td>
+                <td style="${tdStyle}">Minuten</td>
+                <td style="${tdStyle}">Mindest-Pause zwischen zwei Starts. Verhindert Rapid-Cycling bei schwankenden PV-Werten. Standard: 0 (kein Minimum).</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">battery_hysteresis</td>
+                <td style="${tdStyle}">%</td>
+                <td style="${tdStyle}">Hysterese-Band um SOC-Schwellwerte. Ist <code>soc_start = 80</code> und <code>battery_hysteresis = 2</code>, schaltet der Miner erst bei 82% ein und erst bei 78% aus. Verhindert Pendeln. Standard: 2%.</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">min_power</td>
+                <td style="${tdStyle}">W</td>
+                <td style="${tdStyle}">Untergrenze für den Power-Limit-Slider und Startpunkt des Soft-Starts. Unter diesem Wert wird der Miner ausgeschaltet statt weiter gedrosselt.</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">max_power</td>
+                <td style="${tdStyle}">W</td>
+                <td style="${tdStyle}">Obergrenze für den Power-Limit-Slider und Zielleistung des Soft-Starts. Der Miner läuft nie über diesen Wert.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 5. STANDBY-WÄCHTER -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="tech-box" style="${sectionStyle}">
+          <h2 style="${h2Style}"><span>🔒</span> Standby-Wächter (Watchdog)</h2>
+          <p style="color:#bbb; line-height:1.7;">
+            Der Wächter überwacht, ob ein eingeschalteter Miner auch tatsächlich schürft. Bleibt die Hashrate aus,
+            greift er nach Ablauf des Timers ein. Im Dashboard zeigt ein <strong>Countdown-Timer</strong> die verbleibende Wartezeit.
+          </p>
+          <table style="${tableStyle} margin-top: 14px;">
+            <thead>
+              <tr>
+                <th style="${thStyle}">Feld</th>
+                <th style="${thStyle}">Beschreibung</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="${tdKeyStyle}">standby_watchdog_enabled</td>
+                <td style="${tdStyle}">Aktiviert den Wächter für diesen Miner.</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">watchdog_type</td>
+                <td style="${tdStyle}"><code>power</code>: Wächter schaut auf Leistungsverbrauch. <code>hashrate</code>: Wächter schaut auf TH/s. Wähle je nachdem welcher Sensor zuverlässiger ist.</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">standby_delay</td>
+                <td style="${tdStyle}">Wartezeit in Minuten, bevor der Wächter eingreift. Während dieser Zeit wird im Dashboard ein orangener Countdown angezeigt.</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">watchdog_action</td>
+                <td style="${tdStyle}"><code>reboot</code>: Startet den Miner via pyasic neu. <code>restart_backend</code>: Startet nur den Mining-Prozess neu (schonender). <code>toggle</code>: Schaltet den HA-Schalter kurz aus und wieder ein.</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">min_run_time</td>
+                <td style="${tdStyle}">Mindest-Anlaufzeit in Minuten. Der Wächter startet seinen Countdown erst nach Ablauf dieser Zeit — gibt dem Miner Zeit zum Hochfahren.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 6. FLEET POWER BUDGET -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="tech-box" style="${sectionStyle}">
+          <h2 style="${h2Style}"><span>🏭</span> Fleet Power Budget</h2>
+          <p style="color:#bbb; line-height:1.7;">
+            Das Fleet Power Budget begrenzt die <strong>Gesamtleistung aller Miner</strong> gemeinsam.
+            Ist das Budget überschritten, drosselt oder stoppt die Engine niedriger priorisierte Miner,
+            bis die Summe wieder im Limit liegt.
+          </p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; margin-top: 16px;">
+            <div style="background: rgba(255,255,255,0.03); border-radius: 10px; padding: 14px;">
+              <div style="font-weight: 700; color: var(--theme-accent-1); margin-bottom: 6px; font-size: 0.95em;">fleet_max_power</div>
+              <div style="color: #888; font-size: 0.88em; line-height: 1.5;">Globale Obergrenze in Watt für alle Miner zusammen. Einstellbar unter <strong>Einstellungen → Globale Optionen</strong>. 0 oder leer = unbegrenzt.</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.03); border-radius: 10px; padding: 14px;">
+              <div style="font-weight: 700; color: var(--theme-accent-1); margin-bottom: 6px; font-size: 0.95em;">priority</div>
+              <div style="color: #888; font-size: 0.88em; line-height: 1.5;">Jeder Miner hat eine Priorität (0–100). Höhere Priorität = wird zuletzt gedrosselt. Im Miner-Formular unter "Priorität" einstellbar.</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.03); border-radius: 10px; padding: 14px;">
+              <div style="font-weight: 700; color: var(--theme-accent-1); margin-bottom: 6px; font-size: 0.95em;">Fleet-Anzeige im Dashboard</div>
+              <div style="color: #888; font-size: 0.88em; line-height: 1.5;">Oben im Dashboard werden die Gesamt-Fleet-Werte (Power, Hashrate, Miner online) als Übersicht angezeigt. Das Budget und die Auslastung sind ebenfalls sichtbar.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 7. STATISTIKEN & HA-SENSOREN -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="tech-box" style="${sectionStyle}">
+          <h2 style="${h2Style}"><span>📊</span> Statistiken &amp; Home Assistant Sensor-Entitäten</h2>
+          <p style="color:#bbb; line-height:1.7;">
+            Die MiningEngine erfasst Laufzeit, Energieverbrauch und Startanzahl pro Miner in Echtzeit.
+            Diese Daten werden als <strong>HA-Diagnose-Sensoren</strong> (Kategorie: Diagnose) angelegt und können
+            in Dashboards, Automationen und der Energie-Karte verwendet werden.
+          </p>
+
+          <h3 style="color:#fff; margin: 20px 0 12px 0; font-size: 0.95em;">Automatisch erstellte Sensoren (pro Miner)</h3>
+          <table style="${tableStyle}">
+            <thead>
+              <tr>
+                <th style="${thStyle}">Sensor (Entity-ID Muster)</th>
+                <th style="${thStyle}">Einheit</th>
+                <th style="${thStyle}">Beschreibung</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="${tdKeyStyle}">…_session_laufzeit</td>
+                <td style="${tdStyle}">h</td>
+                <td style="${tdStyle}">Laufzeit seit dem letzten Start dieser Session. Wird beim Ausschalten des Miners auf 0 zurückgesetzt.</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">…_heute_laufzeit</td>
+                <td style="${tdStyle}">h</td>
+                <td style="${tdStyle}">Kumulative Laufzeit seit Mitternacht des aktuellen Tages. Wird täglich automatisch zurückgesetzt.</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">…_session_energie</td>
+                <td style="${tdStyle}">Wh</td>
+                <td style="${tdStyle}">Energieverbrauch der aktuellen Session (berechnet aus Leistung × Zeit).</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">…_heute_energie</td>
+                <td style="${tdStyle}">Wh</td>
+                <td style="${tdStyle}">Tagesenergieverbrauch — kompatibel mit der HA Energie-Karte (State Class: total_increasing).</td>
+              </tr>
+              <tr>
+                <td style="${tdKeyStyle}">…_start_zaehler</td>
+                <td style="${tdStyle}">—</td>
+                <td style="${tdStyle}">Gesamtanzahl der Miner-Starts seit der letzten Session-Zurücksetzung.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="margin-top: 16px; padding: 12px 16px; background: rgba(52,152,219,0.05); border-left: 3px solid #3498db; border-radius: 0 8px 8px 0;">
+            <strong style="color: #3498db;">Session zurücksetzen:</strong>
+            <span style="color: #888; font-size: 0.9em;"> Über den HA-Service <code>openkairo_mining.reset_session_stats</code> (mit <code>ip_address</code> des Miners) können Session-Laufzeit, Session-Energie und Start-Zähler zurückgesetzt werden. Auch im Dashboard über den Reset-Button verfügbar.</span>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 8. MQTT INTEGRATION -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="tech-box" style="${sectionStyle}">
+          <h2 style="${h2Style}"><span>📡</span> MQTT Integration</h2>
+          <p style="color:#bbb; line-height:1.7;">
+            OpenKairo kann alle Miner-Zustände per MQTT veröffentlichen. Das ermöglicht die Anbindung
+            an externe Monitoring-Systeme, Node-RED Flows oder Grafana.
+          </p>
+          <table style="${tableStyle} margin-top: 14px;">
+            <thead>
+              <tr>
+                <th style="${thStyle}">Einstellung</th>
+                <th style="${thStyle}">Beschreibung</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="${tdKeyStyle}">mqtt_prefix</td>
+                <td style="${tdStyle}">Topic-Präfix für alle veröffentlichten Nachrichten. Standard leer = MQTT deaktiviert. Beispiel: <code>openkairo/mining</code> → publiziert auf <code>openkairo/mining/{miner_id}/state</code>.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="margin-top: 14px; padding: 12px 16px; background: rgba(155,89,182,0.05); border-left: 3px solid #9b59b6; border-radius: 0 8px 8px 0;">
+            <strong style="color: #9b59b6;">Voraussetzung:</strong>
+            <span style="color: #888; font-size: 0.9em;"> Der HA MQTT-Broker muss konfiguriert sein (Einstellungen → Integrationen → MQTT). Der <code>mqtt_prefix</code> wird unter <strong>Einstellungen → Globale Optionen</strong> im Dashboard eingetragen.</span>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 9. KONFIGURATIONS-REFERENZ -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="tech-box" style="${sectionStyle}">
+          <h2 style="${h2Style}"><span>📋</span> Konfigurations-Referenz (alle Felder)</h2>
+          <p style="color:#bbb; font-size: 0.9em; margin-bottom: 16px;">Vollständige Liste aller Miner-Konfigurationsfelder. Felder ohne Standardwert sind optional.</p>
+          <table style="${tableStyle}">
+            <thead>
+              <tr>
+                <th style="${thStyle}">Feld</th>
+                <th style="${thStyle}">Typ</th>
+                <th style="${thStyle}">Standard</th>
+                <th style="${thStyle}">Beschreibung</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td style="${tdKeyStyle}">name</td><td style="${tdStyle}">text</td><td style="${tdStyle}">—</td><td style="${tdStyle}">Anzeigename des Miners im Dashboard.</td></tr>
+              <tr><td style="${tdKeyStyle}">miner_ip</td><td style="${tdStyle}">IP</td><td style="${tdStyle}">—</td><td style="${tdStyle}">IP-Adresse der Mining-Hardware. Muss im Netzwerk erreichbar sein.</td></tr>
+              <tr><td style="${tdKeyStyle}">mode</td><td style="${tdStyle}">select</td><td style="${tdStyle}">manual</td><td style="${tdStyle}">Automations-Modus (manual / pv / soc / heating / offgrid / ai_discharge).</td></tr>
+              <tr><td style="${tdKeyStyle}">priority</td><td style="${tdStyle}">0–100</td><td style="${tdStyle}">10</td><td style="${tdStyle}">Priorisierung bei Fleet-Budget-Engpass. Höher = zuletzt gedrosselt.</td></tr>
+              <tr><td style="${tdKeyStyle}">min_power</td><td style="${tdStyle}">W</td><td style="${tdStyle}">400</td><td style="${tdStyle}">Mindestleistung / Soft-Start-Untergrenze.</td></tr>
+              <tr><td style="${tdKeyStyle}">max_power</td><td style="${tdStyle}">W</td><td style="${tdStyle}">1400</td><td style="${tdStyle}">Maximalleistung / Soft-Start-Obergrenze.</td></tr>
+              <tr><td style="${tdKeyStyle}">max_temp</td><td style="${tdStyle}">°C</td><td style="${tdStyle}">leer</td><td style="${tdStyle}">Abschalttemperatur. Leer = keine Temp-Überwachung.</td></tr>
+              <tr><td style="${tdKeyStyle}">max_runtime</td><td style="${tdStyle}">min</td><td style="${tdStyle}">leer</td><td style="${tdStyle}">Max. Session-Laufzeit. Leer = unbegrenzt.</td></tr>
+              <tr><td style="${tdKeyStyle}">min_off_time</td><td style="${tdStyle}">min</td><td style="${tdStyle}">0</td><td style="${tdStyle}">Mindestpause zwischen zwei Starts.</td></tr>
+              <tr><td style="${tdKeyStyle}">battery_hysteresis</td><td style="${tdStyle}">%</td><td style="${tdStyle}">2</td><td style="${tdStyle}">SOC-Hysterese-Band um Ein-/Ausschaltschwellen.</td></tr>
+              <tr><td style="${tdKeyStyle}">scaling_mode</td><td style="${tdStyle}">select</td><td style="${tdStyle}">steps</td><td style="${tdStyle}">Skalierungsalgorithmus im PV-Modus (steps / proportional).</td></tr>
+              <tr><td style="${tdKeyStyle}">scaling_factor</td><td style="${tdStyle}">0–1</td><td style="${tdStyle}">0.95</td><td style="${tdStyle}">Dämpfungsfaktor für die Leistungsänderung. 1.0 = volle Anpassung, 0.5 = halbe Anpassung.</td></tr>
+              <tr><td style="${tdKeyStyle}">power_step_limit</td><td style="${tdStyle}">W</td><td style="${tdStyle}">0</td><td style="${tdStyle}">Maximale Leistungsänderung pro Takt im steps-Modus. 0 = unbegrenzt.</td></tr>
+              <tr><td style="${tdKeyStyle}">soc_proportional_scaling</td><td style="${tdStyle}">bool</td><td style="${tdStyle}">false</td><td style="${tdStyle}">SOC-basierte Anpassung des Skalierungsfaktors aktivieren.</td></tr>
+              <tr><td style="${tdKeyStyle}">standby_watchdog_enabled</td><td style="${tdStyle}">bool</td><td style="${tdStyle}">false</td><td style="${tdStyle}">Standby-Wächter aktivieren.</td></tr>
+              <tr><td style="${tdKeyStyle}">watchdog_type</td><td style="${tdStyle}">select</td><td style="${tdStyle}">power</td><td style="${tdStyle}">Überwachungstyp: power oder hashrate.</td></tr>
+              <tr><td style="${tdKeyStyle}">standby_delay</td><td style="${tdStyle}">min</td><td style="${tdStyle}">10</td><td style="${tdStyle}">Wartezeit bis zur Watchdog-Aktion.</td></tr>
+              <tr><td style="${tdKeyStyle}">watchdog_action</td><td style="${tdStyle}">select</td><td style="${tdStyle}">reboot</td><td style="${tdStyle}">Aktion bei Watchdog-Auslösung (reboot / restart_backend / toggle).</td></tr>
+              <tr><td style="${tdKeyStyle}">min_run_time</td><td style="${tdStyle}">min</td><td style="${tdStyle}">5</td><td style="${tdStyle}">Anlaufzeit — Watchdog-Countdown startet erst nach dieser Zeit.</td></tr>
+              <tr><td style="${tdKeyStyle}">grid_price_limit</td><td style="${tdStyle}">€/kWh</td><td style="${tdStyle}">leer</td><td style="${tdStyle}">Maximaler Strompreis für Betrieb (ai_discharge-Modus).</td></tr>
+              <tr><td style="${tdKeyStyle}">soc_start</td><td style="${tdStyle}">%</td><td style="${tdStyle}">—</td><td style="${tdStyle}">SOC-Einschaltschwelle (soc / offgrid / ai_discharge Modi).</td></tr>
+              <tr><td style="${tdKeyStyle}">soc_stop</td><td style="${tdStyle}">%</td><td style="${tdStyle}">—</td><td style="${tdStyle}">SOC-Ausschaltschwelle.</td></tr>
+              <tr><td style="${tdKeyStyle}">heat_temp_start</td><td style="${tdStyle}">°C</td><td style="${tdStyle}">—</td><td style="${tdStyle}">Heizmodus: Miner stoppt, wenn Temperatur diesen Wert übersteigt.</td></tr>
+              <tr><td style="${tdKeyStyle}">heat_temp_stop</td><td style="${tdStyle}">°C</td><td style="${tdStyle}">—</td><td style="${tdStyle}">Heizmodus: Miner startet, wenn Temperatur unter diesen Wert fällt.</td></tr>
+              <tr><td style="${tdKeyStyle}">fleet_max_power</td><td style="${tdStyle}">W</td><td style="${tdStyle}">0</td><td style="${tdStyle}">Globales Fleet-Leistungslimit (unter Globale Optionen). 0 = unbegrenzt.</td></tr>
+              <tr><td style="${tdKeyStyle}">mqtt_prefix</td><td style="${tdStyle}">text</td><td style="${tdStyle}">leer</td><td style="${tdStyle}">MQTT-Topic-Präfix. Leer = MQTT deaktiviert. (unter Globale Optionen)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 10. STATUS-ANZEIGEN -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="tech-box" style="${sectionStyle}">
+          <h2 style="${h2Style}"><span>🚦</span> Status-Anzeigen im Dashboard</h2>
+          <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px;">
+            <div style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03); padding: 8px 14px; border-radius: 20px;">
+              <span style="${badgeStyle('#27ae60')}">MINING</span>
+              <span style="color: #888; font-size: 0.88em;">Miner aktiv und schürft.</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03); padding: 8px 14px; border-radius: 20px;">
+              <span style="${badgeStyle('#3498db')}">STANDBY</span>
+              <span style="color: #888; font-size: 0.88em;">Schalter ein, aber keine Hashrate (Anlaufphase).</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03); padding: 8px 14px; border-radius: 20px;">
+              <span style="${badgeStyle('#ff9800')}">SOFT-UP</span>
+              <span style="color: #888; font-size: 0.88em;">Leistung wird gerade hochgefahren (Soft-Start).</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03); padding: 8px 14px; border-radius: 20px;">
+              <span style="${badgeStyle('#e67e22')}">SOFT-DN</span>
+              <span style="color: #888; font-size: 0.88em;">Leistung wird gerade runtergefahren (Soft-Stop).</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03); padding: 8px 14px; border-radius: 20px;">
+              <span style="${badgeStyle('#e74c3c')}">TEMP-ALARM</span>
+              <span style="color: #888; font-size: 0.88em;">Abschaltung wegen Überschreitung von max_temp.</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03); padding: 8px 14px; border-radius: 20px;">
+              <span style="${badgeStyle('#666')}">AUS</span>
+              <span style="color: #888; font-size: 0.88em;">Miner-Schalter ist ausgeschaltet.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 11. UNTERSTÜTZUNG -->
+        <!-- ═══════════════════════════════════════════════════════ -->
         <div class="tech-box" style="margin-top: 40px; border-color: rgba(var(--theme-accent-1-rgb), 0.2); background: rgba(0,0,0,0.1); border-radius: 20px; padding: 30px;">
           <h2 style="margin-top:0; color:#fff; text-align: center; margin-bottom: 30px;">☕ Projekt unterstützen</h2>
-          
+
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-            
-            <!-- PayPal Card -->
+
             <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 25px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 0.3s ease; cursor: default;">
               <div style="font-size: 2.5em; margin-bottom: 15px;">🚀</div>
               <h3 style="margin: 0 0 10px 0; color: #fff;">PayPal</h3>
@@ -1656,20 +2031,18 @@ class OpenKairoMiningPanel extends LitElement {
               </a>
             </div>
 
-            <!-- Bitcoin Card -->
             <div style="background: rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.03); border: 1px solid rgba(var(--theme-accent-3-rgb, 255, 204, 0), 0.1); border-radius: 16px; padding: 25px; text-align: center; display: flex; flex-direction: column; align-items: center; transition: transform 0.3s ease;">
               <div style="background: #fff; padding: 10px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.3);">
                 <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=bitcoin:37KAus3ABc6krJ5T4jZyLKVB3uzbfQZGWD" style="width: 100px; height: 100px; display: block;" alt="Bitcoin QR Code">
               </div>
               <h3 style="margin: 0 0 10px 0; color: var(--theme-accent-3);">Bitcoin</h3>
               <p style="color: #888; font-size: 0.8em; margin-bottom: 15px;">Direkt, dezentral & für Miner gemacht.</p>
-              <div @click="${(e) => { 
+              <div @click="${(e) => {
                 const addr = '37KAus3ABc6krJ5T4jZyLKVB3uzbfQZGWD';
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                   navigator.clipboard.writeText(addr).then(() => {
                     this.dispatchEvent(new CustomEvent('hass-notification', { detail: { message: 'BTC Adresse kopiert!' }, bubbles: true, composed: true }));
                   }).catch(() => {
-                    // Fallback if clipboard fails
                     const textArea = document.createElement('textarea');
                     textArea.value = addr;
                     document.body.appendChild(textArea);
@@ -1679,7 +2052,6 @@ class OpenKairoMiningPanel extends LitElement {
                     this.dispatchEvent(new CustomEvent('hass-notification', { detail: { message: 'BTC Adresse kopiert!' }, bubbles: true, composed: true }));
                   });
                 } else {
-                  // Immediate fallback for non-secure contexts
                   const textArea = document.createElement('textarea');
                   textArea.value = addr;
                   document.body.appendChild(textArea);
@@ -1688,8 +2060,8 @@ class OpenKairoMiningPanel extends LitElement {
                   document.body.removeChild(textArea);
                   this.dispatchEvent(new CustomEvent('hass-notification', { detail: { message: 'BTC Adresse kopiert!' }, bubbles: true, composed: true }));
                 }
-              }}" 
-                   style="background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; border: 1px dashed rgba(var(--theme-accent-3-rgb), 0.3); font-family: monospace; font-size: 0.75em; color: var(--theme-accent-3); cursor: pointer; width: 100%; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center; margin-top: 5px; min-height: 44px;" 
+              }}"
+                   style="background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; border: 1px dashed rgba(var(--theme-accent-3-rgb), 0.3); font-family: monospace; font-size: 0.75em; color: var(--theme-accent-3); cursor: pointer; width: 100%; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center; margin-top: 5px; min-height: 44px;"
                    title="Klick zum Kopieren">
                 <code style="word-break: break-all; text-align: left; padding-right: 10px;">37KAus3AB...QZGWD</code>
                 <span style="font-size: 1.2em;">📋</span>
@@ -1702,6 +2074,7 @@ class OpenKairoMiningPanel extends LitElement {
             OpenKairo ist ein leidenschaftliches Community-Projekt. Danke für deine Unterstützung!
           </p>
         </div>
+
       </div>
     `;
   }
