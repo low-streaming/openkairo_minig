@@ -250,6 +250,32 @@ class MiningEngine:
             turn_on_condition = False
             turn_off_condition = False
 
+            # Fleet power budget check: block turn-on if enabling this miner would
+            # exceed the global fleet_max_power limit (config root key).
+            fleet_budget_raw = self.hass.data.get(DOMAIN, {}).get("config", {}).get("fleet_max_power")
+            if fleet_budget_raw and not is_on:
+                try:
+                    fleet_budget = float(fleet_budget_raw)
+                    current_fleet_power = sum(
+                        float(s.get("power", 0))
+                        for mid, s in self._miner_states.items()
+                        if mid != miner_id and s.get("is_on")
+                    )
+                    estimated = float(miner.get("soft_target_power") or miner.get("max_power") or 1200)
+                    if current_fleet_power + estimated > fleet_budget:
+                        _LOGGER.info(
+                            f"[{miner_name}] Fleet-Budget: {int(current_fleet_power)}W"
+                            f" + {int(estimated)}W > {int(fleet_budget)}W — Einschalten blockiert."
+                        )
+                        state["log_reason_off"] = (
+                            f"(Fleet-Budget: {int(current_fleet_power)}+{int(estimated)}W "
+                            f"> {int(fleet_budget)}W)"
+                        )
+                        # Prevent turn-on across all modes this tick
+                        mode = "_fleet_blocked"
+                except (ValueError, TypeError):
+                    pass
+
             if mode == "pv":
                 turn_on_condition, turn_off_condition = await self._process_pv_mode(miner, state, is_on, global_pv_surplus)
             elif mode == "soc":

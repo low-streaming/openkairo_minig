@@ -734,10 +734,12 @@ class OpenKairoMiningPanel extends LitElement {
           this.states = data.states || {};
           this.mempool = data.mempool || { fees: null, height: null, halving: null };
           this.logs = data.logs || [];
+          this.fleet = data.fleet || {};
         } else {
           this.config = { miners: [] };
           this.states = {};
           this.mempool = { fees: null, height: null, halving: null };
+          this.fleet = {};
         }
 
       }
@@ -1874,14 +1876,31 @@ class OpenKairoMiningPanel extends LitElement {
             </div>
           </div>
 
-          <!-- Card 4: Total Power -->
+          <!-- Card 4: Total Power + Fleet Budget -->
           <div class="stat-card" style="border-left: 5px solid var(--theme-accent-4);">
             <div class="card-header-row">
                <div class="lbl" style="color: var(--theme-accent-4);">Gesamtverbrauch</div>
-               <div class="badge" style="background: rgba(var(--theme-accent-4-rgb), 0.1); color: var(--theme-accent-4); border: 1px solid rgba(var(--theme-accent-4-rgb), 0.3);">Live</div>
+               <div class="badge" style="background: rgba(var(--theme-accent-4-rgb), 0.1); color: var(--theme-accent-4); border: 1px solid rgba(var(--theme-accent-4-rgb), 0.3);">
+                 ${this.fleet && this.fleet.miners_mining !== undefined ? `${this.fleet.miners_mining} Mining` : 'Live'}
+               </div>
             </div>
             <div class="stat-val">${(totalPowerW / 1000).toFixed(2)}</div>
             <div class="unit">kW</div>
+            ${this.fleet && this.fleet.budget_w ? (() => {
+              const pct = Math.min(100, Math.round((this.fleet.total_power_w / this.fleet.budget_w) * 100));
+              const color = pct > 90 ? '#e74c3c' : pct > 70 ? '#f39c12' : 'var(--theme-accent-4)';
+              return html`
+                <div style="margin-top: 8px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 0.6em; color: rgba(255,255,255,0.4); margin-bottom: 3px;">
+                    <span>Fleet Budget</span><span style="color:${color}">${pct}%</span>
+                  </div>
+                  <div style="height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden;">
+                    <div style="height: 100%; width: ${pct}%; background: ${color}; border-radius: 2px; transition: width 0.5s;"></div>
+                  </div>
+                  <div style="font-size: 0.55em; color: rgba(255,255,255,0.3); margin-top: 2px;">${Math.round(this.fleet.total_power_w)}W / ${this.fleet.budget_w}W</div>
+                </div>
+              `;
+            })() : ''}
           </div>
       </div>
     `;
@@ -2117,6 +2136,16 @@ class OpenKairoMiningPanel extends LitElement {
 
                   </div>
                 
+                ${stateObj && stateObj.temp_alarm ? html`
+                  <div style="background: rgba(231,76,60,0.25); border: 1px solid #e74c3c; padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; animation: pulse 1.5s infinite;">
+                    <span style="font-size: 1.3em;">🌡️</span>
+                    <div>
+                      <div style="color: #e74c3c; font-weight: 900; font-size: 0.85em; letter-spacing: 1px;">TEMPERATUR-ALARM</div>
+                      <div style="color: rgba(255,255,255,0.6); font-size: 0.75em;">Miner wegen Überhitzung abgeschaltet</div>
+                    </div>
+                  </div>
+                ` : ''}
+
                 ${stateObj && stateObj.hardware_error ? html`
                     <div style="background: rgba(231, 76, 60, 0.2); border: 1px solid #e74c3c; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
                        <strong style="color: #e74c3c; display: block; margin-bottom: 5px;">⚠️ HARDWARE NICHT GEFUNDEN</strong>
@@ -2127,14 +2156,14 @@ class OpenKairoMiningPanel extends LitElement {
                     </div>
                   ` : ''}
 
-                <div class="api-stats" style="background: rgba(15,15,20,0.9); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; /* Removed backdrop-filter */">
+                <div class="api-stats" style="background: rgba(15,15,20,0.9); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; /* Removed backdrop-filter */">
                   <div class="stat" style="text-align: center;">
                     <div style="font-size: 0.55em; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 900; letter-spacing: 1.5px; margin-bottom: 5px;">Hashrate:</div>
                     <div style="font-size: 1.1em; font-weight: 950; color: #0bc4e2; font-family: 'Space Mono', monospace;">${hashrateValue}</div>
                   </div>
                   <div class="stat" style="text-align: center; border-left: 1px solid rgba(255,255,255,0.05);">
                     <div style="font-size: 0.55em; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 900; letter-spacing: 1.5px; margin-bottom: 5px;">Temp:</div>
-                    <div style="font-size: 1.1em; font-weight: 950; color: #0bc4e2; font-family: 'Space Mono', monospace;">${tempValue}</div>
+                    <div style="font-size: 1.1em; font-weight: 950; color: ${stateObj.temp_alarm ? '#e74c3c' : '#0bc4e2'}; font-family: 'Space Mono', monospace;">${tempValue}</div>
                   </div>
                   <div class="stat" style="text-align: center; border-left: 1px solid rgba(255,255,255,0.05);">
                     <div style="font-size: 0.55em; color: rgba(255,255,255,0.4); text-transform: uppercase; font-weight: 900; letter-spacing: 1.5px; margin-bottom: 5px;">Verbrauch:</div>
@@ -2145,6 +2174,24 @@ class OpenKairoMiningPanel extends LitElement {
                     <div style="font-size: 1.1em; font-weight: 950; color: #0bc4e2; font-family: 'Space Mono', monospace;">${batterySOCValue || '0%'}</div>
                   </div>
                 </div>
+
+                <!-- Session Stats Row -->
+                ${(stateObj.session_runtime_h > 0 || stateObj.today_energy_wh > 0 || stateObj.total_starts > 0) ? html`
+                  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px 10px;">
+                    <div style="text-align: center;">
+                      <div style="font-size: 0.5em; color: rgba(255,255,255,0.3); text-transform: uppercase; font-weight: 800; letter-spacing: 1px; margin-bottom: 3px;">Session</div>
+                      <div style="font-size: 0.9em; font-weight: 900; color: rgba(255,255,255,0.7); font-family: 'Space Mono', monospace;">${stateObj.session_runtime_h?.toFixed(1) || '0.0'}h</div>
+                    </div>
+                    <div style="text-align: center; border-left: 1px solid rgba(255,255,255,0.05);">
+                      <div style="font-size: 0.5em; color: rgba(255,255,255,0.3); text-transform: uppercase; font-weight: 800; letter-spacing: 1px; margin-bottom: 3px;">Heute</div>
+                      <div style="font-size: 0.9em; font-weight: 900; color: rgba(255,255,255,0.7); font-family: 'Space Mono', monospace;">${stateObj.today_energy_wh?.toFixed(0) || '0'} Wh</div>
+                    </div>
+                    <div style="text-align: center; border-left: 1px solid rgba(255,255,255,0.05);">
+                      <div style="font-size: 0.5em; color: rgba(255,255,255,0.3); text-transform: uppercase; font-weight: 800; letter-spacing: 1px; margin-bottom: 3px;">Starts</div>
+                      <div style="font-size: 0.9em; font-weight: 900; color: rgba(255,255,255,0.7); font-family: 'Space Mono', monospace;">${stateObj.total_starts || 0}</div>
+                    </div>
+                  </div>
+                ` : html`<div style="margin-bottom: 14px;"></div>`}
                 
                 ${powerObj ? html`
                   <div class="power-limit-box" style="margin-top: 15px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
