@@ -60,6 +60,40 @@ class MiningEngine:
         self._logs = self._logs[:MAX_LOG_ENTRIES]
         _LOGGER.info(f"[OpenKairo Log] {message}")
 
+    async def _publish_mqtt(self, topic: str, payload: str):
+        """Publish to MQTT if the integration is configured and available."""
+        try:
+            if "mqtt" in self.hass.data and hasattr(self.hass.components, "mqtt"):
+                await self.hass.components.mqtt.async_publish(
+                    self.hass, topic, payload, qos=0, retain=True
+                )
+        except Exception as e:
+            _LOGGER.debug(f"MQTT publish failed for {topic}: {e}")
+
+    async def _publish_miner_state_mqtt(self, miner: dict, state: dict):
+        """Publish miner state to MQTT (if mqtt_prefix configured)."""
+        config = self.hass.data.get(DOMAIN, {}).get("config", {})
+        mqtt_prefix = config.get("mqtt_prefix", "").strip().rstrip("/")
+        if not mqtt_prefix:
+            return
+        import json as _json
+        miner_id = str(miner.get("id", miner.get("name", "unknown")))
+        miner_slug = miner.get("name", miner_id).lower().replace(" ", "_")
+        base = f"{mqtt_prefix}/{miner_slug}"
+        payload = {
+            "status": state.get("status_msg", "unknown"),
+            "is_on": state.get("is_on", False),
+            "is_mining": state.get("is_mining", False),
+            "hashrate": state.get("hashrate", 0),
+            "power_w": state.get("power", 0),
+            "temp_c": state.get("temp", 0),
+            "mode": miner.get("mode", "manual"),
+            "session_runtime_h": round(state.get("session_runtime_s", 0) / 3600, 2),
+            "today_energy_wh": round(state.get("today_energy_wh", 0.0), 1),
+            "temp_alarm": state.get("temp_alarm", False),
+        }
+        await self._publish_mqtt(base, _json.dumps(payload))
+
     async def update_mempool_data(self):
         try:
             async with aiohttp.ClientSession() as session:
@@ -325,12 +359,15 @@ class MiningEngine:
         # Continuous Scaling
         await self._handle_continuous_scaling(miner, state, is_on, mode, current_time)
 
+        # MQTT publish (if configured)
+        await self._publish_miner_state_mqtt(miner, state)
+
         # Update Surplus for next miner in loop
         if mode == "pv" and is_on:
             power_val = state.get("power", 0)
             if global_pv_surplus is not None:
                 global_pv_surplus -= power_val
-        
+
         return global_pv_surplus
 
     async def _detect_miner_state(self, miner, state):

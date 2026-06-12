@@ -52,3 +52,13 @@ set_integration_mode:
       description: "Wähle: pv, ai_discharge, soc, offgrid, manual, heating"
       required: true
       example: "pv"
+
+reset_session_stats:
+  name: "Session-Statistik zurücksetzen"
+  description: "Setzt die Session-Laufzeit und Energie-Zähler eines Miners zurück."
+  fields:
+    ip_address:
+      name: "IP-Adresse / Miner-ID"
+      description: "Die IP-Adresse oder ID des Miners."
+      required: true
+      example: "192.168.2.185"

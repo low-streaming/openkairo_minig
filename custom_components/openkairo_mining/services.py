@@ -149,18 +149,46 @@ async def async_setup_services(hass):
             await hass.async_add_executor_job(_save_config, hass, config)
             _LOGGER.info(f"Updated integration mode for {ip} to {new_mode}")
 
+    async def handle_reset_session_stats(call):
+        ip_or_id = call.data.get("ip_address")
+        engine = hass.data.get(DOMAIN, {}).get("engine")
+        if not engine:
+            return
+        config = hass.data.get(DOMAIN, {}).get("config", {})
+        miner_cfg = next(
+            (m for m in config.get("miners", []) if m.get("miner_ip") == ip_or_id or m.get("id") == ip_or_id),
+            None
+        )
+        if not miner_cfg:
+            _LOGGER.warning(f"reset_session_stats: miner not found for '{ip_or_id}'")
+            return
+        miner_id = str(miner_cfg.get("id", miner_cfg.get("name", ip_or_id)))
+        state = engine.miner_states.get(miner_id)
+        if state:
+            state["session_runtime_s"] = 0
+            state["session_energy_wh"] = 0.0
+            state["total_starts"] = 0
+            _LOGGER.info(f"Session stats reset for miner {miner_id}")
+            engine.add_log_entry(f"🔄 Session-Stats für {miner_cfg.get('name', miner_id)} zurückgesetzt.")
+
     hass.services.async_register(DOMAIN, SERVICE_REBOOT, handle_reboot, schema=SERVICE_BASE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_RESTART, handle_restart, schema=SERVICE_BASE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_SET_WORK_MODE, handle_set_work_mode, schema=SERVICE_WORK_MODE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_SET_POWER_LIMIT, handle_set_power_limit, schema=SERVICE_POWER_LIMIT_SCHEMA)
     
-    # [NEW] Service for Automations to switch between PV / AI / SOC etc.
     hass.services.async_register(
-        DOMAIN, 
-        "set_integration_mode", 
-        handle_set_integration_mode, 
+        DOMAIN,
+        "set_integration_mode",
+        handle_set_integration_mode,
         schema=vol.Schema({
             vol.Required("ip_address"): cv.string,
             vol.Required("mode"): cv.string,
         })
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "reset_session_stats",
+        handle_reset_session_stats,
+        schema=SERVICE_BASE_SCHEMA,
     )
