@@ -7,11 +7,11 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.helpers.debounce import Debouncer
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
+from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL, DISCOVERY_COOLDOWN, REQUEST_REFRESH_COOLDOWN, DISCOVERY_TIMEOUT
 
 _LOGGER = logging.getLogger(__name__)
 
-REQUEST_REFRESH_DEFAULT_COOLDOWN = 5
+REQUEST_REFRESH_DEFAULT_COOLDOWN = REQUEST_REFRESH_COOLDOWN
 
 DEFAULT_DATA = {
     "hostname": None,
@@ -47,7 +47,7 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
     miner_model: str = None
     miner_make: str = None
     _last_discovery_fail: float = 0
-    DISCOVERY_COOLDOWN: int = 300 # 5 Minutes
+    DISCOVERY_COOLDOWN: int = DISCOVERY_COOLDOWN
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, miner_ip: str, name: str):
         """Initialize the coordinator."""
@@ -196,7 +196,7 @@ class MinerDataUpdateCoordinator(DataUpdateCoordinator):
             asyncio.create_task(check_pyasic_standard()),
             asyncio.create_task(check_pyasic_port_4028())
         ]
-        done, pending = await asyncio.wait(tasks, timeout=12, return_when=asyncio.FIRST_COMPLETED)
+        done, pending = await asyncio.wait(tasks, timeout=DISCOVERY_TIMEOUT, return_when=asyncio.FIRST_COMPLETED)
         
         result = None
         for t in done:
@@ -590,5 +590,6 @@ async def async_get_miner_coordinator(hass, domain, miner_ip, miner_name, user="
         coordinators[miner_ip] = MinerDataUpdateCoordinator(hass, entry, miner_ip, miner_name)
         try:
             await coordinators[miner_ip].async_config_entry_first_refresh()
-        except: pass
+        except Exception as e:
+            _LOGGER.warning(f"[{miner_ip}] Initial data fetch failed (will retry): {e}")
     return coordinators[miner_ip]

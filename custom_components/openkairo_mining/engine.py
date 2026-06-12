@@ -7,7 +7,16 @@ import aiohttp
 from datetime import datetime, timedelta
 import homeassistant.util.dt as dt_util
 from homeassistant.core import HomeAssistant
-from .const import DOMAIN
+from .const import (
+    DOMAIN,
+    ENGINE_LOOP_INTERVAL,
+    MEMPOOL_REFRESH_INTERVAL,
+    SENSOR_TIMEOUT,
+    MAX_LOG_ENTRIES,
+    AI_HISTORY_CACHE_TTL,
+    SOLAR_FORECAST_CACHE_TTL,
+    STANDBY_POWER_THRESHOLD,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,7 +57,7 @@ class MiningEngine:
         timestamp = time.strftime("%H:%M:%S")
         log_entry = f"[{timestamp}] {message}"
         self._logs.insert(0, log_entry)
-        self._logs = self._logs[:100]
+        self._logs = self._logs[:MAX_LOG_ENTRIES]
         _LOGGER.info(f"[OpenKairo Log] {message}")
 
     async def update_mempool_data(self):
@@ -111,7 +120,8 @@ class MiningEngine:
                         val = abs(float(s.state))
                         if val > 10:
                             valid_values.append(val)
-                    except: pass
+                    except (ValueError, TypeError):
+                        pass
                                     
             if not valid_values:
                 return 0
@@ -144,39 +154,43 @@ class MiningEngine:
     async def async_run(self):
         """Main loop execution."""
         _LOGGER.info("OpenKairo Mining Engine started")
-        while True:
-            try:
-                current_time = time.time()
-                last_update = self.hass.data.get(DOMAIN, {}).get("mempool_last_update", 0)
-                if current_time - last_update > 600:
-                    await self.update_mempool_data()
+        try:
+            while True:
+                try:
+                    current_time = time.time()
+                    last_update = self.hass.data.get(DOMAIN, {}).get("mempool_last_update", 0)
+                    if current_time - last_update > MEMPOOL_REFRESH_INTERVAL:
+                        await self.update_mempool_data()
 
-                config = self.hass.data.get(DOMAIN, {}).get("config", {})
-                miners = config.get("miners", [])
-                sorted_miners = sorted(miners, key=lambda x: int(x.get("priority", 99)))
+                    config = self.hass.data.get(DOMAIN, {}).get("config", {})
+                    miners = config.get("miners", [])
+                    sorted_miners = sorted(miners, key=lambda x: int(x.get("priority", 99)))
 
-                # Initialize global surplus if house power sensor is set
-                global_pv_surplus = None
-                house_sensor = config.get("house_power_sensor")
-                if house_sensor:
-                    house_state = self.hass.states.get(house_sensor)
-                    if house_state and house_state.state not in ["unknown", "unavailable"]:
+                    global_pv_surplus = None
+                    house_sensor = config.get("house_power_sensor")
+                    if house_sensor:
+                        house_state = self.hass.states.get(house_sensor)
+                        if house_state and house_state.state not in ["unknown", "unavailable"]:
+                            try:
+                                global_pv_surplus = -float(house_state.state)
+                            except ValueError:
+                                _LOGGER.warning(f"House power sensor '{house_sensor}' has non-numeric state: {house_state.state}")
+
+                    for miner in sorted_miners:
                         try:
-                            # house_power is typically positive for consumption, negative for injection (surplus)
-                            # so surplus = -house_power
-                            global_pv_surplus = -float(house_state.state)
-                        except: pass
+                            global_pv_surplus = await self._process_miner(miner, global_pv_surplus)
+                        except Exception as miner_err:
+                            _LOGGER.error(f"Error processing miner {miner.get('name')}: {miner_err}", exc_info=True)
 
-                for miner in sorted_miners:
-                    try:
-                        global_pv_surplus = await self._process_miner(miner, global_pv_surplus)
-                    except Exception as miner_err:
-                        _LOGGER.error(f"Error processing miner {miner.get('name')}: {miner_err}")
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    _LOGGER.error(f"Mining engine loop error: {e}", exc_info=True)
 
-            except Exception as e:
-                _LOGGER.error(f"Mining engine loop error: {e}")
-            
-            await asyncio.sleep(15)
+                await asyncio.sleep(ENGINE_LOOP_INTERVAL)
+        except asyncio.CancelledError:
+            _LOGGER.info("OpenKairo Mining Engine stopping (task cancelled)")
+            raise
 
     async def _process_miner(self, miner, global_pv_surplus):
         miner_id = str(miner.get("id", miner.get("name", "Unknown")))
@@ -234,8 +248,8 @@ class MiningEngine:
                 turn_on_condition, turn_off_condition = await self._process_ai_discharge_mode(miner, state, is_on, current_time)
             
             # Global Sensor Watchdog
-            if current_time - state.get("last_sensor_update", current_time) > 300:
-                _LOGGER.warning(f"[{miner_name}] Sensor-Timeout (>5 Min)! Schalte sicherheitshalber AB.")
+            if current_time - state.get("last_sensor_update", current_time) > SENSOR_TIMEOUT:
+                _LOGGER.warning(f"[{miner_name}] Sensor-Timeout (>{SENSOR_TIMEOUT}s)! Sicherheits-Stopp.")
                 turn_on_condition = False
                 turn_off_condition = True
                 state["log_reason_off"] = "(Sicherheits-Stopp: Sensor-Daten veraltet/tot)"
@@ -290,8 +304,10 @@ class MiningEngine:
             p_state = self.hass.states.get(p_sensor)
             if p_state and p_state.state not in ["unknown", "unavailable"]:
                 try:
-                    if float(p_state.state) > 50: is_on = True
-                except: pass
+                    if float(p_state.state) > STANDBY_POWER_THRESHOLD:
+                        is_on = True
+                except ValueError:
+                    pass
         
         state["switches"] = switches # Store for execution
         return is_on
@@ -326,8 +342,11 @@ class MiningEngine:
                             state["standby_since"] = None
                     else:
                         state["standby_since"] = None
-                except: state["standby_since"] = None
-            else: state["standby_since"] = None
+                except Exception as e:
+                    _LOGGER.debug(f"[{miner.get('name')}] Watchdog value parse error: {e}")
+                    state["standby_since"] = None
+            else:
+                state["standby_since"] = None
 
     async def _process_pv_mode(self, miner, state, is_on, global_pv_surplus):
         pv_sensor = miner.get("pv_sensor")
@@ -361,26 +380,40 @@ class MiningEngine:
                     turn_on = True
                     state["log_reason_on"] = f"(PV {effective_pv}W >= {on_threshold}W)"
 
-            # Price Awareness
+            # Price Awareness: cheap grid allows mining even if PV is insufficient
             price_sensor = miner.get("electricity_price_sensor")
             price_limit = miner.get("grid_price_limit")
-            if price_sensor and price_limit is not None:
+            if not turn_on and price_sensor and price_limit is not None:
                 p_state = self.hass.states.get(price_sensor)
                 if p_state and p_state.state not in ["unknown", "unavailable"]:
                     try:
                         if float(p_state.state) <= float(price_limit):
                             turn_on = True
                             state["log_reason_on"] = f"(Günstiger Netzpreis: {p_state.state} <= {price_limit})"
-                    except: pass
+                    except (ValueError, TypeError):
+                        pass
 
             turn_off = False
             if pv_value <= off_threshold:
                 if not allow_battery or battery_soc < battery_min_soc:
                     turn_off = True
                     state["log_reason_off"] = f"(PV {pv_value}W <= {off_threshold}W)"
-            
+
+            # Cheap grid price prevents turn-off (but does not independently trigger turn-on)
+            if turn_off and price_sensor and price_limit is not None:
+                p_state = self.hass.states.get(price_sensor)
+                if p_state and p_state.state not in ["unknown", "unavailable"]:
+                    try:
+                        if float(p_state.state) <= float(price_limit):
+                            turn_off = False
+                            state["log_reason_off"] = ""
+                    except (ValueError, TypeError):
+                        pass
+
             return turn_on, turn_off
-        except: return False, False
+        except Exception as e:
+            _LOGGER.error(f"[{miner.get('name')}] PV mode error: {e}", exc_info=True)
+            return False, False
 
     async def _process_soc_mode(self, miner, state):
         battery_sensor = miner.get("battery_sensor")
@@ -399,9 +432,11 @@ class MiningEngine:
             
             turn_off = battery_soc <= soc_off
             if turn_off: state["log_reason_off"] = f"(SOC {battery_soc}% <= {soc_off}%)"
-            
+
             return turn_on, turn_off
-        except: return False, False
+        except Exception as e:
+            _LOGGER.error(f"[{miner.get('name')}] SOC mode error: {e}", exc_info=True)
+            return False, False
 
     async def _process_heating_mode(self, miner, state, is_on):
         temp_sensor = miner.get("target_temp_sensor")
@@ -438,9 +473,11 @@ class MiningEngine:
             if allow_battery and 0 <= battery_soc < battery_min_soc:
                 turn_off = True
                 state["log_reason_off"] = f"(SOC {battery_soc}% < {battery_min_soc}%)"
-                
+
             return turn_on, turn_off
-        except: return False, False
+        except Exception as e:
+            _LOGGER.error(f"[{miner.get('name')}] Heating mode error: {e}", exc_info=True)
+            return False, False
 
     async def _process_offgrid_mode(self, miner, state):
         battery_sensor = miner.get("battery_sensor")
@@ -459,9 +496,11 @@ class MiningEngine:
             
             turn_off = battery_soc <= soc_stop
             if turn_off: state["log_reason_off"] = f"(Offgrid SOC {battery_soc}% <= {soc_stop}%)"
-            
+
             return turn_on, turn_off
-        except: return False, False
+        except Exception as e:
+            _LOGGER.error(f"[{miner.get('name')}] Offgrid mode error: {e}", exc_info=True)
+            return False, False
 
     async def _process_ai_discharge_mode(self, miner, state, is_on, current_time):
         battery_sensor = miner.get("battery_sensor")
@@ -483,10 +522,10 @@ class MiningEngine:
         try:
             current_soc = float(bat_state.state)
             
-            # Load history (1h cache)
+            # Load history (cached)
             cache_key = f"ai_load_{power_sensor}"
             last_cache = self.hass.data[DOMAIN].get(f"{cache_key}_time", 0)
-            if current_time - last_cache > 3600:
+            if current_time - last_cache > AI_HISTORY_CACHE_TTL:
                 async def fetch_history():
                     load = await self.get_avg_night_load(power_sensor)
                     self.hass.data[DOMAIN][cache_key] = load
@@ -502,7 +541,7 @@ class MiningEngine:
             if weather_enabled:
                 w_cache = "solar_forecast_engine"
                 last_w = self.hass.data[DOMAIN].get(f"{w_cache}_time", 0)
-                if current_time - last_w > 3600:
+                if current_time - last_w > SOLAR_FORECAST_CACHE_TTL:
                     async def fetch_solar():
                         rad = await self.get_solar_forecast(miner.get("weather_lat"), miner.get("weather_lon"))
                         if rad is not None:
@@ -523,8 +562,12 @@ class MiningEngine:
 
             # Calculate target time
             now = dt_util.now()
-            parts = target_time_str.split(':') if ':' in target_time_str else [7, 0]
-            target_dt = now.replace(hour=int(parts[0]), minute=int(parts[1]), second=0, microsecond=0)
+            try:
+                h, m = [int(x) for x in str(target_time_str).split(":")[:2]]
+            except (ValueError, AttributeError):
+                _LOGGER.warning(f"[{miner.get('name')}] AI mode: invalid target_time '{target_time_str}', using 07:00")
+                h, m = 7, 0
+            target_dt = now.replace(hour=h, minute=m, second=0, microsecond=0)
             if target_dt <= now: target_dt += timedelta(days=1)
             
             hours_left = (target_dt - now).total_seconds() / 3600
@@ -557,7 +600,9 @@ class MiningEngine:
                     state["ai_status"] = f"Start geplant um {state['ai_start_time']} Uhr{weather_info}"
                     state["log_reason_off"] = f"(AI Wartet auf Startzeit)"
                     return False, True
-        except: return False, False
+        except Exception as e:
+            _LOGGER.error(f"[{miner.get('name')}] AI discharge mode error: {e}", exc_info=True)
+            return False, False
 
     async def _execute_conditions(self, miner, state, is_on, turn_on_condition, turn_off_condition, coord, current_time):
         delay_seconds = float(miner.get("delay_minutes", 0)) * 60
@@ -572,8 +617,11 @@ class MiningEngine:
             elif current_time - state["on_since"] >= delay_seconds or state["hashrate"] > 0:
                 # Actual Turn ON
                 if coord and coord.miner_obj:
-                    try: await coord.miner_obj.resume_mining(); state["on_since_actual"] = current_time
-                    except: pass
+                    try:
+                        await coord.miner_obj.resume_mining()
+                        state["on_since_actual"] = current_time
+                    except Exception as e:
+                        _LOGGER.debug(f"[{miner_name}] resume_mining() failed: {e}")
                 
                 # Check Standby Switch recovery
                 standby_switches = [s for s in [miner.get("standby_switch"), miner.get("standby_switch_2")] if s]
@@ -611,8 +659,10 @@ class MiningEngine:
                         else:
                             self.add_log_entry(f"💤 {miner_name} wird ausgeschaltet. {state.get('log_reason_off', '')}")
                             if coord and coord.miner_obj:
-                                try: await coord.miner_obj.stop_mining()
-                                except: pass
+                                try:
+                                    await coord.miner_obj.stop_mining()
+                                except Exception as e:
+                                    _LOGGER.debug(f"[{miner_name}] stop_mining() failed: {e}")
                             await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
         else: state["off_since"] = None
 
@@ -651,8 +701,10 @@ class MiningEngine:
                     state["ramping_step"] += 1; state["ramping_last_time"] = current_time
                 else:
                     if coord and coord.miner_obj:
-                        try: await coord.miner_obj.stop_mining()
-                        except: pass
+                        try:
+                            await coord.miner_obj.stop_mining()
+                        except Exception as e:
+                            _LOGGER.debug(f"[{miner.get('name')}] stop_mining() in soft-stop failed: {e}")
                     await self.hass.services.async_call("switch", "turn_off", {"entity_id": state.get("switches", [])})
                     state["ramping"] = None
 
@@ -708,4 +760,5 @@ class MiningEngine:
                 
                 if abs(current_power - target_power) > 50:
                     await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": round(target_power)})
-            except: pass
+            except Exception as e:
+                _LOGGER.debug(f"[{miner.get('name')}] Continuous scaling error: {e}")

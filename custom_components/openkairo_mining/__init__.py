@@ -2,6 +2,7 @@ import logging
 import json
 import os
 import time
+import tempfile
 from .engine import MiningEngine
 
 DOMAIN = "openkairo_mining"
@@ -111,9 +112,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         engine = MiningEngine(hass)
         hass.data[DOMAIN]["engine"] = engine
         if hass.is_running:
-            hass.loop.create_task(engine.async_run())
+            task = hass.loop.create_task(engine.async_run())
+            hass.data[DOMAIN]["engine_task"] = task
         else:
-            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, lambda event: hass.loop.create_task(engine.async_run()))
+            def _start_engine(event):
+                task = hass.loop.create_task(engine.async_run())
+                hass.data[DOMAIN]["engine_task"] = task
+            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, _start_engine)
     
     return True
 
@@ -123,6 +128,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
         if unload_ok and entry.entry_id in hass.data[DOMAIN].get("miners", {}):
             hass.data[DOMAIN]["miners"].pop(entry.entry_id)
         return unload_ok
+    engine_task = hass.data[DOMAIN].get("engine_task")
+    if engine_task and not engine_task.done():
+        engine_task.cancel()
     async_remove_panel(hass, "openkairo_mining")
     return True
 
@@ -136,15 +144,31 @@ def _load_config(hass):
             try:
                 data = json.load(f)
                 return data if "miners" in data else {"miners": []}
-            except: pass
+            except json.JSONDecodeError as e:
+                _LOGGER.error(f"Config file corrupt, using empty config: {e}")
     return {"miners": []}
 
 def _save_config(hass, data):
     path = _get_config_path(hass)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+    try:
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+        os.replace(tmp_path, path)
+    except Exception as e:
+        _LOGGER.error(f"Failed to save config: {e}")
+        return
     if DOMAIN in hass.data:
         hass.data[DOMAIN]["config"] = data
+
+
+def _add_log_entry(hass, message):
+    """Proxy to the engine log — used by entities that change config via HA UI."""
+    engine = hass.data.get(DOMAIN, {}).get("engine")
+    if engine:
+        engine.add_log_entry(message)
+    else:
+        _LOGGER.info(f"[OpenKairo Log] {message}")
 
 class OpenKairoMiningFrontendView(HomeAssistantView):
     url = f"/api/{DOMAIN}/frontend/openkairo-mining-panel.js"
@@ -158,7 +182,8 @@ class OpenKairoMiningFrontendView(HomeAssistantView):
             content = await hass.async_add_executor_job(lambda: open(path, "r", encoding="utf-8").read())
             from aiohttp import web
             return web.Response(body=content, content_type="application/javascript")
-        except:
+        except OSError as e:
+            _LOGGER.error(f"Frontend JS not found at {path}: {e}")
             from aiohttp import web
             return web.Response(status=404)
 

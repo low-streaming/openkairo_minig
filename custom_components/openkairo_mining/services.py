@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 
@@ -11,13 +12,9 @@ SERVICE_RESTART = "restart_backend"
 SERVICE_SET_WORK_MODE = "set_work_mode"
 SERVICE_SET_POWER_LIMIT = "set_power_limit"
 
-# Base schema for simple IP-only calls
 SERVICE_BASE_SCHEMA = vol.Schema({
     vol.Required("ip_address"): cv.string,
 })
-
-# Schema for power limit
-import asyncio
 
 async def async_send_raw_command(ip, command):
     try:
