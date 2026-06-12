@@ -823,56 +823,100 @@ class MiningEngine:
                     state["ramping"] = None
 
     async def _handle_continuous_scaling(self, miner, state, is_on, mode, current_time):
-        if not miner.get("soft_continuous_scaling") or not is_on or state.get("ramping"): return
-        
+        if not miner.get("soft_continuous_scaling") or not is_on or state.get("ramping"):
+            return
+
         power_entity = miner.get("power_entity")
-        if not power_entity: return
-        
+        if not power_entity:
+            return
+
         interval = float(miner.get("soft_interval", 60))
-        if current_time - state.get("continuous_last_time", 0) >= interval:
-            state["continuous_last_time"] = current_time
-            power_state = self.hass.states.get(power_entity)
-            if not power_state or power_state.state in ["unknown", "unavailable"]: return
-            
-            try:
-                current_power = float(power_state.state)
-                target_power = float(miner.get("soft_target_power", 1200))
-                
-                if mode == "pv":
-                    pv_sensor = miner.get("pv_sensor")
-                    if pv_sensor:
-                        pv_val = float(self.hass.states.get(pv_sensor).state)
-                        if pv_val < target_power:
-                            steps = [float(s.strip()) for s in str(miner.get("soft_start_steps", "100,500,1000")).split(",")]
-                            fitting = [s for s in steps if s <= pv_val]
-                            target_power = max(fitting) if fitting else (min(steps) if steps else target_power)
-                
-                elif mode == "offgrid":
-                    bat_sensor = miner.get("battery_sensor")
-                    if bat_sensor:
-                        soc = float(self.hass.states.get(bat_sensor).state)
+        if current_time - state.get("continuous_last_time", 0) < interval:
+            return
+
+        state["continuous_last_time"] = current_time
+        power_state = self.hass.states.get(power_entity)
+        if not power_state or power_state.state in ["unknown", "unavailable"]:
+            return
+
+        try:
+            current_power = float(power_state.state)
+            p_min = float(miner.get("soft_min_power") or miner.get("min_power") or 100)
+            p_max = float(miner.get("soft_target_power", 1200))
+            target_power = p_max
+            scaling_mode = miner.get("scaling_mode", "steps")
+
+            if mode == "pv":
+                pv_sensor = miner.get("pv_sensor")
+                if pv_sensor:
+                    pv_state = self.hass.states.get(pv_sensor)
+                    if pv_state and pv_state.state not in ["unknown", "unavailable"]:
+                        pv_val = float(pv_state.state)
+                        if scaling_mode == "proportional":
+                            # Smooth proportional tracking — use 95% of available PV
+                            factor = float(miner.get("scaling_factor", 0.95))
+                            target_power = max(p_min, min(p_max, pv_val * factor))
+                        else:
+                            # Step-based (original behavior)
+                            if pv_val < p_max:
+                                steps = [float(s.strip()) for s in str(miner.get("soft_start_steps", "100,500,1000")).split(",")]
+                                fitting = [s for s in steps if s <= pv_val]
+                                target_power = max(fitting) if fitting else (min(steps) if steps else p_max)
+
+            elif mode == "soc":
+                bat_sensor = miner.get("battery_sensor")
+                if bat_sensor and miner.get("soc_proportional_scaling"):
+                    bat_state = self.hass.states.get(bat_sensor)
+                    if bat_state and bat_state.state not in ["unknown", "unavailable"]:
+                        soc = float(bat_state.state)
+                        soc_on = float(miner.get("soc_on", 90))
+                        soc_off = float(miner.get("soc_off", 30))
+                        soc_range = max(0.1, soc_on - soc_off)
+                        # Scale linearly: p_min at soc_off, p_max at soc_on
+                        target_power = p_min + ((soc - soc_off) / soc_range * (p_max - p_min))
+                        target_power = max(p_min, min(p_max, target_power))
+
+            elif mode == "offgrid":
+                bat_sensor = miner.get("battery_sensor")
+                if bat_sensor:
+                    bat_state = self.hass.states.get(bat_sensor)
+                    if bat_state and bat_state.state not in ["unknown", "unavailable"]:
+                        soc = float(bat_state.state)
                         s_start = float(miner.get("offgrid_soc_start", 90))
-                        s_max = float(miner.get("offgrid_soc_max", 98))
-                        p_min = float(miner.get("offgrid_min_power", 400))
-                        p_max = float(miner.get("offgrid_max_power", 1400))
-                        
+                        s_max_soc = float(miner.get("offgrid_soc_max", 98))
+                        p_min_o = float(miner.get("offgrid_min_power", 400))
+                        p_max_o = float(miner.get("offgrid_max_power", 1400))
                         s_mid = miner.get("offgrid_soc_mid")
                         p_mid = miner.get("offgrid_mid_power")
-                        
                         if s_mid and p_mid:
                             s_mid, p_mid = float(s_mid), float(p_mid)
-                            if soc <= s_start: target_power = p_min
-                            elif soc >= s_max: target_power = p_max
+                            if soc <= s_start: target_power = p_min_o
+                            elif soc >= s_max_soc: target_power = p_max_o
                             elif soc <= s_mid:
-                                target_power = p_min + ((soc - s_start) / (max(0.1, s_mid - s_start)) * (p_mid - p_min))
+                                target_power = p_min_o + ((soc - s_start) / (max(0.1, s_mid - s_start)) * (p_mid - p_min_o))
                             else:
-                                target_power = p_mid + ((soc - s_mid) / (max(0.1, s_max - s_mid)) * (p_max - p_mid))
+                                target_power = p_mid + ((soc - s_mid) / (max(0.1, s_max_soc - s_mid)) * (p_max_o - p_mid))
                         else:
-                            if soc <= s_start: target_power = p_min
-                            elif soc >= s_max: target_power = p_max
-                            else: target_power = p_min + ((soc - s_start) / (max(0.1, s_max - s_start)) * (p_max - p_min))
-                
-                if abs(current_power - target_power) > 50:
-                    await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": round(target_power)})
-            except Exception as e:
-                _LOGGER.debug(f"[{miner.get('name')}] Continuous scaling error: {e}")
+                            if soc <= s_start: target_power = p_min_o
+                            elif soc >= s_max_soc: target_power = p_max_o
+                            else:
+                                target_power = p_min_o + ((soc - s_start) / (max(0.1, s_max_soc - s_start)) * (p_max_o - p_min_o))
+
+            # Rate-of-change limiting: cap per-tick power step
+            max_step = miner.get("power_step_limit")
+            if max_step:
+                try:
+                    delta = target_power - current_power
+                    limit = float(max_step)
+                    if abs(delta) > limit:
+                        target_power = current_power + (limit if delta > 0 else -limit)
+                except (ValueError, TypeError):
+                    pass
+
+            target_power = round(max(p_min, min(p_max, target_power)))
+
+            if abs(current_power - target_power) > 50:
+                _LOGGER.debug(f"[{miner.get('name')}] Scaling {current_power}W -> {target_power}W ({mode}/{scaling_mode})")
+                await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": target_power})
+        except Exception as e:
+            _LOGGER.debug(f"[{miner.get('name')}] Continuous scaling error: {e}")
