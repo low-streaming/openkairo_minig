@@ -245,7 +245,10 @@ class MiningEngine:
                 "total_starts": 0,
                 # Safety
                 "temp_alarm": False,
+                "max_runtime_alarm": False,
             }
+            # First-time entity validation (non-blocking — only logs warnings)
+            self._validate_miner_entities(miner)
         
         state = self._miner_states[miner_id]
         current_time = time.time()
@@ -338,6 +341,26 @@ class MiningEngine:
                         if state.get("temp_alarm"):
                             self.add_log_entry(f"✅ {miner_name}: Temp wieder OK ({state['temp']}°C)")
                         state["temp_alarm"] = False
+                except (ValueError, TypeError):
+                    pass
+
+            # Maximum runtime safety: force turn-off after max_runtime hours
+            max_runtime_h = miner.get("max_runtime")
+            if max_runtime_h and state.get("on_since_actual"):
+                try:
+                    on_hours = (current_time - state["on_since_actual"]) / 3600
+                    if on_hours >= float(max_runtime_h):
+                        turn_on_condition = False
+                        turn_off_condition = True
+                        state["off_since"] = 0  # Immediate — no delay
+                        state["log_reason_off"] = f"(Max-Laufzeit {max_runtime_h}h erreicht)"
+                        if not state.get("max_runtime_alarm"):
+                            self.add_log_entry(
+                                f"⏱️ {miner_name}: Max-Laufzeit {max_runtime_h}h erreicht. Abschaltung."
+                            )
+                            state["max_runtime_alarm"] = True
+                    else:
+                        state["max_runtime_alarm"] = False
                 except (ValueError, TypeError):
                     pass
 
@@ -702,6 +725,39 @@ class MiningEngine:
         except Exception as e:
             _LOGGER.error(f"[{miner.get('name')}] AI discharge mode error: {e}", exc_info=True)
             return False, False
+
+    def _validate_miner_entities(self, miner: dict):
+        """Log warnings for missing HA entities that are required by the configured mode."""
+        name = miner.get("name", "Unknown")
+        mode = miner.get("mode", "manual")
+        issues = []
+
+        switch = miner.get("switch")
+        miner_ip = miner.get("miner_ip")
+        if not switch and miner_ip:
+            safe_ip = miner_ip.replace(".", "_")
+            p1 = f"switch.{DOMAIN}_{safe_ip}_switch"
+            p2 = f"switch.{DOMAIN}_{safe_ip}_mining_aktiv"
+            if self.hass.states.get(p1):
+                switch = p1
+            elif self.hass.states.get(p2):
+                switch = p2
+        if not switch:
+            issues.append("Kein Switch konfiguriert/gefunden")
+
+        if mode == "pv" and not miner.get("pv_sensor"):
+            issues.append("pv_sensor fehlt (PV-Modus)")
+        if mode in ("soc", "offgrid", "ai_discharge") and not miner.get("battery_sensor"):
+            issues.append("battery_sensor fehlt")
+        if mode == "heating" and not miner.get("target_temp_sensor"):
+            issues.append("target_temp_sensor fehlt (Heiz-Modus)")
+        if mode == "ai_discharge" and not miner.get("battery_power_sensor") and not miner.get("power_consumption_sensor"):
+            issues.append("battery_power_sensor fehlt (AI-Modus)")
+
+        if issues:
+            _LOGGER.warning(f"[{name}] Entitäts-Validierung: {'; '.join(issues)}")
+        else:
+            _LOGGER.info(f"[{name}] Entitäts-Validierung OK (Modus: {mode})")
 
     def _update_statistics(self, miner_id: str, state: dict, current_time: float):
         """Update per-miner runtime and energy statistics every engine tick."""
