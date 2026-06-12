@@ -211,13 +211,24 @@ class OpenKairoMiningApiView(HomeAssistantView):
                     if m_cfg.get("standby_watchdog_enabled"):
                         delay = float(m_cfg.get("standby_delay", 10)) * 60
                         clean_s["watchdog_remaining"] = int(max(0, delay - (time.time() - wd_start)))
-                except: pass
+                except Exception:
+                    pass
             sw_on, is_mining, ramping = s.get("is_on", False), s.get("is_mining", False), s.get("ramping")
             if not sw_on: clean_s["status_msg"] = "AUS"
             elif ramping == "up": clean_s["status_msg"] = "SOFT-UP"
             elif ramping == "down": clean_s["status_msg"] = "SOFT-DN"
             elif sw_on and not is_mining: clean_s["status_msg"] = "STANDBY"
             elif is_mining: clean_s["status_msg"] = "MINING"
+            else: clean_s["status_msg"] = "AUS"
+            # Temp alarm indicator
+            if s.get("temp_alarm"):
+                clean_s["status_msg"] = "TEMP-ALARM"
+            # Computed stat fields (formatted for display)
+            clean_s["session_runtime_h"] = round(s.get("session_runtime_s", 0) / 3600, 2)
+            clean_s["today_runtime_h"] = round(s.get("today_runtime_s", 0) / 3600, 2)
+            clean_s["session_energy_wh"] = round(s.get("session_energy_wh", 0.0), 1)
+            clean_s["today_energy_wh"] = round(s.get("today_energy_wh", 0.0), 1)
+            clean_s["total_starts"] = s.get("total_starts", 0)
             clean_states[mid] = clean_s
         mempool = engine.mempool_data if engine else {}
         btc_price = engine.btc_price if engine else 0
@@ -227,8 +238,11 @@ class OpenKairoMiningApiView(HomeAssistantView):
             if bat_sensor:
                 s = hass.states.get(bat_sensor)
                 if s and s.state not in ["unknown", "unavailable"]:
-                    try: global_soc = float(s.state); break
-                    except: pass
+                    try:
+                        global_soc = float(s.state)
+                        break
+                    except (ValueError, TypeError):
+                        pass
         logs = [] if is_short else (engine.logs if engine else [])
         from aiohttp import web
         return web.json_response({"status": "ok", "config": config, "states": clean_states, "mempool": mempool, "btc_price": btc_price, "soc": global_soc, "logs": logs})

@@ -128,7 +128,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     try:
         await coordinator.async_config_entry_first_refresh()
-    except: pass
+    except Exception as e:
+        _LOGGER.warning(f"[{ip}] Initial sensor refresh failed: {e}")
 
     sensors = []
 
@@ -228,45 +229,50 @@ class MinerFanSensor(CoordinatorEntity, SensorEntity):
 class MinerDynamicSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, key):
         from homeassistant.const import UnitOfTemperature, UnitOfPower, UnitOfElectricPotential, REVOLUTIONS_PER_MINUTE
-        from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+        from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass, EntityCategory
         super().__init__(coordinator)
         self._key = key
         self._attr_has_entity_name = True
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
         ip_slug = coordinator.miner_ip.replace(".", "_")
         self._attr_unique_id = f"{DOMAIN}_{ip_slug}_raw_{key}"
-        
-        # Make the name pretty-ish
+
         pretty_name = key.replace("_", " ").title()
         if "Temp" in pretty_name and not pretty_name.endswith("Temperature"):
             pretty_name = pretty_name.replace("Temp", "Temperature")
         self._attr_name = pretty_name
-        
-        # Best effort unit assignment
+
+        # Determine unit, device class and state class from key name
         k = key.lower()
+        unit = None
         if "temp" in k:
-            self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+            unit = UnitOfTemperature.CELSIUS
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
         elif "watt" in k or "power" in k or k == "pow":
-            self._attr_native_unit_of_measurement = UnitOfPower.WATT
+            unit = UnitOfPower.WATT
             self._attr_device_class = SensorDeviceClass.POWER
         elif "voltage" in k or "volt" in k:
-            self._attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
+            unit = UnitOfElectricPotential.VOLT
             self._attr_device_class = SensorDeviceClass.VOLTAGE
         elif "speed" in k or "rpm" in k:
-            self._attr_native_unit_of_measurement = REVOLUTIONS_PER_MINUTE
+            unit = REVOLUTIONS_PER_MINUTE
         elif "hashrate" in k and "ideal" not in k:
-            self._attr_native_unit_of_measurement = "TH/s"
+            unit = "TH/s"
         elif "efficiency" in k:
-            self._attr_native_unit_of_measurement = "J/TH"
+            unit = "J/TH"
         elif "freq" in k:
-            self._attr_native_unit_of_measurement = "MHz"
+            unit = "MHz"
         elif "luck" in k or "ratio" in k:
-            self._attr_native_unit_of_measurement = "%"
-        elif "shares" in k or "count" in k:
-             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
-            
-        if not hasattr(self, "_attr_state_class") or self._attr_state_class is None:
-            self._attr_state_class = SensorStateClass.MEASUREMENT if hasattr(self, "_attr_native_unit_of_measurement") and self._attr_native_unit_of_measurement else None
+            unit = "%"
+
+        self._attr_native_unit_of_measurement = unit
+
+        if "shares" in k or "count" in k:
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        elif unit is not None:
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+        else:
+            self._attr_state_class = None
 
     @property
     def device_info(self):
@@ -280,10 +286,12 @@ class MinerDynamicSensor(CoordinatorEntity, SensorEntity):
         
         if val is None: return None
         
-        # 1. Unpack pyasic objects (e.g., HashRate has .rate or similar, Enums have .name)
+        # Unpack pyasic wrapper objects (HashRate.rate, Enum.name, etc.)
         if hasattr(val, "rate"):
-            try: val = float(val.rate)
-            except: pass
+            try:
+                val = float(val.rate)
+            except (ValueError, TypeError):
+                pass
         elif hasattr(val, "name") and hasattr(val, "value"):
             val = str(val.name)
             
