@@ -1,5 +1,6 @@
 """OpenKairo Miner Sensors - Final Consolidated Version."""
 import logging
+from datetime import timedelta
 
 from homeassistant.components.sensor import (
     SensorEntity,
@@ -15,8 +16,9 @@ from homeassistant.const import (
     REVOLUTIONS_PER_MINUTE,
 )
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.event import async_track_time_interval
 
-from .const import DOMAIN
+from .const import DOMAIN, ENGINE_LOOP_INTERVAL
 from .coordinator import MinerDataUpdateCoordinator
 from .utils import get_device_info
 
@@ -116,9 +118,21 @@ FAN_SENSOR_DESCRIPTIONS: dict[str, SensorEntityDescription] = {
 }
 
 
+ENGINE_STAT_DEFS = [
+    # (engine_state_key, friendly_suffix, unit, state_class, icon)
+    ("session_runtime_s",  "Session Laufzeit",   "h",   SensorStateClass.MEASUREMENT,       "mdi:clock-start"),
+    ("today_runtime_s",    "Heute Laufzeit",      "h",   SensorStateClass.MEASUREMENT,       "mdi:clock-check-outline"),
+    ("session_energy_wh",  "Session Energie",     "Wh",  SensorStateClass.TOTAL_INCREASING,  "mdi:lightning-bolt"),
+    ("today_energy_wh",    "Heute Energie",       "Wh",  SensorStateClass.TOTAL_INCREASING,  "mdi:solar-power"),
+    ("total_starts",       "Start-Zähler",        None,  SensorStateClass.TOTAL_INCREASING,  "mdi:counter"),
+]
+
+
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up OpenKairo Miner sensors."""
-    if "ip_address" not in config_entry.data: return
+    if "ip_address" not in config_entry.data:
+        await _setup_engine_stats_sensors(hass, config_entry, async_add_entities)
+        return
 
     ip = config_entry.data["ip_address"]
     name = config_entry.title
@@ -318,3 +332,69 @@ class MinerDynamicSensor(CoordinatorEntity, SensorEntity):
     @property
     def available(self) -> bool:
         return self.coordinator.available and "raw_data" in self.coordinator.data
+
+
+async def _setup_engine_stats_sensors(hass, config_entry, async_add_entities):
+    """Register per-miner engine statistics sensors for the main (non-IP) config entry."""
+    config = hass.data.get(DOMAIN, {}).get("config", {})
+    miners = config.get("miners", [])
+    if not miners:
+        _LOGGER.debug("Engine stats sensors: no miners in config yet, skipping")
+        return
+    entities = []
+    for miner in miners:
+        for stat_key, suffix, unit, state_class, icon in ENGINE_STAT_DEFS:
+            entities.append(
+                MinerEngineStatsSensor(hass, miner, stat_key, suffix, unit, state_class, icon)
+            )
+    if entities:
+        async_add_entities(entities, update_before_add=False)
+        _LOGGER.info(f"Registered {len(entities)} engine stats sensors for {len(miners)} miners")
+
+
+class MinerEngineStatsSensor(SensorEntity):
+    """Sensor backed by the engine's per-miner state dict (not coordinator-based)."""
+
+    def __init__(self, hass, miner_cfg: dict, stat_key: str, name_suffix: str,
+                 unit, state_class, icon: str):
+        self._hass = hass
+        self._miner_cfg = miner_cfg
+        self._stat_key = stat_key
+        self._miner_id = str(miner_cfg.get("id", miner_cfg.get("miner_ip", "unknown")))
+        miner_name = miner_cfg.get("name", self._miner_id)
+
+        self._attr_name = f"{miner_name} {name_suffix}"
+        slug = self._miner_id.replace("-", "_").replace(".", "_")[:32]
+        self._attr_unique_id = f"{DOMAIN}_engine_{slug}_{stat_key}"
+        self._attr_native_unit_of_measurement = unit
+        self._attr_state_class = state_class
+        self._attr_icon = icon
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_native_value = None
+        self._attr_should_poll = False
+        self._unsub = None
+
+    async def async_added_to_hass(self):
+        self._unsub = async_track_time_interval(
+            self.hass,
+            self._async_update,
+            timedelta(seconds=ENGINE_LOOP_INTERVAL),
+        )
+        await self._async_update(None)
+
+    async def async_will_remove_from_hass(self):
+        if self._unsub:
+            self._unsub()
+            self._unsub = None
+
+    async def _async_update(self, now):
+        engine = self.hass.data.get(DOMAIN, {}).get("engine")
+        if not engine:
+            return
+        state = engine.miner_states.get(self._miner_id, {})
+        if self._stat_key in ("session_runtime_s", "today_runtime_s"):
+            self._attr_native_value = round(state.get(self._stat_key, 0) / 3600, 2)
+        else:
+            raw = state.get(self._stat_key)
+            self._attr_native_value = raw
+        self.async_write_ha_state()

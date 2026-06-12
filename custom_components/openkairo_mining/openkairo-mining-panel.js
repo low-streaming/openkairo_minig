@@ -827,7 +827,17 @@ class OpenKairoMiningPanel extends LitElement {
       offgrid_max_power: 1400,
       watchdog_type: 'power',
       min_run_time: 5,
-      grid_price_limit: null
+      grid_price_limit: null,
+      max_temp: '',
+      min_off_time: 0,
+      battery_hysteresis: 2,
+      max_runtime: '',
+      min_power: 400,
+      max_power: 1400,
+      scaling_mode: 'steps',
+      scaling_factor: 0.95,
+      power_step_limit: 0,
+      soc_proportional_scaling: false,
     };
   }
 
@@ -2723,6 +2733,19 @@ class OpenKairoMiningPanel extends LitElement {
               <input type="text" .value="${this.config.profile_image || ''}" @change="${(e) => { this.config.profile_image = e.target.value; this.saveConfig(true); }}" placeholder="https://...">
             </div>
           </div>
+
+          <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 20px; display: flex; gap: 20px; flex-wrap: wrap;">
+            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 220px;">
+              <label>Fleet Max Power (Watt)</label>
+              <input type="number" min="0" step="100" .value="${this.config.fleet_max_power || ''}" @change="${(e) => { this.config.fleet_max_power = e.target.value ? parseFloat(e.target.value) : null; this.saveConfig(true); }}" placeholder="z.B. 3000">
+              <small>Maximale Gesamt-Leistung aller Miner. Neue Einschaltvorgänge werden geblockt wenn Budget überschritten.</small>
+            </div>
+            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 220px;">
+              <label>MQTT Prefix (Optional)</label>
+              <input type="text" .value="${this.config.mqtt_prefix || ''}" @change="${(e) => { this.config.mqtt_prefix = e.target.value; this.saveConfig(true); }}" placeholder="z.B. homeassistant/mining">
+              <small>Wenn gesetzt, werden Miner-States auf MQTT publiziert. Benötigt die MQTT-Integration in HA.</small>
+            </div>
+          </div>
         </div>
 
         <h2>🛠 Miner verwalten</h2>
@@ -3270,6 +3293,83 @@ class OpenKairoMiningPanel extends LitElement {
                 </div>
             </div>
             ` : ''}
+        </div>
+
+        <!-- Sicherheit & Grenzen -->
+        <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(231, 76, 60, 0.3); background: rgba(231, 76, 60, 0.03);">
+          <h3 style="color: #e74c3c; margin-top: 0; margin-bottom: 5px;">🌡️ Sicherheit & Grenzen</h3>
+          <p style="color: #bbb; font-size: 0.85em; margin-bottom: 20px;">Schütze deine Hardware vor Überhitzung, Dauerläufen und schnellen Schalt-Zyklen.</p>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Max. Temperatur (°C)</label>
+              <input type="number" name="max_temp" placeholder="z.B. 85" .value="${this.editForm.max_temp || ''}" @input="${this.handleFormInput}">
+              <small>Sofortiger Sicherheitsstopp bei Überschreitung. Leer = deaktiviert.</small>
+            </div>
+            <div class="form-group flex-1">
+              <label>Max. Laufzeit (Stunden)</label>
+              <input type="number" name="max_runtime" placeholder="z.B. 24" .value="${this.editForm.max_runtime || ''}" @input="${this.handleFormInput}">
+              <small>Automatischer Stopp nach X Stunden Session. Leer = deaktiviert.</small>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Mindest-Aus-Zeit (Minuten)</label>
+              <input type="number" name="min_off_time" min="0" step="1" .value="${this.editForm.min_off_time !== undefined ? this.editForm.min_off_time : 0}" @input="${this.handleFormInput}">
+              <small>Verhindert Rapid-Cycling. Mindest-Pause bevor Wiedereinschalten erlaubt ist.</small>
+            </div>
+            <div class="form-group flex-1">
+              <label>Batterie-Hysterese (%)</label>
+              <input type="number" name="battery_hysteresis" min="0" max="20" step="0.5" .value="${this.editForm.battery_hysteresis !== undefined ? this.editForm.battery_hysteresis : 2}" @input="${this.handleFormInput}">
+              <small>SOC-Puffer beim Einschalten (Standard: 2%). Gilt für PV / SOC / Offgrid-Modi.</small>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Min. Leistung (Watt)</label>
+              <input type="number" name="min_power" min="0" step="50" .value="${this.editForm.min_power || 400}" @input="${this.handleFormInput}">
+              <small>Untere Grenze für Skalierung & Soft-Start.</small>
+            </div>
+            <div class="form-group flex-1">
+              <label>Max. Leistung (Watt)</label>
+              <input type="number" name="max_power" min="0" step="50" .value="${this.editForm.max_power || 1400}" @input="${this.handleFormInput}">
+              <small>Obere Grenze für Skalierung & Soft-Start.</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Leistungs-Skalierung -->
+        <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(var(--theme-accent-4-rgb, 0, 255, 136), 0.3); background: rgba(0, 255, 136, 0.02);">
+          <h3 style="color: var(--theme-accent-4); margin-top: 0; margin-bottom: 5px;">⚡ Leistungs-Skalierung (Kontinuierlich)</h3>
+          <p style="color: #bbb; font-size: 0.85em; margin-bottom: 20px;">Nur aktiv wenn "Automatische Nachskalierung" oben aktiviert ist. Steuert wie smooth die Leistung an PV/SOC-Änderungen angepasst wird.</p>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Skalierungs-Modus</label>
+              <select name="scaling_mode" @change="${this.handleFormInput}">
+                <option value="steps" ?selected="${(this.editForm.scaling_mode || 'steps') === 'steps'}">Stufen (Standard)</option>
+                <option value="proportional" ?selected="${this.editForm.scaling_mode === 'proportional'}">Proportional (PV-Tracking)</option>
+              </select>
+              <small>Proportional: Leistung ≈ PV-Wert × Faktor. Stufen: diskrete Abstufungen aus soft_start_steps.</small>
+            </div>
+            <div class="form-group flex-1">
+              <label>Skalierungs-Faktor</label>
+              <input type="number" name="scaling_factor" min="0.1" max="2.0" step="0.01" .value="${this.editForm.scaling_factor !== undefined ? this.editForm.scaling_factor : 0.95}" @input="${this.handleFormInput}">
+              <small>Anteil der PV-Leistung für den Miner (Standard: 0.95 = 95%). Nur im Proportional-Modus.</small>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Max. Änderung pro Tick (Watt)</label>
+              <input type="number" name="power_step_limit" min="0" step="50" .value="${this.editForm.power_step_limit || 0}" @input="${this.handleFormInput}">
+              <small>Rate-Limiting: Begrenzt die Leistungsänderung pro 15s-Zyklus. 0 = unbegrenzt (sofort).</small>
+            </div>
+            <div class="form-group flex-1" style="display: flex; flex-direction: column; justify-content: center; padding-top: 8px;">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 6px;">
+                <input type="checkbox" name="soc_proportional_scaling" .checked="${this.editForm.soc_proportional_scaling || false}" @change="${this.handleFormInput}" style="width: 16px; height: 16px; accent-color: var(--theme-accent-4);">
+                <b>SOC-proportionale Skalierung</b>
+              </label>
+              <small>Im SOC-Modus: Leistung linear zum aktuellen Ladestand skalieren statt Schwellwert-Logik.</small>
+            </div>
+          </div>
         </div>
 
         <div class="form-actions">

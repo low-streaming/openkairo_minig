@@ -119,7 +119,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 task = hass.loop.create_task(engine.async_run())
                 hass.data[DOMAIN]["engine_task"] = task
             hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, _start_engine)
-    
+
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
@@ -132,6 +134,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     if engine_task and not engine_task.done():
         engine_task.cancel()
     async_remove_panel(hass, "openkairo_mining")
+    await hass.config_entries.async_unload_platforms(entry, ["sensor"])
     return True
 
 def _get_config_path(hass):
