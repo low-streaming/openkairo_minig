@@ -738,7 +738,7 @@ class MiningEngine:
             battery_energy_available = max(0, (current_soc - target_soc) / 100 * capacity * 1000)
             mining_energy_available = battery_energy_available - house_energy_needed
             
-            miner_power = float(miner.get("soft_target_power", 1200))
+            miner_power = float(miner.get("soft_target_power") or miner.get("max_power") or 1200)
             if is_on and state.get("power", 0) > 5: miner_power = state["power"]
 
             if mining_energy_available <= 0:
@@ -878,8 +878,9 @@ class MiningEngine:
                             self.add_log_entry(f"⚡ {miner_name} wird eingeschaltet. {state.get('log_reason_on', '')}")
                             await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
                             p_ent = miner.get("power_entity")
-                            if p_ent and miner.get("soft_target_power"):
-                                await self.hass.services.async_call("number", "set_value", {"entity_id": p_ent, "value": float(miner.get("soft_target_power"))})
+                            target_p = miner.get("soft_target_power") or miner.get("max_power")
+                            if p_ent and target_p:
+                                await self.hass.services.async_call("number", "set_value", {"entity_id": p_ent, "value": float(target_p)})
         else: state["on_since"] = None
 
         if turn_off_condition:
@@ -926,7 +927,7 @@ class MiningEngine:
             
             if ramping == "up":
                 steps = [float(s.strip()) for s in str(miner.get("soft_start_steps", "100,500,1000")).split(",")]
-                target = float(miner.get("soft_target_power", 1200))
+                target = float(miner.get("soft_target_power") or miner.get("max_power") or 1200)
                 if state["ramping_step"] < len(steps):
                     val = min(steps[state["ramping_step"]], target)
                     await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val})
@@ -976,7 +977,7 @@ class MiningEngine:
         try:
             current_power = float(power_state.state)
             p_min = float(miner.get("soft_min_power") or miner.get("min_power") or 100)
-            p_max = float(miner.get("soft_target_power", 1200))
+            p_max = float(miner.get("soft_target_power") or miner.get("max_power") or 1200)
             target_power = p_max
             scaling_mode = miner.get("scaling_mode", "steps")
 

@@ -2419,7 +2419,7 @@ class OpenKairoMiningPanel extends LitElement {
                     <div class="slider-container">
                       ${(() => {
                         const min = powerObj.attributes?.min || 0;
-                        const max = ((miner.soft_start_enabled || miner.soft_stop_enabled) && miner.soft_target_power) ? miner.soft_target_power : (powerObj.attributes?.max || 100);
+                        const max = miner.soft_target_power || miner.max_power || powerObj.attributes?.max || 100;
                         const markers = this._getPowerMarkers(miner);
                         return html`
                           <div class="slider-markers">
@@ -2433,7 +2433,7 @@ class OpenKairoMiningPanel extends LitElement {
                       })()}
                       <input type="range" 
                              min="${powerObj.attributes?.min || 0}" 
-                             max="${((miner.soft_start_enabled || miner.soft_stop_enabled) && miner.soft_target_power) ? miner.soft_target_power : (powerObj.attributes?.max || 100)}" 
+                             max="${miner.soft_target_power || miner.max_power || powerObj.attributes?.max || 100}" 
                              step="${powerObj.attributes?.step || 1}" 
                              .value="${powerObj.state}" 
                              ?disabled="${(stateObj && stateObj.hardware_error) || (stateObj && stateObj.ramping)}"
@@ -3089,14 +3089,17 @@ class OpenKairoMiningPanel extends LitElement {
 
                     <div class="form-row">
                         <div class="form-group flex-1">
-                            <label>Start-Abstufungen (Watt)</label>
-                            <input type="text" name="soft_start_steps" placeholder="100, 500, 1000" .value="${this.editForm.soft_start_steps || '100, 500, 1000'}" @input="${this.handleFormInput}">
-                            <small>Kommasepariert, z.B. 100, 500, 1000</small>
+                            <label style="display: flex; align-items: center; justify-content: space-between;">
+                                Start-Abstufungen (Watt)
+                                <button type="button" @click="${() => { const mn = parseFloat(this.editForm.min_power || 400); const mx = parseFloat(this.editForm.max_power || 1400); const s = Array.from({length: 4}, (_, i) => Math.round(mn + (mx - mn) * i / 3)); this.editForm = { ...this.editForm, soft_start_steps: s.join(', '), soft_stop_steps: [...s].reverse().join(', ') }; this.requestUpdate(); }}" style="font-size: 0.75em; padding: 2px 8px; background: rgba(11,196,226,0.15); border: 1px solid rgba(11,196,226,0.4); border-radius: 4px; color: #0bc4e2; cursor: pointer;">⚡ Auto</button>
+                            </label>
+                            <input type="text" name="soft_start_steps" .value="${this.editForm.soft_start_steps || '100, 500, 1000'}" @input="${this.handleFormInput}">
+                            <small>Kommasepariert. "Auto" berechnet 4 gleichmäßige Stufen zwischen Min. und Max. Leistung.</small>
                         </div>
                         <div class="form-group flex-1">
                             <label>Stopp-Abstufungen (Watt)</label>
-                            <input type="text" name="soft_stop_steps" placeholder="1000, 500, 100" .value="${this.editForm.soft_stop_steps || '1000, 500, 100'}" @input="${this.handleFormInput}">
-                            <small>Kommasepariert, z.B. 1000, 500, 100</small>
+                            <input type="text" name="soft_stop_steps" .value="${this.editForm.soft_stop_steps || '1000, 500, 100'}" @input="${this.handleFormInput}">
+                            <small>Umgekehrte Reihenfolge zum Herunterfahren. Wird von "Auto" automatisch befüllt.</small>
                         </div>
                     </div>
                     <div class="form-row">
@@ -3105,10 +3108,9 @@ class OpenKairoMiningPanel extends LitElement {
                             <input type="number" name="soft_interval" min="10" .value="${this.editForm.soft_interval || 60}" @input="${this.handleFormInput}">
                             <small>Wartezeit zwischen den Stufen.</small>
                         </div>
-                        <div class="form-group flex-1">
-                             <label>End-Leistung (Watt)</label>
-                             <input type="number" name="soft_target_power" .value="${this.editForm.soft_target_power || 1200}" @input="${this.handleFormInput}">
-                             <small>Zielwert nach dem Hochfahren.</small>
+                        <div class="form-group flex-1" style="display: flex; align-items: center; background: rgba(11,196,226,0.05); border: 1px dashed rgba(11,196,226,0.2); border-radius: 8px; padding: 12px; gap: 10px;">
+                            <span style="font-size: 1.4em;">ℹ️</span>
+                            <span style="color: #888; font-size: 0.85em; line-height: 1.5;">Die Ziel-Leistung nach dem Hochfahren wird aus <strong style="color: var(--theme-accent-1);">Max. Leistung</strong> übernommen (Sicherheit & Grenzen unten).</span>
                         </div>
                     </div>
                 ` : ''}
@@ -3405,8 +3407,8 @@ class OpenKairoMiningPanel extends LitElement {
 
             <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
                 <label>⚡ Voraussichtlicher Miner-Verbrauch (Watt)</label>
-                <input type="number" name="soft_target_power" .value="${this.editForm.soft_target_power || (this.editForm.name && this.editForm.name.toLowerCase().includes('nerd') ? 2 : 1200)}" @input="${this.handleFormInput}">
-                <small>Wird für die KI-Planung genutzt (wichtig für Geräte wie Nerdminer/Bitaxe).</small>
+                <input type="number" name="soft_target_power" .value="${this.editForm.soft_target_power || this.editForm.max_power || (this.editForm.name && this.editForm.name.toLowerCase().includes('nerd') ? 2 : 1200)}" @input="${this.handleFormInput}">
+                <small>Für die KI-Berechnung (Standard: Max. Leistung aus Sicherheit & Grenzen). Für Nerdminer/Bitaxe manuell anpassen.</small>
             </div>
 
             <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
@@ -3530,10 +3532,11 @@ class OpenKairoMiningPanel extends LitElement {
           </div>
         </div>
 
+        ${this.editForm.soft_continuous_scaling ? html`
         <!-- Leistungs-Skalierung -->
         <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(var(--theme-accent-4-rgb, 0, 255, 136), 0.3); background: rgba(0, 255, 136, 0.02);">
           <h3 style="color: var(--theme-accent-4); margin-top: 0; margin-bottom: 5px;">⚡ Leistungs-Skalierung (Kontinuierlich)</h3>
-          <p style="color: #bbb; font-size: 0.85em; margin-bottom: 20px;">Nur aktiv wenn "Automatische Nachskalierung" oben aktiviert ist. Steuert wie smooth die Leistung an PV/SOC-Änderungen angepasst wird.</p>
+          <p style="color: #bbb; font-size: 0.85em; margin-bottom: 20px;">Steuert wie smooth die Leistung an PV/SOC-Änderungen angepasst wird.</p>
           <div class="form-row">
             <div class="form-group flex-1">
               <label>Skalierungs-Modus</label>
@@ -3541,7 +3544,7 @@ class OpenKairoMiningPanel extends LitElement {
                 <option value="steps" ?selected="${(this.editForm.scaling_mode || 'steps') === 'steps'}">Stufen (Standard)</option>
                 <option value="proportional" ?selected="${this.editForm.scaling_mode === 'proportional'}">Proportional (PV-Tracking)</option>
               </select>
-              <small>Proportional: Leistung ≈ PV-Wert × Faktor. Stufen: diskrete Abstufungen aus soft_start_steps.</small>
+              <small>Proportional: Leistung ≈ PV-Wert × Faktor. Stufen: springt zwischen den konfigurierten Abstufungen.</small>
             </div>
             <div class="form-group flex-1">
               <label>Skalierungs-Faktor</label>
@@ -3564,6 +3567,7 @@ class OpenKairoMiningPanel extends LitElement {
             </div>
           </div>
         </div>
+        ` : ''}
 
         <div class="form-actions">
             <button class="btn-cancel" @click="${this.cancelEdit}">Abbrechen</button>
