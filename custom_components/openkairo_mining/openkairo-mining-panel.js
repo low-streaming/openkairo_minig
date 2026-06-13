@@ -789,7 +789,7 @@ class OpenKairoMiningPanel extends LitElement {
       pv_sensor: '',
       allow_battery: false,
       battery_sensor: '',
-      battery_min_soc: 100,
+      battery_min_soc: 50,
       price_sensor: '',
       image: '',
       hashrate_sensor: '',
@@ -3185,7 +3185,7 @@ class OpenKairoMiningPanel extends LitElement {
                     </div>
                     <div class="form-group flex-1">
                         <label>Minimale Batterieladung (%)</label>
-                        <input type="number" min="0" max="100" name="battery_min_soc" .value="${this.editForm.battery_min_soc || 100}" @input="${this.handleFormInput}">
+                        <input type="number" min="0" max="100" name="battery_min_soc" .value="${this.editForm.battery_min_soc || 50}" @input="${this.handleFormInput}">
                         <small>Miner läuft, solange Batterie ≥ diesem Wert.</small>
                     </div>
                 </div>
@@ -3343,6 +3343,10 @@ class OpenKairoMiningPanel extends LitElement {
             <div class="form-group">
                 <label>Raumtemperatur-Sensor</label>
                 <openkairo-entity-picker name="target_temp_sensor" placeholder="-- Temperatur Sensor suchen --" .value="${this.editForm.target_temp_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                ${this.editForm.target_temp_sensor && this.hass?.states[this.editForm.target_temp_sensor] ? html`
+                <div style="margin-top: 6px; padding: 6px 10px; background: rgba(230,126,34,0.1); border-radius: 6px; font-size: 0.85em; color: #e67e22;">
+                    📍 Aktuell: <strong>${this.hass.states[this.editForm.target_temp_sensor].state} °C</strong>
+                </div>` : ''}
             </div>
 
             <div class="form-row">
@@ -3370,7 +3374,7 @@ class OpenKairoMiningPanel extends LitElement {
                     </div>
                     <div class="form-group flex-1">
                         <label>Minimale Batterieladung (%)</label>
-                        <input type="number" min="0" max="100" name="battery_min_soc" .value="${this.editForm.battery_min_soc || 100}" @input="${this.handleFormInput}">
+                        <input type="number" min="0" max="100" name="battery_min_soc" .value="${this.editForm.battery_min_soc || 50}" @input="${this.handleFormInput}">
                         <small>Nur heizen bei SOC ≥ X%.</small>
                     </div>
                 </div>
@@ -3406,11 +3410,15 @@ class OpenKairoMiningPanel extends LitElement {
                 <div class="form-group flex-2">
                     <label>Hausakku SOC-Sensor (%)</label>
                     <openkairo-entity-picker name="battery_sensor" placeholder="-- Batterie % Sensor --" .value="${this.editForm.battery_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                    ${this.editForm.battery_sensor && this.hass?.states[this.editForm.battery_sensor] ? html`
+                    <div style="margin-top: 6px; padding: 6px 10px; background: rgba(155,89,182,0.1); border-radius: 6px; font-size: 0.85em; color: #9b59b6;">
+                        🔋 Aktuell: <strong>${this.hass.states[this.editForm.battery_sensor].state} %</strong>
+                    </div>` : ''}
                 </div>
                 <div class="form-group flex-1">
                     <label>Akku Kapazität (kWh)</label>
                     <input type="number" step="0.1" name="battery_capacity" .value="${this.editForm.battery_capacity || 10}" @input="${this.handleFormInput}">
-                    <small>Usable Capacity.</small>
+                    <small>Nutzbare Kapazität des Akkus.</small>
                 </div>
             </div>
 
@@ -3423,8 +3431,8 @@ class OpenKairoMiningPanel extends LitElement {
             <div class="form-row">
                 <div class="form-group flex-1">
                     <label>Ziel-Uhrzeit (Morgens)</label>
-                    <input type="text" name="target_time" placeholder="07:30" .value="${this.editForm.target_time || '07:00'}" @input="${this.handleFormInput}">
-                    <small>Format HH:MM</small>
+                    <input type="time" name="target_time" .value="${this.editForm.target_time || '07:00'}" @input="${this.handleFormInput}">
+                    <small>Wann soll der Akku den Ziel-SOC erreicht haben?</small>
                 </div>
                 <div class="form-group flex-1">
                     <label>Ziel-SOC am Morgen (%)</label>
