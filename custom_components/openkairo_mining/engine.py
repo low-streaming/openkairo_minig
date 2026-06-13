@@ -958,10 +958,14 @@ class MiningEngine:
                     state["ramping"] = None
 
     async def _handle_continuous_scaling(self, miner, state, is_on, mode, current_time):
-        if not miner.get("soft_continuous_scaling") or not is_on or state.get("ramping"):
+        power_entity = miner.get("power_entity")
+        # PV mode always tracks surplus if a power_entity is configured — no opt-in needed
+        pv_auto = (mode == "pv" and bool(power_entity))
+        if not pv_auto and not miner.get("soft_continuous_scaling"):
+            return
+        if not is_on or state.get("ramping"):
             return
 
-        power_entity = miner.get("power_entity")
         if not power_entity:
             return
 
@@ -979,7 +983,8 @@ class MiningEngine:
             p_min = float(miner.get("soft_min_power") or miner.get("min_power") or 100)
             p_max = float(miner.get("soft_target_power") or miner.get("max_power") or 1200)
             target_power = p_max
-            scaling_mode = miner.get("scaling_mode", "steps")
+            # PV mode defaults to proportional — tracks surplus smoothly without step config
+            scaling_mode = miner.get("scaling_mode", "proportional" if mode == "pv" else "steps")
 
             if mode == "pv":
                 pv_sensor = miner.get("pv_sensor")

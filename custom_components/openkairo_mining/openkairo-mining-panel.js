@@ -3075,15 +3075,16 @@ class OpenKairoMiningPanel extends LitElement {
                     </div>
                 </div>
 
+                ${this.editForm.mode !== 'pv' ? html`
                 <div class="form-row" style="margin-top: -10px; margin-bottom: 20px;">
                     <div class="form-group flex-1">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;" title="Versucht die Leistung auch nach manueller Änderung automatisch wieder an den PV Überschuss oder Zielwert anzupassen.">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;" title="Versucht die Leistung auch nach manueller Änderung automatisch wieder an den Zielwert anzupassen.">
                             <input type="checkbox" name="soft_continuous_scaling" .checked="${this.editForm.soft_continuous_scaling}" @change="${this.handleFormInput}" style="width: 16px; height: 16px; margin: 0; accent-color: #0bc4e2;">
-                            <b>Automatische Nachskalierung (Kontinuierlich)</b>
+                            <b>Automatische Nachskalierung (SOC/Heizung)</b>
                         </label>
                     </div>
                 </div>
-
+                ` : ''}
 
                 ${this.editForm.soft_start_enabled || this.editForm.soft_stop_enabled || this.editForm.soft_continuous_scaling ? html`
 
@@ -3220,6 +3221,33 @@ class OpenKairoMiningPanel extends LitElement {
                 </div>
                 <small style="color: #888;">Ermöglicht Mining bei günstigen Netzpreisen, auch ohne PV-Überschuss.</small>
             </div>
+
+            <!-- Live-Tracking Block -->
+            ${this.editForm.power_entity ? html`
+            <div style="margin-top: 15px; padding: 14px; background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.25); border-radius: 8px;">
+                <div style="color: #00ff88; font-weight: bold; margin-bottom: 6px;">⚡ Leistungs-Tracking aktiv</div>
+                <p style="font-size: 0.85em; color: #bbb; margin: 0 0 12px 0;">Leistung wird automatisch dem PV-Überschuss nachgeführt. Kein weiteres Einrichten nötig.</p>
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label>Skalierungs-Faktor</label>
+                        <input type="number" name="scaling_factor" min="0.1" max="1.0" step="0.01" .value="${this.editForm.scaling_factor !== undefined ? this.editForm.scaling_factor : 0.95}" @input="${this.handleFormInput}">
+                        <small>Anteil des Überschusses für den Miner (Standard: 0.95 = 95%)</small>
+                    </div>
+                    <div class="form-group flex-1">
+                        <label>Skalierungs-Modus</label>
+                        <select name="scaling_mode" @change="${this.handleFormInput}">
+                            <option value="proportional" ?selected="${(this.editForm.scaling_mode || 'proportional') === 'proportional'}">Proportional (empfohlen)</option>
+                            <option value="steps" ?selected="${this.editForm.scaling_mode === 'steps'}">Stufen</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            ` : html`
+            <div style="margin-top: 15px; padding: 12px; background: rgba(255,152,0,0.05); border: 1px dashed rgba(255,152,0,0.3); border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 1.3em;">⚠️</span>
+                <span style="font-size: 0.85em; color: #bbb;">Für Live-Tracking (Leistung folgt dem Überschuss): unter <strong style="color: #ff9800;">Sensoren &amp; Steuerung</strong> einen <strong>Power-Limit Sensor</strong> auswählen.</span>
+            </div>
+            `}
           </div>
         ` : ''}
 
