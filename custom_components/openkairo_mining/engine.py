@@ -415,7 +415,7 @@ class MiningEngine:
             p_state = self.hass.states.get(standby_plug)
             if p_state and p_state.state == "off": plug_on = False
 
-        is_on = all(self.hass.states.get(s).state == "on" if self.hass.states.get(s) else False for s in switches)
+        is_on = bool(switches) and all(self.hass.states.get(s).state == "on" if self.hass.states.get(s) else False for s in switches)
         if not plug_on: is_on = False
         
         # Power detection fallback
@@ -437,36 +437,77 @@ class MiningEngine:
             state["standby_since"] = None
             return
 
+        if not is_on:
+            state["standby_since"] = None
+            return
+
         watchdog_type = miner.get("watchdog_type", "power")
         target_entity = miner.get("power_entity") if watchdog_type == "limit" else miner.get("power_consumption_sensor")
-        standby_switches = [s for s in [miner.get("standby_switch"), miner.get("standby_switch_2")] if s]
-        
-        if target_entity and standby_switches:
-            target_state = self.hass.states.get(target_entity)
-            any_on = any(self.hass.states.get(s).state == "on" if self.hass.states.get(s) else False for s in standby_switches)
-            
-            if target_state and target_state.state not in ["unknown", "unavailable"] and any_on:
-                try:
-                    current_value = float(target_state.state)
-                    standby_threshold = float(miner.get("standby_power", 100))
-                    standby_delay_secs = float(miner.get("standby_delay", 10)) * 60
-                    
-                    if current_value < standby_threshold and is_on:
-                        if state.get("standby_since") is None:
-                            state["standby_since"] = current_time
-                            self.add_log_entry(f"🛡️ {miner.get('name')}: Watchdog Countdown gestartet: {current_value}W < {standby_threshold}W")
-                        elif current_time - state["standby_since"] >= standby_delay_secs:
-                            msg = f"Watchdog an {miner.get('name')} ausgelöst! Wert {current_value} zu niedrig. Schalte Steckdose AUS."
-                            self.add_log_entry(f"🛡️ {msg}")
-                            await self.hass.services.async_call("switch", "turn_off", {"entity_id": standby_switches})
-                            state["standby_since"] = None
-                    else:
-                        state["standby_since"] = None
-                except Exception as e:
-                    _LOGGER.debug(f"[{miner.get('name')}] Watchdog value parse error: {e}")
+
+        if not target_entity:
+            state["standby_since"] = None
+            return
+
+        target_state = self.hass.states.get(target_entity)
+        if not target_state or target_state.state in ["unknown", "unavailable"]:
+            state["standby_since"] = None
+            return
+
+        try:
+            current_value = float(target_state.state)
+            standby_threshold = float(miner.get("standby_power", 100))
+            standby_delay_secs = float(miner.get("standby_delay", 10)) * 60
+
+            if current_value < standby_threshold:
+                if state.get("standby_since") is None:
+                    state["standby_since"] = current_time
+                    self.add_log_entry(
+                        f"🛡️ {miner.get('name')}: Watchdog Countdown gestartet "
+                        f"({current_value:.0f}W < {standby_threshold:.0f}W)"
+                    )
+                elif current_time - state["standby_since"] >= standby_delay_secs:
+                    self.add_log_entry(
+                        f"🛡️ {miner.get('name')}: Watchdog ausgelöst! "
+                        f"{current_value:.0f}W < {standby_threshold:.0f}W"
+                    )
+                    await self._execute_watchdog_action(miner, state)
                     state["standby_since"] = None
             else:
                 state["standby_since"] = None
+        except Exception as e:
+            _LOGGER.debug(f"[{miner.get('name')}] Watchdog value parse error: {e}")
+            state["standby_since"] = None
+
+    async def _execute_watchdog_action(self, miner, state):
+        """Execute the configured watchdog action (reboot / restart_backend / toggle)."""
+        miner_name = miner.get("name", "Miner")
+        miner_ip = miner.get("miner_ip")
+        action = miner.get("watchdog_action", "toggle")
+
+        # Prefer dedicated standby switches; fall back to the main miner switch(es)
+        target_switches = [s for s in [miner.get("standby_switch"), miner.get("standby_switch_2")] if s]
+        if not target_switches:
+            target_switches = state.get("switches", [])
+
+        if action == "reboot" and miner_ip:
+            try:
+                await self.hass.services.async_call(DOMAIN, "reboot", {"ip_address": miner_ip})
+                self.add_log_entry(f"🔄 {miner_name}: Watchdog → Hardware-Reboot gestartet.")
+            except Exception as e:
+                _LOGGER.error(f"[{miner_name}] Watchdog reboot failed: {e}")
+        elif action == "restart_backend" and miner_ip:
+            try:
+                await self.hass.services.async_call(DOMAIN, "restart_backend", {"ip_address": miner_ip})
+                self.add_log_entry(f"🔄 {miner_name}: Watchdog → Backend-Neustart gestartet.")
+            except Exception as e:
+                _LOGGER.error(f"[{miner_name}] Watchdog restart_backend failed: {e}")
+        else:
+            # Default: toggle the switch (turn off, then back on after a short delay)
+            if target_switches:
+                await self.hass.services.async_call("switch", "turn_off", {"entity_id": target_switches})
+                await asyncio.sleep(5)
+                await self.hass.services.async_call("switch", "turn_on", {"entity_id": target_switches})
+                self.add_log_entry(f"🔄 {miner_name}: Watchdog → Schalter Toggle ausgeführt.")
 
     async def _process_pv_mode(self, miner, state, is_on, global_pv_surplus):
         pv_sensor = miner.get("pv_sensor")
