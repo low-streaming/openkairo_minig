@@ -1,74 +1,263 @@
-# OpenKairo Mining 🚀 — Das Ultimative "Command Center" v1.3.21
+# OpenKairo Mining ⛏️ — Home Assistant Integration
 
-[![OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
+[![Version](https://img.shields.io/badge/Version-1.4.0-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg?style=for-the-badge)](https://home-assistant.io)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://hacs.xyz)
+[![Powered by OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
 
-Verwandle deinen Home Assistant in eine professionelle **Mining-Schaltzentrale**. Mit **OpenKairo Mining** steuerst du deine ASICs intelligent basierend auf PV-Überschuss, Raumtemperatur, Batteriestatus und Bitcoin-Netzwerkdaten.
-
----
-
-## 💎 Highlights der v1.3.21 - "The Intelligence Update"
-
-Dieses Update bringt smarte Logik und maximale Kontrolle in dein Setup.
-
-### 🤖 AI Akku-Optimierer & SOC-Intelligenz
-Nutze künstliche Intelligenz, um dein Mining nachts perfekt auf deinen Hausverbrauch und die Solar-Prognose abzustimmen. Mit der neuen **3-Punkt SOC-Kurve** hast du volle Kontrolle über das Leistungs-Skalierung deiner Hardware in Offgrid-Systemen.
-
-### 🔥 Heiz-Modus (Mining as a Heater)
-Nutze deinen Miner als intelligente Heizung. Schalte deine Hardware basierend auf der Raumtemperatur und schone gleichzeitig deine Batterie durch den optionalen **SOC-Wächter**. Miner schalten nur dann für Wärme ein, wenn auch genug Strom im Akku vorhanden ist.
-
-### 📱 Optimiert für die Hosentasche
-Das gesamte Dashboard wurde für die mobile Nutzung überarbeitet. 
-- **Flüssiger Ticker**: Bitcoin-Fees und Markt-Daten immer im Blick.
-- **Kompakte Karten**: Alle wichtigen Stats auf einem Screen.
-- **Globaler Forecast**: Die Wetterprognose kann jetzt in jedem Modus konfiguriert und angezeigt werden.
-- **Beta-Labels**: Volle Transparenz über den Status neuer Features.
-
-### ⚡ Native Hardware-Anbindung (pyasic)
-- **Plug & Play**: Miner per IP hinzufügen – fertig.
-- **Echtzeit-Steuerung**: Power-Limits (Watt), Reboots und Modus-Wechsel direkt aus dem Interface.
-- **Breiter Support**: Antminer (S9, S19, S21), Whatsminer, Avalon, Bitaxe, IceRiver und NerdMiner.
+Verwandle deinen Home Assistant in eine professionelle **Mining-Schaltzentrale**. OpenKairo Mining steuert deine ASICs vollautomatisch — basierend auf PV-Überschuss, Raumtemperatur, Batteriestatus und Bitcoin-Netzwerkdaten.
 
 ---
 
-## 🗺️ Roadmap (Was als nächstes kommt)
+## 🧭 Welchen Modus brauche ich?
 
-Wir entwickeln OpenKairo ständig weiter. Hier ist ein Ausblick auf die kommenden Features:
-
-- [ ] **Miner-Gruppen**: Steuerung mehrerer Miner als logische Einheit (z.B. "Ganze Etage einschalten").
-- [ ] **Advanced MQTT Bridge**: Erweiterte Datenpunkte für externe Automatisierungen und Dashboards.
-- [ ] **History & Analytics**: Langzeit-Aufzeichnung der Mining-Erträge und Stromeffizienz direkt in der Integration.
-- [ ] **ESP32 Wallpanel v2**: Volle Unterstützung für die neue PlatformIO-Firmware für Wand-Displays.
-- [ ] **Auto-Tuning Finder**: Unterstützung für Firmware-spezifische Profile zur Effizienz-Maximierung.
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│                    OpenKairo Mining — Modi                          │
+├──────────────────┬──────────────────────────────────────────────────┤
+│  ☀️  PV-Überschuss │ Miner läuft wenn genug Solar-Überschuss da ist. │
+│                  │ Leistung folgt automatisch dem Ertrag (Live-     │
+│                  │ Tracking). Ideal für Balkonkraftwerk & Dach-PV.  │
+├──────────────────┼──────────────────────────────────────────────────┤
+│  🔋  SOC          │ Miner läuft wenn Hausakku genug geladen ist.     │
+│                  │ Entlädt den Akku kontrolliert auf Zielwert.      │
+├──────────────────┼──────────────────────────────────────────────────┤
+│  🔥  Heizung      │ Miner als Raumheizung. Schaltet bei Kälte ein,  │
+│                  │ bei Wunschtemperatur wieder aus.                  │
+├──────────────────┼──────────────────────────────────────────────────┤
+│  🏝️  Offgrid      │ Dreistufige SOC-Kurve für Inselanlagen.          │
+│                  │ Volle Kontrolle über Lade- und Entladeschwellen. │
+├──────────────────┼──────────────────────────────────────────────────┤
+│  🤖  AI Entladen  │ KI berechnet wann der Miner nachts starten muss, │
+│                  │ damit der Akku morgens den Ziel-SOC erreicht.    │
+├──────────────────┼──────────────────────────────────────────────────┤
+│  🖐️  Manuell      │ Ein/Aus per Hand oder HA-Automatisierung.        │
+└──────────────────┴──────────────────────────────────────────────────┘
+```
 
 ---
 
-## 🛠️ Installation & Einrichtung
+## 🚀 Schnellstart
 
 ### 1. Installation via HACS
-1. In Home Assistant: **HACS** > **Integrationen** > drei Punkte > **Benutzerdefinierte Repositories**.
-2. URL: `https://github.com/openkairo/openKairo_Mining` > Kategorie: **Integration** hinzufügen.
-3. Herunterladen und Home Assistant **neu starten**.
 
-### 2. Dashboard & Miner einrichten
-1. Gehe zu **Geräte & Dienste** -> **Integration hinzufügen** -> "OpenKairo Mining".
-2. Erstelle zuerst das **Dashboard (Zentrale)**.
-3. **Miner hinzufügen**: Wähle erneut "Integration hinzufügen" -> "OpenKairo Mining" und gib die **IP-Adresse** deines Miners ein.
+1. **HACS** → **Integrationen** → drei Punkte → **Benutzerdefinierte Repositories**
+2. URL: `https://github.com/openkairo/openKairo_Mining` | Kategorie: **Integration**
+3. Herunterladen → Home Assistant **neu starten**
+
+### 2. Zentrale einrichten
+
+1. **Einstellungen** → **Geräte & Dienste** → **Integration hinzufügen** → *OpenKairo Mining*
+2. Wähle **"Dashboard (Zentrale) einrichten"**
+
+### 3. Miner hinzufügen
+
+1. Erneut **Integration hinzufügen** → *OpenKairo Mining*
+2. IP-Adresse des Miners eingeben
+3. Miner erscheint automatisch im Dashboard
+
+---
+
+## 📖 Modus-Anleitungen
+
+### ☀️ PV-Überschuss (wenige Klicks)
+
+Der einfachste Weg Solar-Überschuss zu nutzen.
+
+**Minimale Einrichtung:**
+
+1. Miner bearbeiten → Modus: **PV-Überschuss**
+2. **PV-Sensor** wählen (z.B. `sensor.pv_erzeugung_watt`)
+3. **Einschalten ab** und **Ausschalten unter** Watt setzen (z.B. 800W / 400W)
+4. Speichern — fertig
+
+**Für Leistungs-Tracking** (Miner Watt folgt dem Überschuss):
+
+- Zusätzlich **Power-Limit Sensor** unter *Sensoren & Steuerung* setzen
+- → Grüner Block "⚡ Leistungs-Tracking aktiv" erscheint im Formular
+- Kein weiteres Einrichten nötig — der Miner skaliert automatisch
+
+**Optionen:**
+
+- 🔋 **Batterie-Unterstützung**: Miner läuft auch bei Wolken weiter, solange Akku ≥ Min-SOC
+- 🏷️ **Günstiger Netzpreis** (Tibber/Awattar): Mining erlauben wenn Strom günstig ist
+
+---
+
+### 🔋 SOC-Modus
+
+Miner läuft wenn die Hausbatterie ausreichend geladen ist.
+
+**Einrichtung:**
+
+1. Modus: **Batterie SOC**
+2. **Batterie-Sensor** wählen (z.B. `sensor.zendure_soc`)
+3. **Einschalten ab** (z.B. 80%) und **Ausschalten unter** (z.B. 30%) setzen
+
+**Optionale Leistungsskalierung:**
+
+- *Automatische Nachskalierung (SOC/Heizung)* aktivieren
+- Leistung skaliert dann proportional zum SOC
+
+---
+
+### 🔥 Heizmodus
+
+Den Miner als Raumheizung betreiben.
+
+**Einrichtung:**
+
+1. Modus: **Heiz-Modus**
+2. **Raumtemperatur-Sensor** wählen → aktueller Wert wird sofort angezeigt
+3. **Einschalten unterhalb** (z.B. 20°C) und **Ausschalten oberhalb** (z.B. 22°C) setzen
+
+**Empfehlung Hysterese:** Mindestens 1–2°C zwischen Ein- und Ausschaltschwelle um häufiges Schalten zu vermeiden.
+
+**Mit Batterie-Schutz:**
+
+- 🔋 *Batterie-Unterstützung erlauben* aktivieren
+- Batterie-Sensor wählen + Mindest-SOC setzen (Standard: 50%)
+- → Miner heizt nur wenn Akku noch ausreichend geladen ist
+
+---
+
+### 🤖 AI Akku-Optimierer
+
+Die KI berechnet wie lange der Miner nachts laufen kann, damit der Akku morgens früh genau den Zielwert erreicht.
+
+**Einrichtung:**
+
+1. Modus: **AI Akku-Optimierer**
+2. **Hausakku SOC-Sensor** wählen → aktueller SOC wird sofort angezeigt
+3. **Akku-Kapazität** in kWh eintragen (z.B. 10)
+4. **Hausverbrauch-Sensor** wählen (der Sensor der den Nachtverbrauch des Hauses zeigt)
+5. **Ziel-Uhrzeit** setzen (z.B. 07:00) — bis wann soll der Akku den Zielwert erreicht haben?
+6. **Ziel-SOC** setzen (z.B. 10%) — wie viel soll morgens früh noch im Akku sein?
+
+**Optionale Wetter-Optimierung:**
+
+- Bei vorhergesagter Sonne: Akku darf tiefer entladen werden
+- PV-Anlagengröße (kWp) eintragen
+- Standort wird automatisch aus HA übernommen (oder manuell Lat/Lon eingeben)
+
+---
+
+### 🛡️ Sicherheit & Grenzen (gilt für alle Modi)
+
+| Feld | Funktion |
+| --- | --- |
+| **Min. Leistung (W)** | Untere Grenze — Miner geht nie darunter |
+| **Max. Leistung (W)** | Obere Grenze — wird auch für Soft-Start und Leistungstracking genutzt |
+| **Max. Temperatur (°C)** | Notabschaltung wenn Miner-Sensor diesen Wert überschreitet |
+| **Max. Laufzeit (Std)** | Automatische Pause nach X Stunden Dauerbetrieb |
+| **Min. Pause (Min)** | Pflichtpause nach Abschaltung (schont Hardware) |
+
+---
+
+### 🚀 Soft-Start / Soft-Stop
+
+Schont Netzteile durch mehrstufiges Hoch- und Runterfahren.
+
+**Einrichtung:**
+
+1. *Soft-Start aktivieren* und/oder *Soft-Stop aktivieren*
+2. **⚡ Auto** drücken → Start- und Stopp-Abstufungen werden automatisch aus Min./Max. Leistung berechnet
+3. **Intervall** setzen (z.B. 60 Sekunden pro Stufe)
+
+---
+
+### 🛡️ Standby-Watchdog
+
+Erkennt wenn ein Miner eingefroren ist (z.B. Hashrate = 0 aber Stromverbrauch > 0) und greift automatisch ein.
+
+**Einrichtung:**
+
+1. *Watchdog aktivieren*
+2. **Überwachter Sensor** wählen:
+   - *Verbrauch* → überwacht den Stromverbrauch-Sensor
+   - *Power-Limit* → überwacht den Power-Limit Sensor
+3. **Standby-Grenzwert** setzen (z.B. 100W — darunter gilt Miner als hängend)
+4. **Wartezeit** setzen (z.B. 10 Minuten — erst dann wird die Aktion ausgelöst)
+5. **Aktion** wählen:
+   - `toggle` — Steckdose aus/an (Standard)
+   - `reboot` — Hardware-Reboot per API
+   - `restart_backend` — Nur Mining-Software neu starten
+
+---
+
+## 📊 HA-Sensoren
+
+Pro Miner werden automatisch **5 Sensor-Entitäten** in Home Assistant angelegt:
+
+| Entität | Beschreibung |
+| --- | --- |
+| `sensor.*_session_runtime` | Laufzeit der aktuellen Session |
+| `sensor.*_today_runtime` | Gesamtlaufzeit heute |
+| `sensor.*_session_energy` | Energieverbrauch diese Session (Wh) |
+| `sensor.*_today_energy` | Energieverbrauch heute (Wh) |
+| `sensor.*_total_starts` | Gesamte Einschaltvorgänge |
+
+Diese Sensoren können in HA-Dashboards, Automationen und Energie-Tracking genutzt werden.
+
+---
+
+## 🌐 Fleet-Management (Mehrere Miner)
+
+Bei mehreren Minern kann ein **globales Power-Budget** gesetzt werden:
+
+1. **Einstellungen** im Dashboard → `Fleet Max Power (W)` setzen
+2. Jeden Miner mit einer **Priorität** versehen (1 = höchste Priorität)
+3. → Der Engine verteilt die Leistung automatisch. Miner mit niedriger Priorität werden zuerst gedrosselt wenn das Budget überschritten wird.
+
+---
+
+## 📡 MQTT (Optional)
+
+Status-Daten an einen MQTT-Broker senden:
+
+1. **Einstellungen** → `MQTT Prefix` setzen (z.B. `openkairo/mining`)
+2. Daten werden automatisch unter `{prefix}/{miner_name}/...` veröffentlicht
+
+---
+
+## 🔧 Unterstützte Hardware
+
+| Hersteller | Modelle |
+| --- | --- |
+| **Bitmain Antminer** | S9, S19, S19j Pro, S21, S21 Pro |
+| **Bitmain Whatsminer** | M30S, M50, M60 |
+| **Canaan Avalon** | A1246, A1366 |
+| **Bitaxe** | Ultra, Gamma, Supra (alle ESP32-basierten) |
+| **FutureBit** | Apollo BTC |
+| **IceRiver** | KS0, KS1, KS3 |
+| **NerdMiner** | v1, v2 |
 
 ---
 
 ## 🚨 Sicherheitshinweis
+
 > [!WARNING]
-> Der Betrieb von ASIC-Minern als Heizung erfordert eine stabile thermische Umgebung. Stelle sicher, dass die Abwärme sicher abgeführt wird und die Brandmeldung in den betroffenen Räumen aktiv ist.
+> Der Betrieb von ASIC-Minern als Heizung erfordert eine stabile thermische Umgebung. Stelle sicher, dass die Abwärme sicher abgeführt wird und Brandmelder in den betroffenen Räumen aktiv und gewartet sind.
 
 ---
 
 ## ☕ Projekt unterstützen
-OpenKairo ist ein leidenschaftliches Community-Projekt. Wenn dir das Dashboard gefällt, freuen wir uns über deine Unterstützung!
+
+OpenKairo ist ein Community-Projekt. Wenn dir die Integration hilft, freuen wir uns über deine Unterstützung:
 
 - **PayPal**: [info@low-streaming.de](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=info@low-streaming.de&currency_code=EUR&source=url)
 - **Bitcoin**: `37KAus3ABc6krJ5T4jZyLKVB3uzbfQZGWD`
 
 ---
-**Powered by OpenKairo** | [openkairo.de](https://openkairo.de)
+
+## 🗺️ Roadmap
+
+- [ ] **Miner-Gruppen** — Mehrere Miner als logische Einheit steuern
+- [ ] **Advanced MQTT Bridge** — Erweiterte Datenpunkte für externe Dashboards
+- [ ] **History & Analytics** — Langzeit-Aufzeichnung der Mining-Erträge
+- [ ] **ESP32 Wallpanel v2** — Neue PlatformIO-Firmware für Wand-Displays
+- [ ] **Auto-Tuning Finder** — Firmware-spezifische Effizienz-Profile
+
+---
+
+**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.0
