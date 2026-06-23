@@ -1,6 +1,6 @@
 # OpenKairo Mining ⛏️ — Home Assistant Integration
 
-[![Version](https://img.shields.io/badge/Version-1.4.0-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
+[![Version](https://img.shields.io/badge/Version-1.4.1-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg?style=for-the-badge)](https://home-assistant.io)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://hacs.xyz)
 [![Powered by OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
@@ -164,6 +164,8 @@ Schont Netzteile durch mehrstufiges Hoch- und Runterfahren.
 2. **⚡ Auto** drücken → Start- und Stopp-Abstufungen werden automatisch aus Min./Max. Leistung berechnet
 3. **Intervall** setzen (z.B. 60 Sekunden pro Stufe)
 
+> **Hinweis für BraiinsOS-Nutzer:** Stufenwerte werden automatisch an den erlaubten Hardware-Bereich der Firmware angepasst. Liegt eine Stufe unterhalb des BraiinsOS-Minimums, wird sie auf das Minimum angehoben und im HA-Log gewarnt.
+
 ---
 
 ### 🛡️ Standby-Watchdog
@@ -201,6 +203,23 @@ Diese Sensoren können in HA-Dashboards, Automationen und Energie-Tracking genut
 
 ---
 
+## 🪵 Logs & Debugging
+
+Jede Engine-Entscheidung wird protokolliert und ist im **Logs-Tab** des Dashboards sichtbar.
+
+Log-Einträge enthalten immer den Grund:
+
+```text
+[14:22:01] ⚡ Antminer S19: Soft-Start gestartet. (SOC 78% >= 70%)
+[14:28:44] 🎢 Antminer S19: Soft-Start abgeschlossen.
+[18:05:11] 💤 Antminer S19 wird ausgeschaltet. (SOC 29% <= 30%)
+[18:05:12] 🎢 Antminer S19: Soft-Stop gestartet. (SOC 29% <= 30%)
+```
+
+Die Miner-Karte zeigt zusätzlich eine **"Letzte Entscheidung"** Zeile direkt unter den Status-Badges — z.B. `(PV 950W >= 800W)` — ohne dass man in den Log-Tab wechseln muss.
+
+---
+
 ## 🌐 Fleet-Management (Mehrere Miner)
 
 Bei mehreren Minern kann ein **globales Power-Budget** gesetzt werden:
@@ -234,6 +253,30 @@ Status-Daten an einen MQTT-Broker senden:
 
 ---
 
+## 📋 Changelog
+
+### v1.4.1 — Community Bugfix Release
+
+- Soft-Start blieb dauerhaft in Stufe 1 stecken — behoben (`#13`)
+- BraiinsOS: `power_target out of range` Fehler — Hardware-Min/Max wird jetzt automatisch aus HA Entity gelesen (`#14`)
+- iPad: Sensor-Picker Dropdown öffnete hinter anderen Elementen — behoben (`#10`)
+- Panel wurde nach Tablet-Idle leer — `connectedCallback` behebt das (`#2`)
+- Solar-Vorhersage Anzeige fehlte bei älteren Miner-Configs — behoben (`#11`)
+- Logging: Soft-Start/Stop zeigt jetzt den Entscheidungsgrund. Miner-Karte zeigt "Letzte Entscheidung" direkt (`#9`)
+
+### v1.4.0 — Stability & Zero-Click Automation
+
+- Kritische Engine-Bugfixes (Empty-Switch Bug, Watchdog-Aktion nie ausgeführt)
+- PV Live-Tracking ohne Opt-In
+- Soft-Start Auto-Button, Live-Sensor-Werte im Formular
+- 5 neue HA-Sensoren pro Miner
+
+### v1.3.21 — The Intelligence Update
+
+- AI Akku-Optimierer, Heizmodus, Mobile Dashboard, Wetter-Integration
+
+---
+
 ## 🚨 Sicherheitshinweis
 
 > [!WARNING]
@@ -260,4 +303,4 @@ OpenKairo ist ein Community-Projekt. Wenn dir die Integration hilft, freuen wir 
 
 ---
 
-**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.0
+**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.1
