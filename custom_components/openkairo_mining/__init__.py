@@ -232,6 +232,9 @@ class OpenKairoMiningApiView(HomeAssistantView):
             clean_s["session_energy_wh"] = round(s.get("session_energy_wh", 0.0), 1)
             clean_s["today_energy_wh"] = round(s.get("today_energy_wh", 0.0), 1)
             clean_s["total_starts"] = s.get("total_starts", 0)
+            # Decision reasons — shown in miner card as "Letzte Entscheidung"
+            clean_s["log_reason_on"] = s.get("log_reason_on", "")
+            clean_s["log_reason_off"] = s.get("log_reason_off", "")
             clean_states[mid] = clean_s
         mempool = engine.mempool_data if engine else {}
         btc_price = engine.btc_price if engine else 0

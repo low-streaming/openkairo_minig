@@ -872,13 +872,13 @@ class MiningEngine:
                         if miner.get("soft_start_enabled") and miner.get("power_entity"):
                             state["total_starts"] = state.get("total_starts", 0) + 1
                             state["ramping"] = "up"; state["ramping_step"] = 0; state["ramping_last_time"] = 0
-                            self.add_log_entry(f"🎢 {miner_name}: Soft-Start gestartet.")
+                            self.add_log_entry(f"🎢 {miner_name}: Soft-Start gestartet. {state.get('log_reason_on', '')}")
                         else:
                             state["total_starts"] = state.get("total_starts", 0) + 1
                             self.add_log_entry(f"⚡ {miner_name} wird eingeschaltet. {state.get('log_reason_on', '')}")
                             await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
                             p_ent = miner.get("power_entity")
-                            target_p = miner.get("soft_target_power") or miner.get("max_power")
+                            target_p = miner.get("max_power")
                             if p_ent and target_p:
                                 await self.hass.services.async_call("number", "set_value", {"entity_id": p_ent, "value": float(target_p)})
         else: state["on_since"] = None
@@ -896,7 +896,7 @@ class MiningEngine:
                     if is_on and state.get("ramping") != "down":
                         if miner.get("soft_stop_enabled") and miner.get("power_entity"):
                             state["ramping"] = "down"; state["ramping_step"] = 0; state["ramping_last_time"] = 0
-                            self.add_log_entry(f"🎢 {miner_name}: Soft-Stop gestartet.")
+                            self.add_log_entry(f"🎢 {miner_name}: Soft-Stop gestartet. {state.get('log_reason_off', '')}")
                         else:
                             self.add_log_entry(f"💤 {miner_name} wird ausgeschaltet. {state.get('log_reason_off', '')}")
                             if coord and coord.miner_obj:
@@ -914,35 +914,80 @@ class MiningEngine:
         # Ramping Execution
         await self._handle_ramping(miner, state, is_on, coord, current_time)
 
+    def _clamp_to_entity_range(self, power_entity: str, value: float) -> float:
+        """Clamp a power value to the HA number entity's reported min/max (e.g. BraiinsOS hardware limits)."""
+        entity_state = self.hass.states.get(power_entity)
+        if entity_state and entity_state.attributes:
+            try:
+                hw_min = float(entity_state.attributes.get("min", 0))
+                hw_max = float(entity_state.attributes.get("max", value))
+                if value < hw_min:
+                    _LOGGER.warning(
+                        f"[OpenKairo] Power value {value}W below hardware minimum {hw_min}W "
+                        f"(entity: {power_entity}) — clamping. Check soft_start_steps / min_power config."
+                    )
+                    value = hw_min
+                elif value > hw_max:
+                    value = hw_max
+            except (TypeError, ValueError):
+                pass
+        return value
+
     async def _handle_ramping(self, miner, state, is_on, coord, current_time):
         ramping = state.get("ramping")
         if not ramping: return
-        
-        if not is_on and ramping == "up": state["ramping"] = None; return
-        
+
+        # Only cancel an in-progress ramp-up if the miner has ALREADY been on and is now off.
+        # Do not cancel when ramping_step == 0: the switch hasn't turned on yet this tick.
+        if not is_on and ramping == "up" and state.get("ramping_step", 0) > 0:
+            state["ramping"] = None; return
+
         interval = float(miner.get("soft_interval", 60))
         if current_time - state.get("ramping_last_time", 0) >= interval:
             power_entity = miner.get("power_entity")
             if not power_entity: state["ramping"] = None; return
-            
+
             if ramping == "up":
-                steps = [float(s.strip()) for s in str(miner.get("soft_start_steps", "100,500,1000")).split(",")]
-                target = float(miner.get("soft_target_power") or miner.get("max_power") or 1200)
+                try:
+                    steps = [float(s.strip()) for s in str(miner.get("soft_start_steps", "100,500,1000")).split(",") if s.strip()]
+                except (ValueError, TypeError):
+                    steps = []
+                if not steps:
+                    _LOGGER.warning(f"[{miner.get('name')}] Soft-Start: keine gültigen Stufen konfiguriert — Abbruch.")
+                    state["ramping"] = None; return
+                target = float(miner.get("max_power") or 1200)
                 if state["ramping_step"] < len(steps):
-                    val = min(steps[state["ramping_step"]], target)
-                    await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val})
+                    val = self._clamp_to_entity_range(power_entity, min(steps[state["ramping_step"]], target))
+                    try:
+                        await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val})
+                    except Exception as e:
+                        _LOGGER.warning(f"[{miner.get('name')}] Soft-Start Stufe {state['ramping_step']}: set_value({val}W) fehlgeschlagen: {e}")
                     if state["ramping_step"] == 0:
                         await self.hass.services.async_call("switch", "turn_on", {"entity_id": state.get("switches", [])})
                     state["ramping_step"] += 1; state["ramping_last_time"] = current_time
                 else:
-                    await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": target})
+                    target = self._clamp_to_entity_range(power_entity, target)
+                    try:
+                        await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": target})
+                    except Exception as e:
+                        _LOGGER.warning(f"[{miner.get('name')}] Soft-Start Abschluss: set_value({target}W) fehlgeschlagen: {e}")
                     self.add_log_entry(f"✅ {miner.get('name')}: Soft-Start abgeschlossen.")
                     state["ramping"] = None
-            
+
             elif ramping == "down":
-                steps = [float(s.strip()) for s in str(miner.get("soft_stop_steps", "1000,500,100")).split(",")]
+                try:
+                    steps = [float(s.strip()) for s in str(miner.get("soft_stop_steps", "1000,500,100")).split(",") if s.strip()]
+                except (ValueError, TypeError):
+                    steps = []
+                if not steps:
+                    _LOGGER.warning(f"[{miner.get('name')}] Soft-Stop: keine gültigen Stufen konfiguriert.")
+                    steps = []
                 if state["ramping_step"] < len(steps):
-                    await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": steps[state["ramping_step"]]})
+                    val = self._clamp_to_entity_range(power_entity, steps[state["ramping_step"]])
+                    try:
+                        await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val})
+                    except Exception as e:
+                        _LOGGER.warning(f"[{miner.get('name')}] Soft-Stop Stufe {state['ramping_step']}: set_value({val}W) fehlgeschlagen: {e}")
                     state["ramping_step"] += 1; state["ramping_last_time"] = current_time
                 else:
                     if coord and coord.miner_obj:

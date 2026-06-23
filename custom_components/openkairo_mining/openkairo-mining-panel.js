@@ -24,17 +24,35 @@ class OpenKairoEntityPicker extends LitElement {
     this.placeholder = '-- Element suchen oder wählen --';
     this.open = false;
     this.search = '';
+    this._fixedTop = 0;
+    this._fixedLeft = 0;
+    this._fixedWidth = 300;
     this._documentClickListener = this._handleDocumentClick.bind(this);
+    this._scrollListener = () => { if (this.open) this._updateFixedPosition(); };
   }
 
   connectedCallback() {
     super.connectedCallback();
     document.addEventListener('click', this._documentClickListener);
+    window.addEventListener('scroll', this._scrollListener, true);
+    window.addEventListener('resize', this._scrollListener);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     document.removeEventListener('click', this._documentClickListener);
+    window.removeEventListener('scroll', this._scrollListener, true);
+    window.removeEventListener('resize', this._scrollListener);
+  }
+
+  _updateFixedPosition() {
+    const container = this.shadowRoot ? this.shadowRoot.querySelector('.picker-container') : null;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    this._fixedTop = rect.bottom + 2;
+    this._fixedLeft = rect.left;
+    this._fixedWidth = rect.width;
+    this.requestUpdate();
   }
 
   _handleDocumentClick(e) {
@@ -61,6 +79,7 @@ class OpenKairoEntityPicker extends LitElement {
   _handleFocus() {
     this.open = true;
     this._syncSearchToValue();
+    this.updateComplete.then(() => this._updateFixedPosition());
     setTimeout(() => {
       const input = this.shadowRoot.querySelector('input');
       if (input) input.select();
@@ -120,7 +139,7 @@ class OpenKairoEntityPicker extends LitElement {
         ${this.value ? html`<div class="clear-btn" @click="${this._clearSelection}">✕</div>` : ''}
         
         ${this.open ? html`
-          <div class="dropdown">
+          <div class="dropdown" style="position:fixed;top:${this._fixedTop}px;left:${this._fixedLeft}px;width:${this._fixedWidth}px;z-index:9999;">
             ${filtered.length > 0 ? filtered.map(ent => html`
               <div class="item ${this.value === ent.id ? 'selected' : ''}" @mousedown="${(e) => { e.preventDefault(); this._selectItem(ent.id, ent.name); }}">
                 <div class="item-name">${ent.name.replace(` (${ent.id})`, '')}</div>
@@ -207,17 +226,12 @@ class OpenKairoEntityPicker extends LitElement {
         background: rgba(255,255,255,0.15);
       }
       .dropdown {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        margin-top: 5px;
+        /* position/top/left/width/z-index come from inline style (fixed positioning for iPad compat) */
         background: #1a1a1f;
         border: 1px solid #0bc4e2;
         border-radius: 8px;
         max-height: 280px;
         overflow-y: auto;
-        z-index: 9999;
         box-shadow: 0 10px 40px rgba(0,0,0,0.7);
       }
       .dropdown::-webkit-scrollbar {
@@ -351,6 +365,25 @@ class OpenKairoMiningPanel extends LitElement {
     }
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    // Panel was reconnected (e.g. tablet woke from sleep) — restart intervals and reload data
+    if (this._initialized && this.intervals && this.intervals.length === 0) {
+      this._startIntervals();
+      this.loadConfig().catch(e => console.error("loadConfig reconnect fail:", e));
+    }
+  }
+
+  _startIntervals() {
+    this.intervals.push(setInterval(() => { this.loadConfig(); }, 15 * 1000));
+    this.intervals.push(setInterval(() => {
+      this.fetchBtcPrice();
+      this.fetchMarketData();
+      this.fetchKaspaData();
+    }, 10 * 60 * 1000));
+    this.intervals.push(setInterval(() => { this.fetchBtcPriceHistory(); }, 60 * 60 * 1000));
+  }
+
   firstUpdated() {
     this.loadConfig().catch(e => console.error("loadConfig fail:", e));
     this.fetchBtcDifficulty().catch(e => console.error("fetchBtcDiff fail:", e));
@@ -359,25 +392,9 @@ class OpenKairoMiningPanel extends LitElement {
     this.fetchBtcPriceHistory().catch(e => console.error("fetchBtcHist fail:", e));
     this.fetchKaspaData().catch(e => console.error("fetchKaspa fail:", e));
 
-    // Error listener moved to constructor for earlier catching
     console.log("OpenKairoMiningPanel: firstUpdated called");
-    
-    // Refresh miner states/config every 15 seconds (matching backend loop)
-    this.intervals.push(setInterval(() => {
-      this.loadConfig();
-    }, 15 * 1000));
-
-    // Refresh market data every 10 minutes
-    this.intervals.push(setInterval(() => {
-      this.fetchBtcPrice();
-      this.fetchMarketData();
-      this.fetchKaspaData();
-    }, 10 * 60 * 1000));
-
-    // Refresh history every hour
-    this.intervals.push(setInterval(() => {
-      this.fetchBtcPriceHistory();
-    }, 60 * 60 * 1000));
+    this._startIntervals();
+    this._initialized = true;
   }
 
   async fetchMarketData() {
@@ -2353,11 +2370,18 @@ class OpenKairoMiningPanel extends LitElement {
                     <div style="background: rgba(231, 76, 60, 0.2); border: 1px solid #e74c3c; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
                        <strong style="color: #e74c3c; display: block; margin-bottom: 5px;">⚠️ HARDWARE NICHT GEFUNDEN</strong>
                        <p style="font-size: 0.85em; color: #fff; margin: 0;">
-                         Die Entitäten <code style="background: rgba(0,0,0,0.3); padding: 2px 4px;">${stateObj.missing_entities?.join(', ')}</code> wurden in Home Assistant nicht gefunden. 
+                         Die Entitäten <code style="background: rgba(0,0,0,0.3); padding: 2px 4px;">${stateObj.missing_entities?.join(', ')}</code> wurden in Home Assistant nicht gefunden.
                          Bitte prüfe die <strong>Miner-Integration</strong>.
                        </p>
                     </div>
                   ` : ''}
+
+                ${stateObj && (stateObj.log_reason_on || stateObj.log_reason_off) ? html`
+                  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 6px 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; font-size: 0.75em; color: rgba(255,255,255,0.45);">
+                    <ha-icon icon="mdi:information-outline" style="--mdc-icon-size: 13px; flex-shrink: 0;"></ha-icon>
+                    <span>${switchState === 'on' ? (stateObj.log_reason_on || '') : (stateObj.log_reason_off || '')}</span>
+                  </div>
+                ` : ''}
 
                 <div class="api-stats" style="background: rgba(15,15,20,0.9); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; /* Removed backdrop-filter */">
                   <div class="stat" style="text-align: center;">
@@ -2647,7 +2671,7 @@ class OpenKairoMiningPanel extends LitElement {
                     </div>
                   `}
 
-                   ${miner.forecast_enabled && miner.forecast_sensor ? html`
+                   ${miner.forecast_sensor && miner.forecast_enabled !== false ? html`
                         ${(() => {
                            const fState = forecastValue ? forecastValue.state : 'N/A';
                            const fMin = parseFloat(miner.forecast_min) || 0;
