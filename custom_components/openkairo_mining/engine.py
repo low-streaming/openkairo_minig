@@ -459,6 +459,14 @@ class MiningEngine:
             standby_delay_secs = float(miner.get("standby_delay", 10)) * 60
 
             if current_value < standby_threshold:
+                # Cooldown: after a watchdog action, wait at least standby_delay (min 5 min)
+                # before starting a new countdown — miner may still be rebooting.
+                last_action = state.get("watchdog_last_action", 0)
+                cooldown = max(standby_delay_secs, 300)
+                if current_time - last_action < cooldown:
+                    state["standby_since"] = None
+                    return
+
                 if state.get("standby_since") is None:
                     state["standby_since"] = current_time
                     self.add_log_entry(
@@ -472,6 +480,7 @@ class MiningEngine:
                     )
                     await self._execute_watchdog_action(miner, state)
                     state["standby_since"] = None
+                    state["watchdog_last_action"] = current_time
             else:
                 state["standby_since"] = None
         except Exception as e:
@@ -489,7 +498,12 @@ class MiningEngine:
         if not target_switches:
             target_switches = state.get("switches", [])
 
-        if action == "reboot" and miner_ip:
+        if action == "off":
+            # Just turn off — stay off. Mode logic will re-evaluate when to turn on again.
+            if target_switches:
+                await self.hass.services.async_call("switch", "turn_off", {"entity_id": target_switches})
+                self.add_log_entry(f"🛑 {miner_name}: Watchdog → Miner ausgeschaltet (bleibt aus).")
+        elif action == "reboot" and miner_ip:
             try:
                 await self.hass.services.async_call(DOMAIN, "reboot", {"ip_address": miner_ip})
                 self.add_log_entry(f"🔄 {miner_name}: Watchdog → Hardware-Reboot gestartet.")
@@ -502,7 +516,7 @@ class MiningEngine:
             except Exception as e:
                 _LOGGER.error(f"[{miner_name}] Watchdog restart_backend failed: {e}")
         else:
-            # Default: toggle the switch (turn off, then back on after a short delay)
+            # toggle: turn off, wait 5s, turn back on (watchdog restart/recovery)
             if target_switches:
                 await self.hass.services.async_call("switch", "turn_off", {"entity_id": target_switches})
                 await asyncio.sleep(5)

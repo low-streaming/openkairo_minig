@@ -1,6 +1,6 @@
 # OpenKairo Mining ⛏️ — Home Assistant Integration
 
-[![Version](https://img.shields.io/badge/Version-1.4.1-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
+[![Version](https://img.shields.io/badge/Version-1.4.3-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg?style=for-the-badge)](https://home-assistant.io)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://hacs.xyz)
 [![Powered by OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
@@ -255,6 +255,15 @@ Status-Daten an einen MQTT-Broker senden:
 
 ## 📋 Changelog
 
+### v1.4.3 — Watchdog Action Fix
+
+- Watchdog-Aktion war nicht konfigurierbar — Selector im Formular fehlte komplett (`#16`)
+- Neue `"off"` Aktion — Miner bleibt aus bis PV/SOC-Regel greift (`#16`)
+
+### v1.4.2 — Watchdog Hotfix
+
+- Watchdog feuerte dauerhaft in kurzen Abständen statt einmalig — Cooldown nach Aktion eingebaut (`#17`)
+
 ### v1.4.1 — Community Bugfix Release
 
 - Soft-Start blieb dauerhaft in Stufe 1 stecken — behoben (`#13`)
@@ -303,4 +312,4 @@ OpenKairo ist ein Community-Projekt. Wenn dir die Integration hilft, freuen wir 
 
 ---
 
-**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.1
+**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.3

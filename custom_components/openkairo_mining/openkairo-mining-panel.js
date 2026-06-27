@@ -843,6 +843,7 @@ class OpenKairoMiningPanel extends LitElement {
       offgrid_min_power: 400,
       offgrid_max_power: 1400,
       watchdog_type: 'power',
+      watchdog_action: 'toggle',
       min_run_time: 5,
       grid_price_limit: null,
       max_temp: '',
@@ -3546,6 +3547,23 @@ class OpenKairoMiningPanel extends LitElement {
                     <label>Verzögerung (Minuten)</label>
                     <input type="number" name="standby_delay" min="0" step="1" .value="${this.editForm.standby_delay || 10}" @input="${this.handleFormInput}">
                 </div>
+            </div>
+
+            <div class="form-group mt-3">
+                <label>Watchdog-Aktion (Was soll passieren?)</label>
+                <select class="btc-select" name="watchdog_action" @change="${this.handleFormInput}">
+                  <option value="toggle"           ?selected="${(this.editForm.watchdog_action || 'toggle') === 'toggle'}">🔄 Neustart — Steckdose kurz aus/an (Standard)</option>
+                  <option value="off"              ?selected="${this.editForm.watchdog_action === 'off'}">🛑 Nur ausschalten — bleibt aus bis Modus-Regel greift</option>
+                  <option value="reboot"           ?selected="${this.editForm.watchdog_action === 'reboot'}">⚡ Hardware-Reboot — API-Befehl direkt an Miner</option>
+                  <option value="restart_backend"  ?selected="${this.editForm.watchdog_action === 'restart_backend'}">🔧 Backend-Neustart — nur Mining-Software neu starten</option>
+                </select>
+                <small>
+                  ${(this.editForm.watchdog_action || 'toggle') === 'off'
+                    ? 'Miner wird ausgeschaltet und bleibt aus. PV/SOC-Regel entscheidet wann er wieder startet.'
+                    : (this.editForm.watchdog_action === 'reboot' || this.editForm.watchdog_action === 'restart_backend')
+                      ? 'Benötigt eine konfigurierte Miner-IP.'
+                      : 'Steckdose geht 5 Sekunden aus und wieder an — Miner bootet neu.'}
+                </small>
             </div>
             ` : ''}
         </div>
