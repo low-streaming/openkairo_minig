@@ -843,7 +843,7 @@ class OpenKairoMiningPanel extends LitElement {
       offgrid_min_power: 400,
       offgrid_max_power: 1400,
       watchdog_type: 'power',
-      watchdog_action: 'toggle',
+      watchdog_action: 'off',
       min_run_time: 5,
       grid_price_limit: null,
       max_temp: '',
@@ -1556,7 +1556,7 @@ class OpenKairoMiningPanel extends LitElement {
         <div style="text-align: center; margin-bottom: 36px;">
           <div style="font-size: 2.8em; margin-bottom: 8px;">⛏️</div>
           <h1 style="margin: 0 0 6px 0; font-size: 1.7em; color: #fff;">OpenKairo Mining</h1>
-          <div style="color: var(--theme-accent-1); font-size: 1em; font-weight: 600; margin-bottom: 10px;">Benutzerhandbuch — Version 1.4.0</div>
+          <div style="color: var(--theme-accent-1); font-size: 1em; font-weight: 600; margin-bottom: 10px;">Benutzerhandbuch — Version 1.4.4</div>
           <p style="color: #888; max-width: 560px; margin: 0 auto; line-height: 1.6; font-size: 0.95em;">
             Alles was du wissen musst, um deine Miner intelligent zu steuern.
           </p>
@@ -3552,8 +3552,8 @@ class OpenKairoMiningPanel extends LitElement {
             <div class="form-group mt-3">
                 <label>Watchdog-Aktion (Was soll passieren?)</label>
                 <select class="btc-select" name="watchdog_action" @change="${this.handleFormInput}">
-                  <option value="toggle"           ?selected="${(this.editForm.watchdog_action || 'toggle') === 'toggle'}">🔄 Neustart — Steckdose kurz aus/an (Standard)</option>
-                  <option value="off"              ?selected="${this.editForm.watchdog_action === 'off'}">🛑 Nur ausschalten — bleibt aus bis Modus-Regel greift</option>
+                  <option value="off"              ?selected="${(this.editForm.watchdog_action || 'off') === 'off'}">🛑 Nur ausschalten — bleibt aus bis Modus-Regel greift (Standard)</option>
+                  <option value="toggle"           ?selected="${this.editForm.watchdog_action === 'toggle'}">🔄 Neustart — Steckdose kurz aus/an</option>
                   <option value="reboot"           ?selected="${this.editForm.watchdog_action === 'reboot'}">⚡ Hardware-Reboot — API-Befehl direkt an Miner</option>
                   <option value="restart_backend"  ?selected="${this.editForm.watchdog_action === 'restart_backend'}">🔧 Backend-Neustart — nur Mining-Software neu starten</option>
                 </select>

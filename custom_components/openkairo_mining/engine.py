@@ -491,7 +491,7 @@ class MiningEngine:
         """Execute the configured watchdog action (reboot / restart_backend / toggle)."""
         miner_name = miner.get("name", "Miner")
         miner_ip = miner.get("miner_ip")
-        action = miner.get("watchdog_action", "toggle")
+        action = miner.get("watchdog_action", "off")
 
         # Prefer dedicated standby switches; fall back to the main miner switch(es)
         target_switches = [s for s in [miner.get("standby_switch"), miner.get("standby_switch_2")] if s]

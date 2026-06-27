@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenKairo Mining — Anleitung v1.4.0 | Low Streaming</title>
+    <title>OpenKairo Mining — Anleitung v1.4.4 | Low Streaming</title>
     <meta name="description" content="Vollständige Anleitung zur OpenKairo Mining Home Assistant Integration. PV-Überschuss, SOC, Heizmodus, AI-Optimierer und mehr.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -96,7 +96,7 @@
             <div class="grid grid-4" style="border-top:1px solid var(--border-color);border-bottom:1px solid var(--border-color);padding:2rem 0;">
                 <div>
                     <div class="mono text-muted text-sm mb-1">VERSION</div>
-                    <div class="mono" style="font-size:1.5rem;font-weight:700;">v1.4.0</div>
+                    <div class="mono" style="font-size:1.5rem;font-weight:700;">v1.4.4</div>
                 </div>
                 <div>
                     <div class="mono text-muted text-sm mb-1">STATUS</div>
@@ -456,13 +456,45 @@
                 <p class="text-muted" style="max-width:600px;">Was sich in den letzten Versionen geändert hat.</p>
             </div>
 
-            <!-- v1.4.0 -->
+            <!-- v1.4.4 -->
             <div class="card reveal" style="margin-bottom:1.25rem;">
                 <div class="card-header">
                     <div class="update-bar">
                         <div class="update-dot green"></div>
-                        <span class="update-ver">v1.4.0</span>
+                        <span class="update-ver">v1.4.4</span>
                         <span class="badge badge-blue">Aktuell</span>
+                        <span class="mono text-muted text-sm">Watchdog Default Fix</span>
+                    </div>
+                    <p class="text-muted text-sm">Watchdog-Standard auf <code>"off"</code> geändert — Miner bleibt nach Watchdog-Aktion aus bis PV/SOC-Regel greift.</p>
+                </div>
+                <div class="card-body">
+                    <div class="grid grid-2" style="gap:2rem;">
+                        <div>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">🛑 Watchdog Default: off</p>
+                            <ul style="list-style:none;padding:0;" class="text-sm text-muted">
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Neue Miner: <code>watchdog_action</code> startet mit <code>"off"</code></li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Ältere Configs ohne gespeichertes Feld: Engine-Fallback ebenfalls <code>"off"</code></li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> <code>"off"</code> steht im Selector an erster Stelle mit <em>(Standard)</em>-Hinweis</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">📋 Enthält alle Fixes aus v1.4.1–v1.4.3</p>
+                            <ul style="list-style:none;padding:0;" class="text-sm text-muted">
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> v1.4.3: Watchdog-Aktion konfigurierbar + neue <code>"off"</code> Aktion</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> v1.4.2: Watchdog Cooldown — keine Dauerauslösung mehr</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> v1.4.1: Soft-Start, BraiinsOS-Clamp, iPad, Blank-Page, Forecast, Logging</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- v1.4.0 -->
+            <div class="card reveal" style="margin-bottom:1.25rem;">
+                <div class="card-header">
+                    <div class="update-bar">
+                        <div class="update-dot"></div>
+                        <span class="update-ver">v1.4.0</span>
                         <span class="mono text-muted text-sm">Stability & Zero-Click Automation</span>
                     </div>
                     <p class="text-muted text-sm">Kritische Bugfixes, PV Live-Tracking ohne Opt-In, neue UI-Verbesserungen und 5 neue HA-Sensoren.</p>
@@ -606,7 +638,7 @@
             </div>
             <div class="footer-bottom">
                 <div>&copy; 2024 Low Streaming. Alle Rechte vorbehalten.</div>
-                <div class="mono text-sm">SYS_VER: 2.1.0 · OpenKairo Mining v1.4.0</div>
+                <div class="mono text-sm">SYS_VER: 2.1.0 · OpenKairo Mining v1.4.4</div>
             </div>
         </div>
     </footer>

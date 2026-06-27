@@ -1,6 +1,6 @@
 # OpenKairo Mining ⛏️ — Home Assistant Integration
 
-[![Version](https://img.shields.io/badge/Version-1.4.3-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
+[![Version](https://img.shields.io/badge/Version-1.4.4-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg?style=for-the-badge)](https://home-assistant.io)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://hacs.xyz)
 [![Powered by OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
@@ -181,7 +181,8 @@ Erkennt wenn ein Miner eingefroren ist (z.B. Hashrate = 0 aber Stromverbrauch > 
 3. **Standby-Grenzwert** setzen (z.B. 100W — darunter gilt Miner als hängend)
 4. **Wartezeit** setzen (z.B. 10 Minuten — erst dann wird die Aktion ausgelöst)
 5. **Aktion** wählen:
-   - `toggle` — Steckdose aus/an (Standard)
+   - `off` — Miner bleibt aus bis PV/SOC-Regel greift (Standard)
+   - `toggle` — Steckdose kurz aus/an
    - `reboot` — Hardware-Reboot per API
    - `restart_backend` — Nur Mining-Software neu starten
 
@@ -255,6 +256,10 @@ Status-Daten an einen MQTT-Broker senden:
 
 ## 📋 Changelog
 
+### v1.4.4 — Watchdog Default Fix
+
+- `"off"` als Standard-Watchdog-Aktion — gilt für neue Miner und als Engine-Fallback für ältere Configs
+
 ### v1.4.3 — Watchdog Action Fix
 
 - Watchdog-Aktion war nicht konfigurierbar — Selector im Formular fehlte komplett (`#16`)
@@ -312,4 +317,4 @@ OpenKairo ist ein Community-Projekt. Wenn dir die Integration hilft, freuen wir 
 
 ---
 
-**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.3
+**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.4
