@@ -60,6 +60,49 @@ class MiningEngine:
         self._logs = self._logs[:MAX_LOG_ENTRIES]
         _LOGGER.info(f"[OpenKairo Log] {message}")
 
+    # Fields that survive a HA restart — everything else resets cleanly.
+    _PERSIST_FIELDS = (
+        "today_runtime_s", "today_energy_wh", "total_starts",
+        "watchdog_last_action", "off_since_actual", "on_since_actual", "stats_day",
+    )
+
+    @property
+    def _state_file(self) -> str:
+        return self.hass.config.path(".storage", "openkairo_mining_state.json")
+
+    async def _load_persistent_state(self) -> None:
+        """Restore per-miner stats from disk after a HA restart."""
+        try:
+            raw = await self.hass.async_add_executor_job(
+                lambda: open(self._state_file).read() if os.path.exists(self._state_file) else None
+            )
+            if not raw:
+                return
+            saved = json.loads(raw)
+            for miner_id, fields in saved.items():
+                if miner_id not in self._miner_states:
+                    self._miner_states[miner_id] = {}
+                for key in self._PERSIST_FIELDS:
+                    if key in fields:
+                        self._miner_states[miner_id][key] = fields[key]
+            _LOGGER.info(f"[OpenKairo] Restored state for {len(saved)} miner(s) from disk.")
+        except Exception as e:
+            _LOGGER.warning(f"[OpenKairo] Could not load persistent state: {e}")
+
+    async def _save_persistent_state(self) -> None:
+        """Write per-miner stats to disk so they survive a HA restart."""
+        try:
+            payload = {
+                mid: {k: s[k] for k in self._PERSIST_FIELDS if k in s}
+                for mid, s in self._miner_states.items()
+            }
+            raw = json.dumps(payload)
+            await self.hass.async_add_executor_job(
+                lambda: open(self._state_file, "w").write(raw)
+            )
+        except Exception as e:
+            _LOGGER.warning(f"[OpenKairo] Could not save persistent state: {e}")
+
     async def _publish_mqtt(self, topic: str, payload: str):
         """Publish to MQTT if the integration is configured and available."""
         try:
@@ -188,6 +231,10 @@ class MiningEngine:
     async def async_run(self):
         """Main loop execution."""
         _LOGGER.info("OpenKairo Mining Engine started")
+        await self._load_persistent_state()
+        _tick = 0
+        # Save every 20 ticks (~5 min at 15s interval).
+        _SAVE_EVERY = 20
         try:
             while True:
                 try:
@@ -216,6 +263,10 @@ class MiningEngine:
                         except Exception as miner_err:
                             _LOGGER.error(f"Error processing miner {miner.get('name')}: {miner_err}", exc_info=True)
 
+                    _tick += 1
+                    if _tick % _SAVE_EVERY == 0:
+                        await self._save_persistent_state()
+
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
@@ -224,33 +275,29 @@ class MiningEngine:
                 await asyncio.sleep(ENGINE_LOOP_INTERVAL)
         except asyncio.CancelledError:
             _LOGGER.info("OpenKairo Mining Engine stopping (task cancelled)")
+            await self._save_persistent_state()
             raise
 
     async def _process_miner(self, miner, global_pv_surplus):
         miner_id = str(miner.get("id", miner.get("name", "Unknown")))
         if miner_id not in self._miner_states:
-            self._miner_states[miner_id] = {
-                "on_since": None,
-                "off_since": None,
-                "off_since_actual": None,
-                "standby_since": None,
-                "last_sensor_update": time.time(),
-                # Stats
-                "stats_last_tick": None,
-                "session_runtime_s": 0,
-                "session_energy_wh": 0.0,
-                "today_runtime_s": 0,
-                "today_energy_wh": 0.0,
-                "stats_day": None,
-                "total_starts": 0,
-                # Safety
-                "temp_alarm": False,
-                "max_runtime_alarm": False,
-            }
-            # First-time entity validation (non-blocking — only logs warnings)
-            self._validate_miner_entities(miner)
-        
+            self._miner_states[miner_id] = {}
         state = self._miner_states[miner_id]
+        # Set defaults for any field not already present — preserves values
+        # restored from disk by _load_persistent_state on HA restart.
+        _defaults = {
+            "on_since": None, "off_since": None, "off_since_actual": None,
+            "standby_since": None, "last_sensor_update": time.time(),
+            "stats_last_tick": None, "session_runtime_s": 0,
+            "session_energy_wh": 0.0, "today_runtime_s": 0,
+            "today_energy_wh": 0.0, "stats_day": None, "total_starts": 0,
+            "temp_alarm": False, "max_runtime_alarm": False,
+        }
+        for k, v in _defaults.items():
+            state.setdefault(k, v)
+        # First-time entity validation (non-blocking — only logs warnings)
+        self._validate_miner_entities(miner)
+
         current_time = time.time()
         
         mode = miner.get("mode", "manual")

@@ -463,26 +463,43 @@
                         <div class="update-dot green"></div>
                         <span class="update-ver">v1.4.5</span>
                         <span class="badge badge-blue">Aktuell</span>
-                        <span class="mono text-muted text-sm">Watchdog Status-Badge + Power-Sensor Fix</span>
+                        <span class="mono text-muted text-sm">Config Backup + Miner-Vorlagen + Watchdog Badge + State-Persistenz</span>
                     </div>
-                    <p class="text-muted text-sm">Watchdog Countdown/Cooldown in der Miner-Karte sichtbar. Log-Spam "wird ausgeschaltet" behoben.</p>
+                    <p class="text-muted text-sm">Vollständiges Backup-System, Community-Vorlagen, Watchdog-Badge in der Miner-Karte, Stats überleben HA-Neustart, Power-Sensor Log-Spam behoben.</p>
                 </div>
                 <div class="card-body">
                     <div class="grid grid-2" style="gap:2rem;">
                         <div>
-                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">✨ Watchdog Badge</p>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">💾 Config Backup</p>
                             <ul style="list-style:none;padding:0;" class="text-sm text-muted">
-                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> 🟡 <strong>Countdown läuft:</strong> Leistung zu niedrig, Watchdog feuert in X min</li>
-                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> ⬜ <strong>Cooldown aktiv:</strong> Aktion wurde ausgelöst, neuer Countdown pausiert</li>
-                                        <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Badge erscheint nur wenn Watchdog für den Miner aktiv ist</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> ⬇️ Export: alle Miner als <code>openkairo_config_YYYY-MM-DD.json</code></li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> ⬆️ Import: Backup-Datei laden, Konfiguration wird vollständig ersetzt</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Zu finden unter: <strong>Einstellungen → 🗂 Config Backup</strong></li>
                             </ul>
                         </div>
                         <div>
-                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">🐛 Log-Spam: "wird ausgeschaltet" jede Sekunde</p>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">📋 Miner-Vorlagen</p>
                             <ul style="list-style:none;padding:0;" class="text-sm text-muted">
-                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Power-Sensor-Fallback setzte <code>is_on=True</code> obwohl Switch auf <code>"off"</code></li>
-                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Standby-Leistung (z.B. 10W Avalon) triggerte jeden Tick die Ausschalt-Logik</li>
-                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Fallback greift nur noch wenn kein Switch explizit <code>"off"</code> meldet</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> 📋 pro Miner exportieren: nur Regel-Einstellungen, keine Gerätedaten</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> 📂 Vorlage laden im Edit-Dialog: Community-Vorlagen importieren</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Dropdown "Einstellungen übernehmen von": direkt von anderem Miner kopieren</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="grid grid-2" style="gap:2rem;margin-top:1.5rem;">
+                        <div>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">✨ Watchdog Status-Badge</p>
+                            <ul style="list-style:none;padding:0;" class="text-sm text-muted">
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> 🟡 <strong>Countdown läuft:</strong> Leistung zu niedrig, Watchdog feuert in X min</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> ⬜ <strong>Cooldown aktiv:</strong> Aktion wurde ausgelöst, neuer Countdown pausiert</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Badge erscheint nur wenn Watchdog für den Miner aktiv ist</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">🔧 State-Persistenz + Bugfix</p>
+                            <ul style="list-style:none;padding:0;" class="text-sm text-muted">
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Tagesstatistiken, Watchdog-Cooldown und Laufzeit-Timestamps überleben HA-Neustart</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> <code>"wird ausgeschaltet"</code> Log-Spam: Power-Sensor-Fallback überschrieb Switch-Off — behoben</li>
                             </ul>
                         </div>
                     </div>

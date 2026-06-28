@@ -1,4 +1,30 @@
-# ✨ Update v1.4.5 — Watchdog Status-Badge
+# ✨ Update v1.4.5 — Config Backup + Miner-Vorlagen + Watchdog Badge + State-Persistenz
+
+---
+
+## ✨ Neu — Config Backup & Wiederherstellung
+
+Vollständige Sicherung und Wiederherstellung der OpenKairo-Konfiguration mit einem Klick.
+
+**⬇️ Export** — lädt `openkairo_config_YYYY-MM-DD.json` mit allen Minern und Einstellungen herunter.
+
+**⬆️ Import** — lädt eine Backup-Datei, prüft die Struktur, fragt zur Bestätigung und ersetzt die gesamte Konfiguration. Alle Miner-Karten aktualisieren sich sofort.
+
+Zu finden unter: **Einstellungen → 🗂 Config Backup**
+
+---
+
+## ✨ Neu — Miner-Vorlagen (Community-Sharing)
+
+Regel-Einstellungen eines Miners exportieren, in andere Miner importieren oder mit der Community teilen — ohne gerätespezifische Daten (Name, IP, Switch, Sensoren).
+
+**📋 Vorlage exportieren** — Klick auf das `📋` Symbol neben einem Miner in der Dashboard-Liste. Lädt `openkairo_template_Name.json`.
+
+**📂 Vorlage laden** — Im Miner bearbeiten-Dialog: Datei wählen, Regel-Felder werden übernommen, Gerät bleibt unberührt.
+
+**🔄 Einstellungen übernehmen von** — Dropdown im Edit-Dialog, kopiert Einstellungen direkt von einem anderen Miner der selben Installation.
+
+Vorlagen enthalten `_type: "openkairo_miner_template"` und `_miner_model` als Marker — ideal zum Teilen auf GitHub oder Discord.
 
 ---
 
@@ -60,6 +86,30 @@ if not is_on and p_sensor and not switch_explicitly_off and plug_on:
 ```
 
 Der Fallback bleibt aktiv für Miner ohne konfigurierten Switch und wenn Switches `"unavailable"` melden.
+
+---
+
+## 🔧 Fix — State-Persistenz nach HA-Neustart
+
+**Problem:** Der Engine-State lag komplett im RAM. Nach jedem HA-Neustart gingen verloren:
+
+- `today_runtime_s` / `today_energy_wh` → Tagesstatistiken weg
+- `watchdog_last_action` → Cooldown-Schutz weg, Watchdog konnte sofort wieder feuern
+- `off_since_actual` / `on_since_actual` → Min-Pause und Max-Laufzeit-Tracking weg
+
+**Fix:** Relevante State-Felder werden alle ~5 Minuten und beim sauberen HA-Shutdown in `.storage/openkairo_mining_state.json` geschrieben und beim Engine-Start wiederhergestellt.
+
+**Gespeicherte Felder:**
+
+| Feld | Warum |
+| ---- | ----- |
+| `today_runtime_s` / `today_energy_wh` | Tagesstatistiken bleiben nach Neustart korrekt |
+| `total_starts` | Gesamtzähler geht nicht verloren |
+| `watchdog_last_action` | Cooldown-Schutz bleibt aktiv |
+| `off_since_actual` / `on_since_actual` | Min-Pause und Max-Laufzeit korrekt |
+| `stats_day` | Tag-Rollover erkennt ob Tagesreset schon passiert ist |
+
+Session-Werte (`session_runtime_s`, `session_energy_wh`) und Ramping-State setzen bei Neustart bewusst zurück.
 
 ---
 

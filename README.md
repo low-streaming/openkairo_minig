@@ -261,10 +261,13 @@ Status-Daten an einen MQTT-Broker senden:
 
 ## 📋 Changelog
 
-### v1.4.5 — Watchdog Status-Badge + Power-Sensor Bug
+### v1.4.5 — Config Backup + Miner-Vorlagen + Watchdog Badge + State-Persistenz
 
-- Miner-Karte zeigt Watchdog Countdown und Cooldown direkt an (`watchdog_remaining` / `watchdog_cooldown_remaining`)
-- Engine-Bug: `"wird ausgeschaltet"` wurde jeden Tick geloggt obwohl Miner schon aus war — Power-Sensor-Fallback überschrieb Switch-Off-Zustand
+- **Config Backup** — vollständiges Export/Import der Konfiguration (Einstellungen-Tab)
+- **Miner-Vorlagen** — Regel-Einstellungen als JSON exportieren (📋 pro Miner), in andere Miner importieren (📂 Vorlage laden) oder direkt übernehmen (Dropdown "Einstellungen übernehmen von"); ideal für Community-Sharing
+- **Watchdog Status-Badge** — Miner-Karte zeigt Countdown 🟡 und Cooldown ⬜ direkt an (`watchdog_remaining` / `watchdog_cooldown_remaining`)
+- **Bugfix** — `"wird ausgeschaltet"` wurde jeden Tick geloggt obwohl Miner schon aus war — Power-Sensor-Fallback überschrieb Switch-Off-Zustand
+- **State-Persistenz** — Tagesstatistiken, Watchdog-Cooldown und Laufzeit-Timestamps überleben einen HA-Neustart
 
 ### v1.4.4 — Watchdog Default Fix
 

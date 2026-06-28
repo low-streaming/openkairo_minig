@@ -859,6 +859,80 @@ class OpenKairoMiningPanel extends LitElement {
     };
   }
 
+  // Fields that contain mode logic and thresholds — safe to copy between miners.
+  // Device-specific fields (id, name, ip, switch, sensors) are intentionally excluded.
+  static get _COPY_FIELDS() {
+    return [
+      'mode', 'mining_coin',
+      'pv_on', 'pv_off', 'delay_minutes', 'allow_battery', 'battery_min_soc', 'battery_hysteresis',
+      'price_on', 'price_off', 'grid_price_limit',
+      'soc_on', 'soc_off',
+      'forecast_enabled', 'forecast_min',
+      'offgrid_soc_start', 'offgrid_soc_stop', 'offgrid_soc_max', 'offgrid_min_power', 'offgrid_max_power',
+      'min_power', 'max_power', 'max_temp', 'max_runtime', 'min_off_time', 'min_run_time',
+      'soft_start_enabled', 'soft_stop_enabled', 'soft_continuous_scaling',
+      'soft_start_steps', 'soft_stop_steps', 'soft_interval',
+      'standby_watchdog_enabled', 'watchdog_type', 'watchdog_action', 'standby_power', 'standby_delay',
+      'scaling_mode', 'scaling_factor', 'power_step_limit', 'soc_proportional_scaling',
+      'calc_method', 'coin_price_source', 'electricity_price_source', 'electricity_price_manual',
+    ];
+  }
+
+  _importMinerTemplate(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const tpl = JSON.parse(event.target.result);
+        const patch = {};
+        for (const f of OpenKairoMiningPanel._COPY_FIELDS) {
+          if (tpl[f] !== undefined) patch[f] = tpl[f];
+        }
+        if (!Object.keys(patch).length) {
+          alert('❌ Keine gültigen Einstellungsfelder in der Datei gefunden.');
+          return;
+        }
+        const label = tpl._miner_model ? ` (${tpl._miner_model})` : '';
+        if (!confirm(`Vorlage${label} anwenden?\n\nModus, Schwellenwerte, Soft-Start und Watchdog werden übernommen. Name, IP und Sensoren bleiben unverändert.`)) return;
+        this.editForm = { ...this.editForm, ...patch };
+        this.requestUpdate();
+      } catch (err) {
+        alert('❌ Datei konnte nicht gelesen werden: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  exportMinerTemplate(miner) {
+    const template = { _type: 'openkairo_miner_template', _miner_model: miner.name };
+    for (const f of OpenKairoMiningPanel._COPY_FIELDS) {
+      if (miner[f] !== undefined) template[f] = miner[f];
+    }
+    const json = JSON.stringify(template, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `openkairo_template_${miner.name.replace(/\s+/g, '_')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  applyMinerSettings(sourceId) {
+    const source = this.config.miners.find(m => m.id === sourceId);
+    if (!source) return;
+    const patch = {};
+    for (const f of OpenKairoMiningPanel._COPY_FIELDS) {
+      if (source[f] !== undefined) patch[f] = source[f];
+    }
+    this.editForm = { ...this.editForm, ...patch };
+    this.requestUpdate();
+  }
+
   startEditMiner(miner) {
     this.editingMinerId = miner.id;
     this.editForm = { ...miner };
@@ -873,6 +947,42 @@ class OpenKairoMiningPanel extends LitElement {
 
   cancelEdit() {
     this.editingMinerId = null;
+  }
+
+  exportConfig() {
+    const json = JSON.stringify(this.config, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `openkairo_config_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  importConfig(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const imported = JSON.parse(event.target.result);
+        if (!imported || !Array.isArray(imported.miners)) {
+          alert('❌ Ungültige Config-Datei — kein "miners" Array gefunden.');
+          return;
+        }
+        const count = imported.miners.length;
+        if (!confirm(`Config importieren?\n\n${count} Miner werden geladen. Die aktuelle Config wird überschrieben.`)) return;
+        this.config = imported;
+        await this.saveConfig();
+      } catch (err) {
+        alert('❌ Datei konnte nicht gelesen werden: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
   }
 
   handleImageUpload(e) {
@@ -1866,6 +1976,81 @@ class OpenKairoMiningPanel extends LitElement {
         </div>
 
         <!-- ═══ 9. SUPPORT ═══ -->
+        <div class="tech-box" style="margin-top: 24px;">
+          <h2 style="${h2Style}"><span>💾</span> Konfiguration sichern &amp; wiederherstellen</h2>
+          <p style="color:#bbb; font-size:0.9em; line-height:1.7; margin-bottom:16px;">
+            OpenKairo speichert alle Miner-Einstellungen in der HA-Konfiguration. Mit dem integrierten Backup-System kannst du alles mit einem Klick sichern — und nach einem Neuaufbau oder Umzug sofort wiederherstellen.
+          </p>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;">
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:16px;">
+              <div style="font-weight:700; color:#2196f3; margin-bottom:8px;">⬇️ Vollständiges Backup exportieren</div>
+              <div style="color:#aaa; font-size:0.85em; line-height:1.6;">Speichert <strong>alle Miner</strong> inklusive aller Einstellungen als <code>openkairo_config_YYYY-MM-DD.json</code>.<br><br>Zu finden unter: <strong>Einstellungen → ⬇️ Backup exportieren</strong></div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:16px;">
+              <div style="font-weight:700; color:#4caf50; margin-bottom:8px;">⬆️ Backup wiederherstellen</div>
+              <div style="color:#aaa; font-size:0.85em; line-height:1.6;">Lädt eine exportierte Backup-Datei und <strong>ersetzt die gesamte Konfiguration</strong>. Nach dem Import werden alle Miner-Karten sofort aktualisiert.<br><br>Zu finden unter: <strong>Einstellungen → ⬆️ Backup importieren</strong></div>
+            </div>
+          </div>
+          <div style="${tipBox('#2196f3', '⚠️', 'Beim Import wird die komplette bestehende Konfiguration ersetzt. Das System fragt vorher zur Bestätigung. Erstelle immer zuerst ein Export-Backup bevor du einen Import durchführst.')}"></div>
+        </div>
+
+        <div class="tech-box" style="margin-top: 24px;">
+          <h2 style="${h2Style}"><span>📋</span> Miner-Vorlagen — Einstellungen teilen &amp; übernehmen</h2>
+          <p style="color:#bbb; font-size:0.9em; line-height:1.7; margin-bottom:16px;">
+            Hast du einen Miner perfekt konfiguriert und möchtest dieselben Regel-Einstellungen auf einen zweiten Miner übertragen? Oder die Community mit deiner bewährten Konfiguration versorgen? Miner-Vorlagen machen genau das — ohne gerätespezifische Daten (Name, IP, Switch, Sensoren) zu übernehmen.
+          </p>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-top:16px;">
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:14px;">
+              <div style="font-weight:700; color:#ff9800; margin-bottom:8px;">📋 Vorlage exportieren</div>
+              <div style="color:#aaa; font-size:0.83em; line-height:1.6;">Klick auf das <strong>📋</strong> Symbol neben einem Miner in der Dashboard-Liste. Lädt <code>openkairo_template_Name.json</code> — enthält nur Regel-Einstellungen, keine Gerätedaten.</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:14px;">
+              <div style="font-weight:700; color:#9c27b0; margin-bottom:8px;">📂 Vorlage laden</div>
+              <div style="color:#aaa; font-size:0.83em; line-height:1.6;">Im Miner bearbeiten-Dialog: <strong>📂 Vorlage laden</strong>. Wähle eine JSON-Vorlage (eigene oder aus der Community). Nur Regel-Felder werden übernommen — dein Gerät bleibt unberührt.</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:14px;">
+              <div style="font-weight:700; color:#00bcd4; margin-bottom:8px;">🔄 Einstellungen übernehmen von</div>
+              <div style="color:#aaa; font-size:0.83em; line-height:1.6;">Im Miner bearbeiten-Dialog: Dropdown <strong>"Einstellungen übernehmen von"</strong>. Wähle einen anderen Miner aus der selben Installation — perfekt für schnelles Klonen.</div>
+            </div>
+          </div>
+          <div style="${tipBox('#ff9800', '🌍', 'Vorlagen sind ideal zum Community-Sharing! Sie enthalten einen <code>_type: "openkairo_miner_template"</code> Marker und den Miner-Typ (<code>_miner_model</code>) damit andere wissen für welches Gerät die Vorlage gemacht wurde. Teile deine Vorlagen auf GitHub oder Discord.')}"></div>
+        </div>
+
+        <div class="tech-box" style="margin-top: 24px;">
+          <h2 style="${h2Style}"><span>🛡️</span> Watchdog Status-Badge</h2>
+          <p style="color:#bbb; font-size:0.9em; line-height:1.7; margin-bottom:16px;">
+            Wenn der Standby-Wächter aktiviert ist, zeigt die Miner-Karte einen Status-Badge direkt unterhalb der "Letzte Entscheidung" Zeile — so weißt du sofort was der Watchdog gerade tut.
+          </p>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;">
+            <div style="background:rgba(255,152,0,0.08); border:1px solid rgba(255,152,0,0.25); border-radius:12px; padding:16px;">
+              <div style="font-weight:700; color:#ff9800; margin-bottom:8px;">🟡 Watchdog Countdown: noch X min</div>
+              <div style="color:#aaa; font-size:0.85em; line-height:1.6;">Der Miner läuft, aber Verbrauch oder Power-Limit liegt unter dem Schwellenwert. Wenn der Countdown abläuft, feuert der Watchdog die konfigurierte Aktion (Neustart oder Ausschalten).</div>
+            </div>
+            <div style="background:rgba(150,150,150,0.06); border:1px solid rgba(150,150,150,0.2); border-radius:12px; padding:16px;">
+              <div style="font-weight:700; color:#aaa; margin-bottom:8px;">⬜ Watchdog Cooldown: noch X min</div>
+              <div style="color:#aaa; font-size:0.85em; line-height:1.6;">Eine Watchdog-Aktion wurde bereits ausgelöst. Der nächste Countdown startet erst wenn der Cooldown vorbei ist — damit der Miner nach einem Neustart genug Zeit zum Hochfahren hat.</div>
+            </div>
+          </div>
+          <div style="${tipBox('#3498db', '💡', 'Kein Badge sichtbar? Dann läuft alles normal — kein Countdown, kein Cooldown aktiv. Der Badge erscheint nur wenn der Watchdog für diesen Miner aktiviert ist und gerade etwas zu melden hat.')}"></div>
+        </div>
+
+        <div class="tech-box" style="margin-top: 24px;">
+          <h2 style="${h2Style}"><span>🔄</span> State-Persistenz — Statistiken überleben HA-Neustart</h2>
+          <p style="color:#bbb; font-size:0.9em; line-height:1.7; margin-bottom:16px;">
+            Früher lag der komplette Engine-Zustand nur im RAM. Nach jedem HA-Neustart waren Tagesstatistiken, Watchdog-Cooldown-Schutz und Min-Pause-Tracking verloren. Ab v1.4.5 speichert die Engine relevante Zustandsfelder automatisch und stellt sie nach dem Neustart wieder her.
+          </p>
+          <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-top:8px;">
+            <div style="font-weight:700; color:#fff; margin-bottom:12px;">Was wird gespeichert?</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div style="color:#aaa; font-size:0.85em;">✅ <code>today_runtime_s</code> / <code>today_energy_wh</code><br><span style="color:#666; font-size:0.9em;">Tagesstatistiken bleiben korrekt</span></div>
+              <div style="color:#aaa; font-size:0.85em;">✅ <code>total_starts</code><br><span style="color:#666; font-size:0.9em;">Gesamtzähler geht nicht verloren</span></div>
+              <div style="color:#aaa; font-size:0.85em;">✅ <code>watchdog_last_action</code><br><span style="color:#666; font-size:0.9em;">Cooldown-Schutz bleibt nach Neustart aktiv</span></div>
+              <div style="color:#aaa; font-size:0.85em;">✅ <code>off_since_actual</code> / <code>on_since_actual</code><br><span style="color:#666; font-size:0.9em;">Min-Pause und Max-Laufzeit korrekt</span></div>
+            </div>
+          </div>
+          <div style="${tipBox('#27ae60', '💾', 'Der Zustand wird alle ~5 Minuten und beim sauberen HA-Shutdown automatisch in <code>.storage/openkairo_mining_state.json</code> gespeichert. Session-Werte (seit letztem Start) setzen bei Neustart bewusst zurück — das ist gewollt.')}"></div>
+        </div>
+
         <div class="tech-box" style="margin-top: 24px; border-color: rgba(var(--theme-accent-1-rgb), 0.2); background: rgba(0,0,0,0.1); border-radius: 20px; padding: 30px;">
           <h2 style="margin-top:0; color:#fff; text-align: center; margin-bottom: 28px;">☕ Projekt unterstützen</h2>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
@@ -2980,6 +3165,20 @@ class OpenKairoMiningPanel extends LitElement {
           </div>
         </div>
 
+        <div style="margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 20px;">
+          <h3 style="margin: 0 0 6px 0; font-size: 0.95em; color: rgba(255,255,255,0.7);">🗂 Config Backup</h3>
+          <p style="font-size: 0.82em; color: rgba(255,255,255,0.4); margin: 0 0 14px 0;">Config als JSON exportieren oder aus einer Backup-Datei wiederherstellen.</p>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            <button class="btn-primary" style="font-size: 0.85em; padding: 8px 16px;" @click="${this.exportConfig}">
+              ⬇️ Config exportieren
+            </button>
+            <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; font-size: 0.85em; color: rgba(255,255,255,0.75); transition: background 0.2s;">
+              ⬆️ Config importieren
+              <input type="file" accept=".json,application/json" @change="${this.importConfig}" style="display: none;">
+            </label>
+          </div>
+        </div>
+
         <h2>🛠 Miner verwalten</h2>
         <p>Hier legst du deine ASIC oder GPU Miner an und weist ihnen Steckdosen zu.</p>
         
@@ -2994,8 +3193,9 @@ class OpenKairoMiningPanel extends LitElement {
                 <p class="small-text">Dose: ${miner.switch} <br> Modus: ${miner.mode}</p>
               </div>
               <div class="actions">
-                <button class="btn-icon edit" @click="${() => this.startEditMiner(miner)}">✏️</button>
-                <button class="btn-icon delete" @click="${() => this.deleteMiner(miner.id)}">🗑️</button>
+                <button class="btn-icon edit" @click="${() => this.startEditMiner(miner)}" title="Bearbeiten">✏️</button>
+                <button class="btn-icon" style="opacity:0.6;" @click="${() => this.exportMinerTemplate(miner)}" title="Einstellungen als Vorlage exportieren">📋</button>
+                <button class="btn-icon delete" @click="${() => this.deleteMiner(miner.id)}" title="Löschen">🗑️</button>
               </div>
             </div>
           `) : html`<p class="empty-text">Noch keine Miner vorhanden.</p>`}
@@ -3012,7 +3212,27 @@ class OpenKairoMiningPanel extends LitElement {
     return html`
       <div class="card edit-card">
         <h2 class="edit-title">${this.editingMinerId === 'new' ? 'Neuen Miner anlegen' : 'Miner bearbeiten'}</h2>
-        
+
+        ${(() => {
+          const others = (this.config.miners || []).filter(m => m.id !== this.editingMinerId);
+          if (!others.length) return '';
+          return html`
+            <div style="background: rgba(11,196,226,0.06); border: 1px solid rgba(11,196,226,0.2); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <span style="font-size: 0.82em; color: rgba(255,255,255,0.55); white-space: nowrap;">📋 Einstellungen übernehmen von:</span>
+              <select style="flex: 1; min-width: 160px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff; padding: 6px 10px; font-size: 0.82em;"
+                @change="${(e) => { if (e.target.value) { this.applyMinerSettings(e.target.value); e.target.value = ''; } }}">
+                <option value="">— Miner wählen …</option>
+                ${others.map(m => html`<option value="${m.id}">${m.name}</option>`)}
+              </select>
+              <label style="cursor:pointer; white-space:nowrap; font-size:0.82em; color:rgba(11,196,226,0.8); border:1px solid rgba(11,196,226,0.25); border-radius:6px; padding:5px 10px;">
+                📂 Vorlage laden
+                <input type="file" accept=".json,application/json" style="display:none;" @change="${(e) => this._importMinerTemplate(e)}">
+              </label>
+              <span style="font-size: 0.75em; color: rgba(255,255,255,0.3);">Modus, Schwellenwerte, Soft-Start, Watchdog — Name/IP/Sensoren bleiben unverändert.</span>
+            </div>
+          `;
+        })()}
+
         <div class="form-row">
             <div class="form-group flex-2">
               <label>Name des Miners</label>
