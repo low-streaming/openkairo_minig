@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenKairo Mining — Anleitung v1.4.4 | Low Streaming</title>
+    <title>OpenKairo Mining — Anleitung v1.4.5 | Low Streaming</title>
     <meta name="description" content="Vollständige Anleitung zur OpenKairo Mining Home Assistant Integration. PV-Überschuss, SOC, Heizmodus, AI-Optimierer und mehr.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -96,7 +96,7 @@
             <div class="grid grid-4" style="border-top:1px solid var(--border-color);border-bottom:1px solid var(--border-color);padding:2rem 0;">
                 <div>
                     <div class="mono text-muted text-sm mb-1">VERSION</div>
-                    <div class="mono" style="font-size:1.5rem;font-weight:700;">v1.4.4</div>
+                    <div class="mono" style="font-size:1.5rem;font-weight:700;">v1.4.5</div>
                 </div>
                 <div>
                     <div class="mono text-muted text-sm mb-1">STATUS</div>
@@ -456,16 +456,48 @@
                 <p class="text-muted" style="max-width:600px;">Was sich in den letzten Versionen geändert hat.</p>
             </div>
 
-            <!-- v1.4.4 -->
+            <!-- v1.4.5 -->
             <div class="card reveal" style="margin-bottom:1.25rem;">
                 <div class="card-header">
                     <div class="update-bar">
                         <div class="update-dot green"></div>
-                        <span class="update-ver">v1.4.4</span>
+                        <span class="update-ver">v1.4.5</span>
                         <span class="badge badge-blue">Aktuell</span>
+                        <span class="mono text-muted text-sm">Watchdog Status-Badge + Power-Sensor Fix</span>
+                    </div>
+                    <p class="text-muted text-sm">Watchdog Countdown/Cooldown in der Miner-Karte sichtbar. Log-Spam "wird ausgeschaltet" behoben.</p>
+                </div>
+                <div class="card-body">
+                    <div class="grid grid-2" style="gap:2rem;">
+                        <div>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">✨ Watchdog Badge</p>
+                            <ul style="list-style:none;padding:0;" class="text-sm text-muted">
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> 🟡 <strong>Countdown läuft:</strong> Leistung zu niedrig, Watchdog feuert in X min</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> ⬜ <strong>Cooldown aktiv:</strong> Aktion wurde ausgelöst, neuer Countdown pausiert</li>
+                                        <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Badge erscheint nur wenn Watchdog für den Miner aktiv ist</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">🐛 Log-Spam: "wird ausgeschaltet" jede Sekunde</p>
+                            <ul style="list-style:none;padding:0;" class="text-sm text-muted">
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Power-Sensor-Fallback setzte <code>is_on=True</code> obwohl Switch auf <code>"off"</code></li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Standby-Leistung (z.B. 10W Avalon) triggerte jeden Tick die Ausschalt-Logik</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Fallback greift nur noch wenn kein Switch explizit <code>"off"</code> meldet</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- v1.4.4 -->
+            <div class="card reveal" style="margin-bottom:1.25rem;">
+                <div class="card-header">
+                    <div class="update-bar">
+                        <div class="update-dot"></div>
+                        <span class="update-ver">v1.4.4</span>
                         <span class="mono text-muted text-sm">Watchdog Default Fix</span>
                     </div>
-                    <p class="text-muted text-sm">Watchdog-Standard auf <code>"off"</code> geändert — Miner bleibt nach Watchdog-Aktion aus bis PV/SOC-Regel greift.</p>
+                    <p class="text-muted text-sm"><code>"off"</code> als Standard-Watchdog-Aktion — für neue Miner und als Engine-Fallback für ältere Configs.</p>
                 </div>
                 <div class="card-body">
                     <div class="grid grid-2" style="gap:2rem;">
@@ -478,11 +510,101 @@
                             </ul>
                         </div>
                         <div>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">🐛 Log-Spam: "wird ausgeschaltet" jede Sekunde</p>
+                            <ul style="list-style:none;padding:0;" class="text-sm text-muted">
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Power-Sensor-Fallback setzte <code>is_on=True</code> obwohl Switch auf <code>"off"</code></li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Standby-Leistung (z.B. 10W Avalon) triggerte jeden Tick die Ausschalt-Logik</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Fallback greift nur noch wenn kein Switch explizit <code>"off"</code> meldet</li>
+                            </ul>
+                        </div>
+                        <div>
                             <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">📋 Enthält alle Fixes aus v1.4.1–v1.4.3</p>
                             <ul style="list-style:none;padding:0;" class="text-sm text-muted">
                                 <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> v1.4.3: Watchdog-Aktion konfigurierbar + neue <code>"off"</code> Aktion</li>
                                 <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> v1.4.2: Watchdog Cooldown — keine Dauerauslösung mehr</li>
                                 <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> v1.4.1: Soft-Start, BraiinsOS-Clamp, iPad, Blank-Page, Forecast, Logging</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- v1.4.3 -->
+            <div class="card reveal" style="margin-bottom:1.25rem;">
+                <div class="card-header">
+                    <div class="update-bar">
+                        <div class="update-dot"></div>
+                        <span class="update-ver">v1.4.3</span>
+                        <span class="mono text-muted text-sm">Watchdog Action Fix</span>
+                    </div>
+                    <p class="text-muted text-sm">Watchdog-Aktion war nicht konfigurierbar. Neuer Selector + neue <code>"off"</code> Aktion.</p>
+                </div>
+                <div class="card-body">
+                    <div class="grid grid-2" style="gap:2rem;">
+                        <div>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">🐛 Fix: Kein Watchdog-Selector (#16)</p>
+                            <ul style="list-style:none;padding:0;" class="text-sm text-muted">
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Formular hatte keinen Selector — immer <code>toggle</code> wurde verwendet</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Neuer Selector mit 4 Optionen: off / toggle / reboot / restart_backend</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Dynamischer Hilfstext je nach gewählter Aktion</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">🛑 Neue Aktion: <code>"off"</code></p>
+                            <ul style="list-style:none;padding:0;" class="text-sm text-muted">
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> <code>toggle</code> schaltet sofort wieder ein — kein dauerhaftes Aus möglich</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> <code>off</code> lässt Miner aus bis PV/SOC-Regel greift</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- v1.4.2 -->
+            <div class="card reveal" style="margin-bottom:1.25rem;">
+                <div class="card-header">
+                    <div class="update-bar">
+                        <div class="update-dot"></div>
+                        <span class="update-ver">v1.4.2</span>
+                        <span class="mono text-muted text-sm">Watchdog Cooldown Hotfix</span>
+                    </div>
+                    <p class="text-muted text-sm">Watchdog triggerte alle 15 Sekunden statt einmalig — Cooldown nach Aktion eingebaut. (#17)</p>
+                </div>
+                <div class="card-body">
+                    <ul style="list-style:none;padding:0;" class="text-sm text-muted">
+                        <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Nach Watchdog-Aktion startet Countdown erst nach Ablauf der <em>Wartezeit</em> (mind. 5 min) neu</li>
+                        <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Antminer braucht 1–3 min zum Starten — kein falscher Re-Trigger mehr während Boot</li>
+                        <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Neues Feld <code>watchdog_last_action</code> im Miner-State</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- v1.4.1 -->
+            <div class="card reveal" style="margin-bottom:1.25rem;">
+                <div class="card-header">
+                    <div class="update-bar">
+                        <div class="update-dot"></div>
+                        <span class="update-ver">v1.4.1</span>
+                        <span class="mono text-muted text-sm">Community Bugfix Release</span>
+                    </div>
+                    <p class="text-muted text-sm">6 gemeldete Bugs aus der Community behoben — Soft-Start, BraiinsOS, iPad, Logging.</p>
+                </div>
+                <div class="card-body">
+                    <div class="grid grid-2" style="gap:2rem;">
+                        <div>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">🐛 Engine-Fixes</p>
+                            <ul style="list-style:none;padding:0;" class="text-sm text-muted">
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Soft-Start blieb dauerhaft in Stufe 1 stecken (#13)</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> BraiinsOS: <code>power_target out of range</code> — Min/Max aus HA Entity gelesen (#14)</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Solar-Vorhersage fehlte bei älteren Miner-Configs (#11)</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <p class="text-sm mb-2" style="color:var(--text-primary);font-weight:600;">🐛 Panel-Fixes</p>
+                            <ul style="list-style:none;padding:0;" class="text-sm text-muted">
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> iPad: Sensor-Picker öffnete hinter anderen Elementen (#10)</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Panel wurde nach Tablet-Idle leer (#2)</li>
+                                <li class="mb-1 flex align-center"><span class="mono text-accent mr-1">→</span> Logging: Miner-Karte zeigt "Letzte Entscheidung" direkt (#9)</li>
                             </ul>
                         </div>
                     </div>
@@ -638,7 +760,7 @@
             </div>
             <div class="footer-bottom">
                 <div>&copy; 2024 Low Streaming. Alle Rechte vorbehalten.</div>
-                <div class="mono text-sm">SYS_VER: 2.1.0 · OpenKairo Mining v1.4.4</div>
+                <div class="mono text-sm">SYS_VER: 2.1.0 · OpenKairo Mining v1.4.5</div>
             </div>
         </div>
     </footer>

@@ -417,10 +417,15 @@ class MiningEngine:
 
         is_on = bool(switches) and all(self.hass.states.get(s).state == "on" if self.hass.states.get(s) else False for s in switches)
         if not plug_on: is_on = False
-        
-        # Power detection fallback
+
+        # Power detection fallback — only when no switch explicitly reports "off".
+        # Prevents false "is_on=True" when the switch is off but the sensor shows standby power.
+        switch_explicitly_off = bool(switches) and all(
+            self.hass.states.get(s) is not None and self.hass.states.get(s).state == "off"
+            for s in switches
+        )
         p_sensor = miner.get("power_consumption_sensor")
-        if not is_on and p_sensor:
+        if not is_on and p_sensor and not switch_explicitly_off and plug_on:
             p_state = self.hass.states.get(p_sensor)
             if p_state and p_state.state not in ["unknown", "unavailable"]:
                 try:

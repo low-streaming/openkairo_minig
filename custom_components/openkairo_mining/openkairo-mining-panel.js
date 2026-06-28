@@ -1556,7 +1556,7 @@ class OpenKairoMiningPanel extends LitElement {
         <div style="text-align: center; margin-bottom: 36px;">
           <div style="font-size: 2.8em; margin-bottom: 8px;">⛏️</div>
           <h1 style="margin: 0 0 6px 0; font-size: 1.7em; color: #fff;">OpenKairo Mining</h1>
-          <div style="color: var(--theme-accent-1); font-size: 1em; font-weight: 600; margin-bottom: 10px;">Benutzerhandbuch — Version 1.4.4</div>
+          <div style="color: var(--theme-accent-1); font-size: 1em; font-weight: 600; margin-bottom: 10px;">Benutzerhandbuch — Version 1.4.5</div>
           <p style="color: #888; max-width: 560px; margin: 0 auto; line-height: 1.6; font-size: 0.95em;">
             Alles was du wissen musst, um deine Miner intelligent zu steuern.
           </p>
@@ -2382,6 +2382,20 @@ class OpenKairoMiningPanel extends LitElement {
                     <ha-icon icon="mdi:information-outline" style="--mdc-icon-size: 13px; flex-shrink: 0;"></ha-icon>
                     <span>${switchState === 'on' ? (stateObj.log_reason_on || '') : (stateObj.log_reason_off || '')}</span>
                   </div>
+                ` : ''}
+
+                ${stateObj && miner.standby_watchdog_enabled ? html`
+                  ${stateObj.watchdog_remaining > 0 ? html`
+                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 6px 10px; background: rgba(243,156,18,0.1); border: 1px solid rgba(243,156,18,0.35); border-radius: 8px; font-size: 0.75em; color: rgba(243,156,18,0.9);">
+                      <ha-icon icon="mdi:shield-alert-outline" style="--mdc-icon-size: 13px; flex-shrink: 0;"></ha-icon>
+                      <span>Watchdog Countdown: noch ${Math.ceil(stateObj.watchdog_remaining / 60)} min</span>
+                    </div>
+                  ` : stateObj.watchdog_cooldown_remaining > 0 ? html`
+                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 6px 10px; background: rgba(100,116,139,0.1); border: 1px solid rgba(100,116,139,0.3); border-radius: 8px; font-size: 0.75em; color: rgba(148,163,184,0.8);">
+                      <ha-icon icon="mdi:shield-sync-outline" style="--mdc-icon-size: 13px; flex-shrink: 0;"></ha-icon>
+                      <span>Watchdog Cooldown: noch ${Math.ceil(stateObj.watchdog_cooldown_remaining / 60)} min</span>
+                    </div>
+                  ` : ''}
                 ` : ''}
 
                 <div class="api-stats" style="background: rgba(15,15,20,0.9); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; /* Removed backdrop-filter */">
@@ -3558,7 +3572,7 @@ class OpenKairoMiningPanel extends LitElement {
                   <option value="restart_backend"  ?selected="${this.editForm.watchdog_action === 'restart_backend'}">🔧 Backend-Neustart — nur Mining-Software neu starten</option>
                 </select>
                 <small>
-                  ${(this.editForm.watchdog_action || 'toggle') === 'off'
+                  ${(this.editForm.watchdog_action || 'off') === 'off'
                     ? 'Miner wird ausgeschaltet und bleibt aus. PV/SOC-Regel entscheidet wann er wieder startet.'
                     : (this.editForm.watchdog_action === 'reboot' || this.editForm.watchdog_action === 'restart_backend')
                       ? 'Benötigt eine konfigurierte Miner-IP.'

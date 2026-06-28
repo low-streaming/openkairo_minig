@@ -1,6 +1,6 @@
 # OpenKairo Mining ⛏️ — Home Assistant Integration
 
-[![Version](https://img.shields.io/badge/Version-1.4.4-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
+[![Version](https://img.shields.io/badge/Version-1.4.5-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg?style=for-the-badge)](https://home-assistant.io)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://hacs.xyz)
 [![Powered by OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
@@ -186,6 +186,11 @@ Erkennt wenn ein Miner eingefroren ist (z.B. Hashrate = 0 aber Stromverbrauch > 
    - `reboot` — Hardware-Reboot per API
    - `restart_backend` — Nur Mining-Software neu starten
 
+**Status-Anzeige in der Miner-Karte:**
+
+- 🟡 **Watchdog Countdown: noch X min** — Miner läuft, aber Leistung ist zu niedrig. Watchdog feuert wenn Zeit abläuft.
+- ⬜ **Watchdog Cooldown: noch X min** — Aktion wurde bereits ausgelöst. Neuer Countdown startet erst nach Cooldown.
+
 ---
 
 ## 📊 HA-Sensoren
@@ -256,6 +261,11 @@ Status-Daten an einen MQTT-Broker senden:
 
 ## 📋 Changelog
 
+### v1.4.5 — Watchdog Status-Badge + Power-Sensor Bug
+
+- Miner-Karte zeigt Watchdog Countdown und Cooldown direkt an (`watchdog_remaining` / `watchdog_cooldown_remaining`)
+- Engine-Bug: `"wird ausgeschaltet"` wurde jeden Tick geloggt obwohl Miner schon aus war — Power-Sensor-Fallback überschrieb Switch-Off-Zustand
+
 ### v1.4.4 — Watchdog Default Fix
 
 - `"off"` als Standard-Watchdog-Aktion — gilt für neue Miner und als Engine-Fallback für ältere Configs
@@ -317,4 +327,4 @@ OpenKairo ist ein Community-Projekt. Wenn dir die Integration hilft, freuen wir 
 
 ---
 
-**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.4
+**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.5
