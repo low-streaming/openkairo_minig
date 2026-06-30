@@ -3119,13 +3119,14 @@ class OpenKairoMiningPanel extends LitElement {
           </div>
 
             <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 250px;">
-              <label>Haus-Last Sensor (Netto-Verbrauch)</label>
-              <openkairo-entity-picker 
-                placeholder="-- Sensor wählen --" 
-                .value="${this.config.house_power_sensor || ''}" 
-                .entities="${this.getEntitiesByDomain('sensor')}" 
+              <label>Haus-Stromsensor (für echten PV-Überschuss)</label>
+              <openkairo-entity-picker
+                placeholder="-- Sensor wählen --"
+                .value="${this.config.house_power_sensor || ''}"
+                .entities="${this.getEntitiesByDomain('sensor')}"
                 @change="${(e) => { this.config.house_power_sensor = e.target.value; this.saveConfig(true); }}">
               </openkairo-entity-picker>
+              <small style="color: #888;">Netz-Sensor (z.B. Shelly EM, Tibber Pulse). <b>Negativ = Bezug, Positiv = Einspeisung.</b> Wenn gesetzt, berechnet der PV-Modus den echten Überschuss statt der Rohproduktion.</small>
             </div>
             <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 250px;">
               <label>Akku-Leistung Sensor (Laden/Entladen)</label>
@@ -3416,17 +3417,20 @@ class OpenKairoMiningPanel extends LitElement {
           <div class="mode-section btc-section">
             <h3>☀️ PV-Überschuss Steuerung</h3>
             <div class="form-group">
-                <label>PV-Sensor (Netzeinspeisung/Ertrag in Watt)</label>
-                <openkairo-entity-picker name="pv_sensor" placeholder="-- Einspeise-/Watt-Sensor suchen --" .value="${this.editForm.pv_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                <label>PV-Sensor (Wechselrichter-Leistung in Watt)</label>
+                <openkairo-entity-picker name="pv_sensor" placeholder="-- PV-Produktions-Sensor suchen --" .value="${this.editForm.pv_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                <small style="color: #888;">Trage hier die <b>PV-Produktion</b> deines Wechselrichters ein (z.B. sensor.solaredge_ac_power) — nicht die Netzeinspeisung. Für echten Überschuss (PV minus Hausverbrauch) stelle den Haus-Stromsensor in den <b>globalen Einstellungen</b> ein.</small>
             </div>
             <div class="form-row">
                 <div class="form-group flex-1">
-                    <label>Einschalten ab PV-Überschuss (Watt)</label>
+                    <label>Einschalten ab (Watt)</label>
                     <input type="number" name="pv_on" .value="${this.editForm.pv_on}" @input="${this.handleFormInput}">
+                    <small>Miner startet wenn Überschuss ≥ diesem Wert.</small>
                 </div>
                 <div class="form-group flex-1">
-                    <label>PV-Überschuss ignorieren ab (Watt)</label>
+                    <label>Ausschalten unter (Watt)</label>
                     <input type="number" name="pv_off" .value="${this.editForm.pv_off}" @input="${this.handleFormInput}">
+                    <small>Miner stoppt wenn Überschuss dauerhaft unter diesem Wert fällt.</small>
                 </div>
             </div>
 
@@ -3436,6 +3440,7 @@ class OpenKairoMiningPanel extends LitElement {
                     🔋 Optionale Batterie-Unterstützung erlauben
                 </label>
                 
+                <p style="margin: 8px 0 0 30px; font-size: 0.85em; color: #888;">Aktiviere dies wenn du eine Hausbatterie hast. Der Miner bleibt dann auch bei kurzen Wolken an, solange die Batterie noch ausreichend geladen ist.</p>
                 ${this.editForm.allow_battery ? html`
                 <div class="form-row" style="margin-top: 15px;">
                     <div class="form-group flex-2">
@@ -3443,21 +3448,19 @@ class OpenKairoMiningPanel extends LitElement {
                         <openkairo-entity-picker name="battery_sensor" placeholder="-- Batterie % Sensor suchen --" .value="${this.editForm.battery_sensor || ''}" .entities="${sensorOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
                     </div>
                     <div class="form-group flex-1">
-                        <label>Minimale Batterieladung (%)</label>
+                        <label>Mindest-Ladestand (%)</label>
                         <input type="number" min="0" max="100" name="battery_min_soc" .value="${this.editForm.battery_min_soc || 50}" @input="${this.handleFormInput}">
-                        <small>Miner läuft, solange Batterie ≥ diesem Wert.</small>
+                        <small>Unter diesem SOC wird der Miner abgeschaltet, auch wenn noch PV vorhanden ist.</small>
                     </div>
                 </div>
-                ` : html`
-                <p style="margin: 8px 0 0 30px; font-size: 0.85em; color: #888;">Der Miner startet normal bei erreichtem PV-Überschuss. Danach verhindert die Batterie das sofortige Abschalten bei Wolken/Einbrüchen, solange sie noch genügend (z.B. ≥ 60%) geladen ist.</p>
-                `}
+                ` : ''}
             </div>
 
             <div class="form-row mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
                 <div class="form-group flex-1">
-                    <label>Verzögerung (Hysterese in Minuten)</label>
+                    <label>Abschaltverzögerung (Minuten)</label>
                     <input type="number" min="0" step="1" name="delay_minutes" .value="${this.editForm.delay_minutes !== undefined ? this.editForm.delay_minutes : 5}" @input="${this.handleFormInput}">
-                    <small>PV-Aus-Verzögerung.</small>
+                    <small>Erst ausschalten wenn Überschuss X Minuten lang unter der Schwelle bleibt. Verhindert häufiges Schalten bei Wolken.</small>
                 </div>
                 <div class="form-group flex-1">
                     <label>🛡️ Min. Laufzeit (Minuten)</label>

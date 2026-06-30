@@ -113,4 +113,102 @@ Session-Werte (`session_runtime_s`, `session_energy_wh`) und Ramping-State setze
 
 ---
 
+---
+
+## 🐛 Bugfix — Überschussmodus (PV-Modus) funktionierte nicht zuverlässig
+
+**Gemeldet von:** mehreren Nutzern (Discord / GitHub Issues)
+
+**Problem:** Der PV-Überschussmodus schaltete Miner nicht oder zum falschen Zeitpunkt aus, und die automatische Leistungsanpassung berücksichtigte den echten Überschuss nicht.
+
+---
+
+### Bug 1 — Abschaltschwelle prüfte rohe PV statt echten Überschuss
+
+**Ursache:** Das Einschalten basierte korrekt auf dem *echten Überschuss* (`PV - Hausverbrauch`), aber das Ausschalten prüfte immer die *rohe PV-Produktion* — unabhängig davon wie viel das Haus davon verbraucht.
+
+```text
+Beispiel:
+  Hausstromsensor: 1200 W Verbrauch
+  PV-Produktion:    800 W
+  Echter Überschuss: −400 W (Miner sollte AUS sein)
+
+  Abschaltschwelle: 500 W
+
+  Vorher: 800 W (roh) > 500 W → Miner bleibt AN  ❌
+  Nachher: −400 W (Überschuss) < 500 W → Miner schaltet AUS  ✅
+```
+
+**Fix:** `turn_off` prüft jetzt `effective_pv` (Überschuss) statt `pv_value` (roh), identisch zur Einschaltlogik.
+
+---
+
+### Bug 2 — Leistungsskalierung ignorierte Hausstromsensor
+
+**Ursache:** Die automatische Leistungsanpassung (`soft_continuous_scaling` / proportional) skalierte immer auf die Roh-PV-Produktion. War ein `house_power_sensor` konfiguriert, bekam der Miner zu viel Leistung zugewiesen — er hätte den Überschuss berücksichtigen sollen.
+
+```text
+Beispiel:
+  PV-Produktion: 1500 W, Hausverbrauch: 600 W
+  Echter Überschuss: 900 W
+
+  Vorher: Zielleistung = 1500 W × 0.95 = 1425 W  ❌ (zieht 525 W aus dem Netz)
+  Nachher: Zielleistung = 900 W × 0.95 = 855 W  ✅
+```
+
+**Fix:** `_handle_continuous_scaling` bekommt `global_pv_surplus` übergeben und nutzt diesen Wert wenn vorhanden.
+
+---
+
+### Bug 3 — Surplus-Weitergabe bei Multi-Miner ignorierte gerade eingeschaltete Miner
+
+**Ursache:** Bei mehreren Minern im PV-Modus wird der Überschuss nach jedem Miner für den nächsten reduziert. Die Reduktion prüfte aber nur ob der Miner *vor dem Tick* bereits an war — nicht ob er *in diesem Tick* eingeschaltet wurde. Ergebnis: Miner A und Miner B konnten beide den vollen Überschuss sehen und beide einschalten, obwohl nur einer gepasst hätte.
+
+**Fix:** Surplus wird jetzt auch abgezogen wenn `turn_on_condition` für diesen Tick `True` ist (und nicht gleichzeitig `turn_off_condition`).
+
+---
+
+### Einrichtung — So konfigurierst du den Überschussmodus richtig
+
+**Minimalkonfiguration (nur PV-Sensor):**
+
+| Feld              | Wert                             | Beschreibung                   |
+| ----------------- | -------------------------------- | ------------------------------ |
+| Modus             | `PV-Überschuss`                  | PV-Modus aktivieren            |
+| PV-Sensor         | z.B. `sensor.solaredge_ac_power` | Aktuelle PV-Produktion in Watt |
+| Einschalten ab    | z.B. `800` W                     | Miner startet wenn PV ≥ 800 W  |
+| Ausschalten unter | z.B. `400` W                     | Miner stoppt wenn PV < 400 W   |
+
+> Der Abstand zwischen Ein- und Ausschaltschwelle verhindert ständiges Schalten bei wechselnder Bewölkung. Empfehlung: mindestens 200–300 W Abstand.
+
+---
+
+**Mit Hausstromsensor (empfohlen — echter Überschuss):**
+
+Zusätzlich in den **globalen Einstellungen** (`Einstellungen → ⚙️ Allgemein`):
+
+| Feld             | Wert                          | Beschreibung                         |
+| ---------------- | ----------------------------- | ------------------------------------ |
+| Haus-Stromsensor | z.B. `sensor.shelly_em_power` | Netto-Netzeinspeisung/-bezug in Watt |
+
+> **Wichtig:** Der Sensor muss **negative Werte** liefern wenn Strom *bezogen* wird (typisch für Shelly EM, Tibber Pulse, etc. im "Einspeisung positiv"-Modus). Liefert dein Sensor positive Werte beim Bezug, funktioniert die Überschuss-Berechnung umgekehrt.
+
+Mit diesem Sensor berechnet die Engine den echten Überschuss: `Überschuss = −Sensorwert`. Ein- und Abschaltschwellen beziehen sich dann auf diesen bereinigten Wert.
+
+---
+
+**Mit automatischer Leistungsanpassung:**
+
+Unter `Leistungs-Skalierung` im Miner-Formular:
+
+| Feld               | Wert                 | Beschreibung                               |
+| ------------------ | -------------------- | ------------------------------------------ |
+| Continuous Scaling | `An`                 | Automatische Leistungsanpassung aktivieren |
+| Skalierungsmodus   | `Proportional`       | Folgt dem Überschuss gleitend (empfohlen)  |
+| Skalierungsfaktor  | `0.95`               | Nutzt 95% des Überschusses (5% Puffer)     |
+| Intervall          | `60` s               | Wie oft die Leistung angepasst wird        |
+| Leistungs-Entity   | Miner Power-Sensor   | Wird vom Skalierungsalgorithmus gelesen    |
+
+---
+
 **Full Changelog**: v1.4.4 → v1.4.5 | Powered by OpenKairo ₿

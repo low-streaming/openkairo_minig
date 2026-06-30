@@ -427,13 +427,14 @@ class MiningEngine:
             state["ramping"] = None
 
         # Continuous Scaling
-        await self._handle_continuous_scaling(miner, state, is_on, mode, current_time)
+        await self._handle_continuous_scaling(miner, state, is_on, mode, current_time, global_pv_surplus)
 
         # MQTT publish (if configured)
         await self._publish_miner_state_mqtt(miner, state)
 
         # Update Surplus for next miner in loop
-        if mode == "pv" and is_on:
+        # Use turn_on/turn_off result to account for miners switched in this tick
+        if mode == "pv" and (is_on or turn_on_condition) and not turn_off_condition:
             power_val = state.get("power", 0)
             if global_pv_surplus is not None:
                 global_pv_surplus -= power_val
@@ -606,7 +607,7 @@ class MiningEngine:
                 safety_min_soc = battery_min_soc + battery_hysteresis if not is_on else battery_min_soc
                 if not allow_battery or battery_soc >= safety_min_soc:
                     turn_on = True
-                    state["log_reason_on"] = f"(PV {effective_pv}W >= {on_threshold}W)"
+                    state["log_reason_on"] = f"(PV-Überschuss {effective_pv:.0f}W >= {on_threshold}W)"
 
             # Price Awareness: cheap grid allows mining even if PV is insufficient
             price_sensor = miner.get("electricity_price_sensor")
@@ -622,10 +623,10 @@ class MiningEngine:
                         pass
 
             turn_off = False
-            if pv_value <= off_threshold:
+            if effective_pv <= off_threshold:
                 if not allow_battery or battery_soc < battery_min_soc:
                     turn_off = True
-                    state["log_reason_off"] = f"(PV {pv_value}W <= {off_threshold}W)"
+                    state["log_reason_off"] = f"(PV-Überschuss {effective_pv:.0f}W <= {off_threshold}W)"
 
             # Cheap grid price prevents turn-off (but does not independently trigger turn-on)
             if turn_off and price_sensor and price_limit is not None:
@@ -1068,7 +1069,7 @@ class MiningEngine:
                     state["session_energy_wh"] = 0.0
                     state["ramping"] = None
 
-    async def _handle_continuous_scaling(self, miner, state, is_on, mode, current_time):
+    async def _handle_continuous_scaling(self, miner, state, is_on, mode, current_time, pv_surplus=None):
         power_entity = miner.get("power_entity")
         # PV mode always tracks surplus if a power_entity is configured — no opt-in needed
         pv_auto = (mode == "pv" and bool(power_entity))
@@ -1102,9 +1103,10 @@ class MiningEngine:
                 if pv_sensor:
                     pv_state = self.hass.states.get(pv_sensor)
                     if pv_state and pv_state.state not in ["unknown", "unavailable"]:
-                        pv_val = float(pv_state.state)
+                        # Use surplus (house-corrected) if available, else raw PV
+                        pv_val = pv_surplus if pv_surplus is not None else float(pv_state.state)
                         if scaling_mode == "proportional":
-                            # Smooth proportional tracking — use 95% of available PV
+                            # Smooth proportional tracking — use 95% of available surplus
                             factor = float(miner.get("scaling_factor", 0.95))
                             target_power = max(p_min, min(p_max, pv_val * factor))
                         else:
