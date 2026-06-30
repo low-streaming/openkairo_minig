@@ -2,6 +2,24 @@
 
 ---
 
+## ✨ Neu — Aktivitäts-Heatmap im Statistik-Tab
+
+Im Tab **📊 Graphen** zeigt jede Miner-Karte jetzt eine Aktivitäts-Heatmap der letzten 7 Tage — ein Tag/Stunden-Raster (ähnlich GitHub-Contribution-Graph), das visualisiert wann der Miner lief.
+
+**Warum nützlich:** Besonders im PV-Überschussmodus lässt sich so auf einen Blick prüfen, ob der Miner tatsächlich nur während Sonnenstunden lief, oder ob die Schaltlogik unerwartet zugeschlagen hat.
+
+Jede Zelle = eine Stunde, Farbintensität = Anteil der Stunde in dem der Miner an war. Stunden in der Zukunft (heutiger Tag) bleiben leer. Tooltip beim Hover zeigt Tag, Uhrzeit und exakten Prozentwert.
+
+**Datenquelle:** Home Assistant Recorder-Historie des Schalter-Entities (7 Tage zurück), serverseitig nicht zusätzlich gespeichert — rein clientseitig berechnet aus den bereits vorhandenen `history/period`-Daten.
+
+### Nebenbei behobener Bug — Laufzeit-Statistik „Heute" / „7 Tage" lud nie Daten
+
+**Problem:** Die Felder „Heute" und „7 Tage" in der Miner-Karte (Dashboard) nutzten `calculateRuntime()`, das auf `switchHistoryData` zugreift. Die Methode zum Laden dieser Historie (`fetchSwitchHistory`) wurde aber an keiner Stelle im Code aufgerufen — `switchHistoryData` blieb dauerhaft leer. Die Laufzeitanzeige zeigte dadurch nur die aktuell laufende Phase (falls der Miner gerade an war) statt der echten Tages-/Wochenlaufzeit.
+
+**Fix** (`openkairo-mining-panel.js`): Neue Hilfsmethode `ensureSwitchHistory()` lädt die Historie lazy beim ersten Zugriff (gleiches Muster wie die bestehenden Sensor-Graphen) und wird jetzt von `calculateRuntime()` und der neuen Heatmap genutzt.
+
+---
+
 ## ✨ Neu — Config Backup & Wiederherstellung
 
 Vollständige Sicherung und Wiederherstellung der OpenKairo-Konfiguration mit einem Klick.

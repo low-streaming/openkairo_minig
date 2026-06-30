@@ -644,19 +644,28 @@ class OpenKairoMiningPanel extends LitElement {
       const response = await this.hass.callApi('GET', `history/period/${startStr}?filter_entity_id=${entityId}`);
       if (response && response.length > 0) {
         this.switchHistoryData = { ...this.switchHistoryData, [entityId]: response[0] };
-        this.requestUpdate();
       } else {
         this.switchHistoryData = { ...this.switchHistoryData, [entityId]: [] };
-        this.requestUpdate();
       }
     } catch (e) {
       console.error("Failed to fetch switch history for " + entityId, e);
       this.switchHistoryData = { ...this.switchHistoryData, [entityId]: [] };
+    } finally {
+      this.fetchingSwitchHistory[entityId] = false;
       this.requestUpdate();
     }
   }
 
+  ensureSwitchHistory(entityId) {
+    if (!entityId) return;
+    if (!this.switchHistoryData[entityId] && !this.fetchingSwitchHistory[entityId]) {
+      this.fetchingSwitchHistory[entityId] = true;
+      this.fetchSwitchHistory(entityId);
+    }
+  }
+
   calculateRuntime(entityId) {
+    this.ensureSwitchHistory(entityId);
     const historyData = this.switchHistoryData[entityId] || [];
     const currentStateObj = this.hass ? this.hass.states[entityId] : null;
 
@@ -735,6 +744,116 @@ class OpenKairoMiningPanel extends LitElement {
     }
 
     return { todayMinutes, weekMinutes };
+  }
+
+  buildHeatmapBuckets(entityId) {
+    this.ensureSwitchHistory(entityId);
+    const historyData = this.switchHistoryData[entityId] || [];
+    const currentStateObj = this.hass ? this.hass.states[entityId] : null;
+
+    let data = [...historyData];
+    if (currentStateObj) {
+      const lastHistoryTime = data.length > 0 ? new Date(data[data.length - 1].last_changed).getTime() : 0;
+      const currentTime = new Date(currentStateObj.last_changed).getTime();
+      if (currentTime > lastHistoryTime) {
+        data.push({ state: currentStateObj.state, last_changed: currentStateObj.last_changed });
+      }
+    }
+
+    const now = new Date();
+    const windowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6).getTime();
+    const windowEnd = now.getTime();
+
+    const bucketMinutes = Array.from({ length: 7 }, () => new Array(24).fill(0));
+
+    const addOnInterval = (fromMs, toMs) => {
+      let cursor = Math.max(fromMs, windowStart);
+      const to = Math.min(toMs, windowEnd);
+      while (cursor < to) {
+        const cursorDate = new Date(cursor);
+        const dayIdx = Math.floor((new Date(cursorDate.getFullYear(), cursorDate.getMonth(), cursorDate.getDate()).getTime() - windowStart) / 86400000);
+        const hour = cursorDate.getHours();
+        const hourEnd = new Date(cursorDate.getFullYear(), cursorDate.getMonth(), cursorDate.getDate(), hour).getTime() + 3600000;
+        const segEnd = Math.min(to, hourEnd);
+        if (dayIdx >= 0 && dayIdx < 7) {
+          bucketMinutes[dayIdx][hour] += (segEnd - cursor) / 60000;
+        }
+        cursor = segEnd;
+      }
+    };
+
+    let lastOnTime = null;
+    for (let i = 0; i < data.length; i++) {
+      const time = new Date(data[i].last_changed).getTime();
+      const state = data[i].state;
+      if (state === 'on') {
+        if (!lastOnTime) lastOnTime = time;
+      } else if (state === 'off' || state === 'unavailable' || state === 'unknown') {
+        if (lastOnTime) {
+          addOnInterval(lastOnTime, time);
+          lastOnTime = null;
+        }
+      }
+    }
+    if (lastOnTime && currentStateObj && currentStateObj.state === 'on') {
+      addOnInterval(lastOnTime, now.getTime());
+    }
+
+    const dayLabels = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    const currentHour = now.getHours();
+    const days = [];
+    for (let d = 0; d < 7; d++) {
+      const dayDate = new Date(windowStart + d * 86400000);
+      const isToday = d === 6;
+      const hours = bucketMinutes[d].map((mins, h) => {
+        if (isToday && h > currentHour) return null;
+        return Math.min(1, mins / 60);
+      });
+      days.push({
+        label: dayLabels[dayDate.getDay()],
+        dateStr: `${String(dayDate.getDate()).padStart(2, '0')}.${String(dayDate.getMonth() + 1).padStart(2, '0')}`,
+        hours
+      });
+    }
+    return days;
+  }
+
+  renderActivityHeatmap(entityId) {
+    if (!entityId) return '';
+    const days = this.buildHeatmapBuckets(entityId);
+    const cellColor = (v) => {
+      if (v === null) return 'rgba(255,255,255,0.03)';
+      if (v <= 0) return 'rgba(255,255,255,0.06)';
+      if (v < 0.25) return 'rgba(11,196,226,0.25)';
+      if (v < 0.5) return 'rgba(11,196,226,0.5)';
+      if (v < 0.75) return 'rgba(11,196,226,0.75)';
+      return 'rgba(11,196,226,1)';
+    };
+    return html`
+      <div style="margin-top: 20px; text-align: left;">
+        <h4 style="color: #888; margin: 0 0 10px 0; font-size: 0.85em; text-transform: uppercase;">🟩 Aktivität — letzte 7 Tage</h4>
+        <div style="display: flex; flex-direction: column; gap: 3px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); padding: 12px; overflow-x: auto;">
+          ${days.map(day => html`
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="width: 50px; flex-shrink: 0; font-size: 0.7em; color: #888;">${day.label} ${day.dateStr}</span>
+              <div style="display: flex; gap: 2px;">
+                ${day.hours.map((v, h) => html`
+                  <div
+                    title="${day.label} ${day.dateStr} ${String(h).padStart(2, '0')}:00 — ${v === null ? 'keine Daten' : Math.round(v * 100) + '% an'}"
+                    style="width: 10px; height: 10px; border-radius: 2px; background: ${cellColor(v)};">
+                  </div>
+                `)}
+              </div>
+            </div>
+          `)}
+          <div style="display: flex; justify-content: flex-end; gap: 4px; margin-top: 6px; align-items: center;">
+            <span style="font-size: 0.65em; color: #666;">0%</span>
+            ${[0, 0.2, 0.5, 0.75, 1].map(v => html`<div style="width: 10px; height: 10px; border-radius: 2px; background: ${cellColor(v)};"></div>`)}
+            <span style="font-size: 0.65em; color: #666;">100%</span>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   async loadConfig() {
@@ -4090,12 +4209,20 @@ class OpenKairoMiningPanel extends LitElement {
         <p>Übersicht über den Stromverbrauch und die Hashrate deiner Miner im zeitlichen Verlauf.</p>
         
         <div class="dashboard-grid" style="margin-top: 20px;">
-          ${this.config.miners && this.config.miners.length > 0 ? this.config.miners.map(miner => html`
+          ${this.config.miners && this.config.miners.length > 0 ? this.config.miners.map(miner => {
+            const domain = 'openkairo_mining';
+            const _ipForSlug = miner.miner_ip || (miner.switch && miner.switch.includes('.') ? miner.switch : '');
+            const _ipSlug = _ipForSlug ? _ipForSlug.replace(/\./g, '_') : '';
+            let effectiveSwitch = miner.switch;
+            if (!effectiveSwitch && _ipSlug) {
+              effectiveSwitch = `switch.${domain}_${_ipSlug}_switch`;
+            }
+            return html`
             <div class="miner-card">
               <div class="miner-header" style="border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 15px; margin-bottom: 15px;">
                 <h3>${miner.name}</h3>
               </div>
-              
+
               ${miner.hashrate_sensor || miner.power_consumption_sensor ? html`
                   <div class="chart-box" style="text-align: center;">
                       <div style="display: flex; flex-direction: column; gap: 10px;">
@@ -4111,8 +4238,11 @@ class OpenKairoMiningPanel extends LitElement {
               ` : html`
                   <p style="color: #888; text-align: center; margin-top: 20px;">Keine Sensoren für diesen Miner konfiguriert. Füge diese in den Einstellungen hinzu, um Statistiken zu sehen.</p>
               `}
+
+              ${effectiveSwitch && this.hass?.states[effectiveSwitch] ? this.renderActivityHeatmap(effectiveSwitch) : ''}
             </div>
-          `) : html`<p class="empty-text">Noch keine Miner vorhanden.</p>`}
+          `;
+          }) : html`<p class="empty-text">Noch keine Miner vorhanden.</p>`}
         </div>
       </div>
     `;
