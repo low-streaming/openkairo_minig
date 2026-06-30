@@ -167,6 +167,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, str]) -> dict[str,
             if result: break
             
     for t in pending: t.cancel()
+    if pending: await asyncio.gather(*pending, return_exceptions=True)
 
     if result:
         _LOGGER.info(f"[{ip_address}] Miner gefunden via: {result['title']}")

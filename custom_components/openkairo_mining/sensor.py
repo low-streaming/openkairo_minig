@@ -331,7 +331,7 @@ class MinerDynamicSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        return self.coordinator.available and "raw_data" in self.coordinator.data
+        return self.coordinator.available and bool(self.coordinator.data) and "raw_data" in self.coordinator.data
 
 
 async def _setup_engine_stats_sensors(hass, config_entry, async_add_entities):

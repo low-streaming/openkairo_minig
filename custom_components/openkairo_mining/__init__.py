@@ -182,7 +182,10 @@ class OpenKairoMiningFrontendView(HomeAssistantView):
         path = os.path.join(os.path.dirname(__file__), "openkairo-mining-panel.js")
         hass = request.app["hass"]
         try:
-            content = await hass.async_add_executor_job(lambda: open(path, "r", encoding="utf-8").read())
+            def _read_js():
+                with open(path, "r", encoding="utf-8") as f:
+                    return f.read()
+            content = await hass.async_add_executor_job(_read_js)
             from aiohttp import web
             return web.Response(body=content, content_type="application/javascript")
         except OSError as e:
@@ -301,8 +304,8 @@ class OpenKairoMiningApiView(HomeAssistantView):
             if "update_global_config" in data:
                 params = data.get("params", {})
                 config = hass.data.get(DOMAIN, {}).get("config", {"miners": []})
-                for m in config.get("miners", []):
-                    for k, v in params.items(): m[k] = v
+                for k, v in params.items():
+                    config[k] = v
                 await hass.async_add_executor_job(_save_config, hass, config)
                 from aiohttp import web
                 return web.json_response({"status": "success", "updated": "all"})

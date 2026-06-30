@@ -856,6 +856,23 @@ class OpenKairoMiningPanel extends LitElement {
       scaling_factor: 0.95,
       power_step_limit: 0,
       soc_proportional_scaling: false,
+      miner_ip: '',
+      is_solo: false,
+      standby_switch_2: '',
+      target_temp_sensor: '',
+      target_temp_on: 21.0,
+      target_temp_off: 22.0,
+      offgrid_soc_mid: 94,
+      offgrid_mid_power: 800,
+      soft_target_power: null,
+      target_soc: 10,
+      target_time: '07:00',
+      battery_capacity: 10,
+      battery_power_sensor: '',
+      weather_optimization_enabled: false,
+      pv_peak_power: 10,
+      weather_lat: '',
+      weather_lon: '',
     };
   }
 
@@ -1084,34 +1101,16 @@ class OpenKairoMiningPanel extends LitElement {
     }
   }
 
-  callMinerService(miner, serviceName, serviceData = {}) {
-    if (!this.hass || (!miner.switch && !miner.switch_2)) {
-      alert("Es muss ein Schalter hinterlegt sein, um den Miner zu steuern.");
-      return;
-    }
-
-    const targetSwitch = miner.switch || miner.switch_2;
-    const stateObj = this.hass.states[targetSwitch];
-    const deviceId = stateObj?.attributes?.device_id;
-
-    if (!deviceId) {
-      alert("Konnte die zugehörige Hass-Miner Device-ID nicht finden.");
-      return;
-    }
-
-    const finalData = { device_id: deviceId, ...serviceData };
-
-    if (serviceName === 'reboot' && !confirm("Möchtest du den Miner wirklich neustarten?")) return;
-    if (serviceName === 'restart_backend' && !confirm("Möchtest du das Mining (Backend) auf dem Miner wirklich neustarten?")) return;
-
-    this.hass.callService("miner", serviceName, finalData)
-      .then(() => alert(`Befehl '${serviceName}' erfolgreich gesendet!`))
-      .catch(err => alert(`Fehler beim Senden des Befehls: ${err.message}`));
-  }
-
   handleFormInput(e) {
     const { name, value, type, checked } = e.target;
-    const finalValue = type === 'checkbox' ? checked : value;
+    let finalValue;
+    if (type === 'checkbox') {
+      finalValue = checked;
+    } else if (type === 'number' || type === 'range') {
+      finalValue = value === '' ? '' : parseFloat(value);
+    } else {
+      finalValue = value;
+    }
     
     if ((name === 'switch_2' || name === 'standby_switch_2') && finalValue && finalValue !== this.editForm[name]) {
         if (!confirm("⚠️ WARNUNG: Der Betrieb eines Miners an zwei getrennten smarten Steckdosen ist eigentlich nicht zulässig und erfolgt auf eigene Gefahr! \n\nEs kann zu Problemen beim Leistungsschutz oder zur Überlastung führen. Möchtest du fortfahren?")) {
@@ -1163,8 +1162,7 @@ class OpenKairoMiningPanel extends LitElement {
 
   showMoreInfo(entityId) {
     if (!entityId) return;
-    const event = new Event('hass-more-info', { bubbles: true, composed: true });
-    event.detail = { entityId: entityId };
+    const event = new CustomEvent('hass-more-info', { detail: { entityId }, bubbles: true, composed: true });
     this.dispatchEvent(event);
   }
 
@@ -2406,11 +2404,6 @@ class OpenKairoMiningPanel extends LitElement {
               else if (unit.includes('KH')) hrInTH = hrValue / 1000000000;
               else hrInTH = hrValue / 1000000000000; // Assume H/s if no prefix match
               
-              if (hrInTH > 0 && switchState === 'on') {
-                  totalHashrateTH += hrInTH;
-                  totalMinersOnline++;
-              }
-
               const btcPerDay = (hrInTH * 1e12 / (currentDifficulty * Math.pow(2, 32))) * 86400 * 3.125;
               dailyRevenue = btcPerDay * currentCoinPrice;
               hasProfitData = true;
@@ -2805,7 +2798,7 @@ class OpenKairoMiningPanel extends LitElement {
                           hasWatchData = true;
                       }
 
-                      if (hasWatchData && stState === 'on' && watchObj) {
+                      if (hasWatchData && switchState === 'on' && watchObj) {
                         const threshold = miner.standby_power || 100;
                         const delayMins = miner.standby_delay || 10;
 
@@ -3170,12 +3163,12 @@ class OpenKairoMiningPanel extends LitElement {
           <h3 style="margin: 0 0 6px 0; font-size: 0.95em; color: rgba(255,255,255,0.7);">🗂 Config Backup</h3>
           <p style="font-size: 0.82em; color: rgba(255,255,255,0.4); margin: 0 0 14px 0;">Config als JSON exportieren oder aus einer Backup-Datei wiederherstellen.</p>
           <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-            <button class="btn-primary" style="font-size: 0.85em; padding: 8px 16px;" @click="${this.exportConfig}">
+            <button class="btn-primary" style="font-size: 0.85em; padding: 8px 16px;" @click="${() => this.exportConfig()}">
               ⬇️ Config exportieren
             </button>
             <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; font-size: 0.85em; color: rgba(255,255,255,0.75); transition: background 0.2s;">
               ⬆️ Config importieren
-              <input type="file" accept=".json,application/json" @change="${this.importConfig}" style="display: none;">
+              <input type="file" accept=".json,application/json" @change="${(e) => this.importConfig(e)}" style="display: none;">
             </label>
           </div>
         </div>
@@ -3183,7 +3176,7 @@ class OpenKairoMiningPanel extends LitElement {
         <h2>🛠 Miner verwalten</h2>
         <p>Hier legst du deine ASIC oder GPU Miner an und weist ihnen Steckdosen zu.</p>
         
-        <button class="btn-primary" @click="${this.startAddMiner}">+ Neuen Miner hinzufügen</button>
+        <button class="btn-primary" @click="${() => this.startAddMiner()}">+ Neuen Miner hinzufügen</button>
 
         <div class="miner-list">
           ${this.config.miners && this.config.miners.length > 0 ? this.config.miners.map(miner => html`

@@ -73,9 +73,12 @@ class MiningEngine:
     async def _load_persistent_state(self) -> None:
         """Restore per-miner stats from disk after a HA restart."""
         try:
-            raw = await self.hass.async_add_executor_job(
-                lambda: open(self._state_file).read() if os.path.exists(self._state_file) else None
-            )
+            def _read_state():
+                if not os.path.exists(self._state_file):
+                    return None
+                with open(self._state_file, encoding="utf-8") as f:
+                    return f.read()
+            raw = await self.hass.async_add_executor_job(_read_state)
             if not raw:
                 return
             saved = json.loads(raw)
@@ -97,9 +100,10 @@ class MiningEngine:
                 for mid, s in self._miner_states.items()
             }
             raw = json.dumps(payload)
-            await self.hass.async_add_executor_job(
-                lambda: open(self._state_file, "w").write(raw)
-            )
+            def _write_state():
+                with open(self._state_file, "w", encoding="utf-8") as f:
+                    f.write(raw)
+            await self.hass.async_add_executor_job(_write_state)
         except Exception as e:
             _LOGGER.warning(f"[OpenKairo] Could not save persistent state: {e}")
 
@@ -245,7 +249,7 @@ class MiningEngine:
 
                     config = self.hass.data.get(DOMAIN, {}).get("config", {})
                     miners = config.get("miners", [])
-                    sorted_miners = sorted(miners, key=lambda x: int(x.get("priority", 99)))
+                    sorted_miners = sorted(miners, key=lambda x: int(x.get("priority") or 99) if str(x.get("priority", "99")).strip().isdigit() else 99)
 
                     global_pv_surplus = None
                     house_sensor = config.get("house_power_sensor")
@@ -805,8 +809,8 @@ class MiningEngine:
             battery_energy_available = max(0, (current_soc - target_soc) / 100 * capacity * 1000)
             mining_energy_available = battery_energy_available - house_energy_needed
             
-            miner_power = float(miner.get("soft_target_power") or miner.get("max_power") or 1200)
-            if is_on and state.get("power", 0) > 5: miner_power = state["power"]
+            miner_power = max(100.0, float(miner.get("soft_target_power") or miner.get("max_power") or 1200))
+            if is_on and state.get("power", 0) > 100: miner_power = state["power"]
 
             if mining_energy_available <= 0:
                 state["ai_status"] = f"Haus ({int(house_energy_needed)}Wh) vs Akku ({int(battery_energy_available)}Wh){weather_info}"
@@ -913,7 +917,7 @@ class MiningEngine:
             
             if is_on or state.get("ramping") == "up": state["on_since"] = None
             elif state["on_since"] is None: state["on_since"] = current_time
-            elif current_time - state["on_since"] >= delay_seconds or state["hashrate"] > 0:
+            elif current_time - state["on_since"] >= delay_seconds or state.get("hashrate", 0) > 0:
                 # Enforce minimum off-time before turning back on
                 if not self._min_off_elapsed(miner, state, current_time):
                     remaining = int(float(miner.get("min_off_time", 0)) * 60 - (current_time - (state.get("off_since_actual") or 0)))
@@ -924,9 +928,9 @@ class MiningEngine:
                     if coord and coord.miner_obj:
                         try:
                             await coord.miner_obj.resume_mining()
-                            state["on_since_actual"] = current_time
                         except Exception as e:
                             _LOGGER.debug(f"[{miner_name}] resume_mining() failed: {e}")
+                    state["on_since_actual"] = current_time
 
                     # Check Standby Switch recovery
                     standby_switches = [s for s in [miner.get("standby_switch"), miner.get("standby_switch_2")] if s]
