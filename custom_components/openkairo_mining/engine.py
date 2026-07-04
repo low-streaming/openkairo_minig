@@ -406,13 +406,19 @@ class MiningEngine:
         miner_switch_2 = self._resolve_entity(miner.get("switch_2"))
         miner_ip = miner.get("miner_ip")
 
-        if not miner_switch and miner_ip:
+        if miner_ip and (not miner_switch or not self.hass.states.get(miner_switch)):
             safe_ip = miner_ip.replace('.', '_')
             patterns = [f"switch.{DOMAIN}_{safe_ip}_switch", f"switch.{DOMAIN}_{safe_ip}_mining_aktiv", f"switch.{safe_ip}_mining_aktiv"]
             for p in patterns:
                 if self.hass.states.get(p):
                     miner_switch = p
                     break
+            if not miner_switch or not self.hass.states.get(miner_switch):
+                for eid in self.hass.states.entity_ids("switch"):
+                    if safe_ip in eid and "mining_aktiv" in eid:
+                        _LOGGER.info(f"[{miner.get('name')}] Auto-resolved switch by IP scan: {eid}")
+                        miner_switch = eid
+                        break
 
         if miner_switch and not self.hass.states.get(miner_switch):
             _LOGGER.warning(f"[{miner.get('name')}] Switch entity '{miner_switch}' not found in HA states — is_on detection may fail.")

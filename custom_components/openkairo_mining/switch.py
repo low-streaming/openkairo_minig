@@ -16,7 +16,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     ip = config_entry.data["ip_address"]
     name = config_entry.title
     coordinator = await async_get_miner_coordinator(hass, DOMAIN, ip, name)
-    
+
     entities = [MinerMiningSwitch(coordinator)]
     async_add_entities(entities)
 
@@ -28,6 +28,7 @@ class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
         self._attr_unique_id = f"{DOMAIN}_{ip_slug}_mining_aktiv"
         self._attr_name = "Mining Aktiv"
         self._attr_icon = "mdi:hammer-pick"
+        self._override_state = None  # None = use coordinator data
 
     @property
     def device_info(self):
@@ -39,32 +40,16 @@ class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def is_on(self):
+        if self._override_state is not None:
+            return self._override_state
         if self.coordinator.data and isinstance(self.coordinator.data, dict):
             return self.coordinator.data.get("is_mining", False)
         return False
 
     async def async_turn_on(self, **kwargs):
-        """Turn the entity on."""
-        try:
-            _LOGGER.info(f"[{self.coordinator.miner_ip}] Resuming mining/on")
-            await self.hass.services.async_call(
-                DOMAIN,
-                "set_work_mode",
-                {"ip_address": self.coordinator.miner_ip, "mode": "normal"},
-                blocking=True
-            )
-        except Exception as e:
-            _LOGGER.error(f"Error starting mining: {e}")
+        self._override_state = True
+        self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs):
-        """Turn the entity off."""
-        try:
-            _LOGGER.info(f"[{self.coordinator.miner_ip}] Stopping mining/off (standby)")
-            await self.hass.services.async_call(
-                DOMAIN,
-                "set_work_mode",
-                {"ip_address": self.coordinator.miner_ip, "mode": "standby"},
-                blocking=True
-            )
-        except Exception as e:
-            _LOGGER.error(f"Error stopping mining: {e}")
+        self._override_state = False
+        self.async_write_ha_state()
