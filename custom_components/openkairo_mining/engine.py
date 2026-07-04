@@ -479,11 +479,9 @@ class MiningEngine:
                 if bat_state and bat_state.state not in ["unknown", "unavailable"]:
                     battery_soc = float(bat_state.state)
 
-            battery_hysteresis = float(miner.get("battery_hysteresis", 2))
             turn_on = False
             if effective_pv >= on_threshold:
-                safety_min_soc = battery_min_soc + battery_hysteresis if not is_on else battery_min_soc
-                if not allow_battery or battery_soc >= safety_min_soc:
+                if not allow_battery or battery_soc >= battery_min_soc:
                     turn_on = True
                     state["log_reason_on"] = f"(PV-Überschuss {effective_pv:.0f}W >= {on_threshold}W)"
 
@@ -567,11 +565,9 @@ class MiningEngine:
                     battery_soc = float(bat_state.state)
                 else: battery_soc = -1
 
-            battery_hysteresis = float(miner.get("battery_hysteresis", 2))
             turn_on = False
             if current_temp <= temp_on:
-                safety_min_soc = battery_min_soc + battery_hysteresis if not is_on else battery_min_soc
-                if not allow_battery or battery_soc >= safety_min_soc:
+                if not allow_battery or battery_soc >= battery_min_soc:
                     turn_on = True
                     state["log_reason_on"] = f"(Temp {current_temp}°C <= {temp_on}°C)"
 

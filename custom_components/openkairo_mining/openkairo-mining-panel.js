@@ -965,10 +965,6 @@ class OpenKairoMiningPanel extends LitElement {
       watchdog_action: 'off',
       min_run_time: 5,
       grid_price_limit: null,
-      max_temp: '',
-      min_off_time: 0,
-      battery_hysteresis: 2,
-      max_runtime: '',
       min_power: 400,
       max_power: 1400,
       scaling_mode: 'steps',
@@ -1000,12 +996,12 @@ class OpenKairoMiningPanel extends LitElement {
   static get _COPY_FIELDS() {
     return [
       'mode', 'mining_coin',
-      'pv_on', 'pv_off', 'delay_minutes', 'allow_battery', 'battery_min_soc', 'battery_hysteresis',
+      'pv_on', 'pv_off', 'delay_minutes', 'allow_battery', 'battery_min_soc',
       'price_on', 'price_off', 'grid_price_limit',
       'soc_on', 'soc_off',
       'forecast_enabled', 'forecast_min',
       'offgrid_soc_start', 'offgrid_soc_stop', 'offgrid_soc_max', 'offgrid_min_power', 'offgrid_max_power',
-      'min_power', 'max_power', 'max_temp', 'max_runtime', 'min_off_time', 'min_run_time',
+      'min_power', 'max_power', 'min_run_time',
       'soft_start_enabled', 'soft_stop_enabled', 'soft_continuous_scaling',
       'soft_start_steps', 'soft_stop_steps', 'soft_interval',
       'standby_watchdog_enabled', 'watchdog_type', 'watchdog_action', 'standby_power', 'standby_delay',
@@ -3917,47 +3913,6 @@ class OpenKairoMiningPanel extends LitElement {
             ` : ''}
         </div>
 
-        <!-- Sicherheit & Grenzen -->
-        <div class="mode-section btc-section" style="margin-top: 20px; border-color: rgba(231, 76, 60, 0.3); background: rgba(231, 76, 60, 0.03);">
-          <h3 style="color: #e74c3c; margin-top: 0; margin-bottom: 5px;">🌡️ Sicherheit & Grenzen</h3>
-          <p style="color: #bbb; font-size: 0.85em; margin-bottom: 20px;">Schütze deine Hardware vor Überhitzung, Dauerläufen und schnellen Schalt-Zyklen.</p>
-          <div class="form-row">
-            <div class="form-group flex-1">
-              <label>Max. Temperatur (°C)</label>
-              <input type="number" name="max_temp" placeholder="z.B. 85" .value="${this.editForm.max_temp || ''}" @input="${this.handleFormInput}">
-              <small>Sofortiger Sicherheitsstopp bei Überschreitung. Leer = deaktiviert.</small>
-            </div>
-            <div class="form-group flex-1">
-              <label>Max. Laufzeit (Stunden)</label>
-              <input type="number" name="max_runtime" placeholder="z.B. 24" .value="${this.editForm.max_runtime || ''}" @input="${this.handleFormInput}">
-              <small>Automatischer Stopp nach X Stunden Session. Leer = deaktiviert.</small>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group flex-1">
-              <label>Mindest-Aus-Zeit (Minuten)</label>
-              <input type="number" name="min_off_time" min="0" step="1" .value="${this.editForm.min_off_time !== undefined ? this.editForm.min_off_time : 0}" @input="${this.handleFormInput}">
-              <small>Verhindert Rapid-Cycling. Mindest-Pause bevor Wiedereinschalten erlaubt ist.</small>
-            </div>
-            <div class="form-group flex-1">
-              <label>Batterie-Hysterese (%)</label>
-              <input type="number" name="battery_hysteresis" min="0" max="20" step="0.5" .value="${this.editForm.battery_hysteresis !== undefined ? this.editForm.battery_hysteresis : 2}" @input="${this.handleFormInput}">
-              <small>SOC-Puffer beim Einschalten (Standard: 2%). Gilt für PV / SOC / Offgrid-Modi.</small>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group flex-1">
-              <label>Min. Leistung (Watt)</label>
-              <input type="number" name="min_power" min="0" step="50" .value="${this.editForm.min_power || 400}" @input="${this.handleFormInput}">
-              <small>Untere Grenze für Skalierung & Soft-Start.</small>
-            </div>
-            <div class="form-group flex-1">
-              <label>Max. Leistung (Watt)</label>
-              <input type="number" name="max_power" min="0" step="50" .value="${this.editForm.max_power || 1400}" @input="${this.handleFormInput}">
-              <small>Obere Grenze für Skalierung & Soft-Start.</small>
-            </div>
-          </div>
-        </div>
 
         ${this.editForm.soft_continuous_scaling ? html`
         <!-- Leistungs-Skalierung -->
