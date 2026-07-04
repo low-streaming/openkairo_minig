@@ -28,7 +28,14 @@ class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
         self._attr_unique_id = f"{DOMAIN}_{ip_slug}_mining_aktiv"
         self._attr_name = "Mining Aktiv"
         self._attr_icon = "mdi:hammer-pick"
-        self._override_state = None  # None = use coordinator data
+
+    def _get_override(self):
+        """Read override state from hass.data — survives entity re-creation."""
+        return self.hass.data.get(DOMAIN, {}).get("_switch_overrides", {}).get(self._attr_unique_id)
+
+    def _set_override(self, value):
+        """Write override state to hass.data."""
+        self.hass.data.setdefault(DOMAIN, {}).setdefault("_switch_overrides", {})[self._attr_unique_id] = value
 
     @property
     def device_info(self):
@@ -36,22 +43,23 @@ class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def available(self) -> bool:
-        if self._override_state is not None:
+        if self._get_override() is not None:
             return True
         return self.coordinator.available
 
     @property
     def is_on(self):
-        if self._override_state is not None:
-            return self._override_state
+        override = self._get_override()
+        if override is not None:
+            return override
         if self.coordinator.data and isinstance(self.coordinator.data, dict):
             return self.coordinator.data.get("is_mining", False)
         return False
 
     async def async_turn_on(self, **kwargs):
-        self._override_state = True
+        self._set_override(True)
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs):
-        self._override_state = False
+        self._set_override(False)
         self.async_write_ha_state()
