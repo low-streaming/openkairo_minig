@@ -679,10 +679,10 @@ class MiningEngine:
             soc_off = float(miner.get("soc_off", 30))
             
             turn_on = battery_soc >= soc_on
-            if turn_on: state["log_reason_on"] = f"(SOC {battery_soc}% >= {soc_on}%)"
-            
+            if turn_on: state["log_reason_on"] = f"(SOC {battery_soc:.1f}% >= {soc_on:.1f}%)"
+
             turn_off = battery_soc <= soc_off
-            if turn_off: state["log_reason_off"] = f"(SOC {battery_soc}% <= {soc_off}%)"
+            if turn_off: state["log_reason_off"] = f"(SOC {battery_soc:.1f}% <= {soc_off:.1f}%)"
 
             return turn_on, turn_off
         except Exception as e:
@@ -742,12 +742,11 @@ class MiningEngine:
             battery_soc = float(bat_state.state)
             soc_start = float(miner.get("offgrid_soc_start", 90))
             soc_stop = float(miner.get("offgrid_soc_stop", 85))
-            
             turn_on = battery_soc >= soc_start
-            if turn_on: state["log_reason_on"] = f"(Offgrid SOC {battery_soc}% >= {soc_start}%)"
-            
+            if turn_on: state["log_reason_on"] = f"(Offgrid SOC {battery_soc:.1f}% >= {soc_start:.1f}%)"
+
             turn_off = battery_soc <= soc_stop
-            if turn_off: state["log_reason_off"] = f"(Offgrid SOC {battery_soc}% <= {soc_stop}%)"
+            if turn_off: state["log_reason_off"] = f"(Offgrid SOC {battery_soc:.1f}% <= {soc_stop:.1f}%)"
 
             return turn_on, turn_off
         except Exception as e:
