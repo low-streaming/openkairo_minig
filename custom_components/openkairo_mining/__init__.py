@@ -43,16 +43,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         hass.data[DOMAIN].setdefault("coordinators", {})
         
         async def sync_with_config():
+            import asyncio as _asyncio
+            from homeassistant.helpers import entity_registry as er
+            # Wait for platform setup to complete so entities are in the registry.
+            await _asyncio.sleep(5)
             config = await hass.async_add_executor_job(_load_config, hass)
             ip = entry.data["ip_address"]
             safe_ip = ip.replace('.', '_')
-            auto_entities = {
-                "switch": f"switch.{DOMAIN}_{safe_ip}_mining_aktiv",
-                "power_entity": f"number.{DOMAIN}_{safe_ip}_power_limit",
-                "hashrate_sensor": f"sensor.{DOMAIN}_{safe_ip}_hashrate",
-                "temp_sensor": f"sensor.{DOMAIN}_{safe_ip}_temperature",
-                "power_consumption_sensor": f"sensor.{DOMAIN}_{safe_ip}_power",
-            }
+
+            ent_reg = er.async_get(hass)
+
+            def _lookup(platform, uid_suffix):
+                uid = f"{DOMAIN}_{safe_ip}_{uid_suffix}"
+                return ent_reg.async_get_entity_id(platform, DOMAIN, uid)
+
+            auto_entities = {}
+            for platform, uid_suffix, cfg_key in [
+                ("switch", "mining_aktiv", "switch"),
+                ("number", "power_limit", "power_entity"),
+                ("sensor", "hashrate", "hashrate_sensor"),
+                ("sensor", "temperature", "temp_sensor"),
+                ("sensor", "power", "power_consumption_sensor"),
+            ]:
+                eid = _lookup(platform, uid_suffix)
+                if eid:
+                    auto_entities[cfg_key] = eid
+
             existing_idx = next((i for i, m in enumerate(config.get("miners", [])) if m.get("miner_ip") == ip), None)
             if existing_idx is None:
                 import uuid

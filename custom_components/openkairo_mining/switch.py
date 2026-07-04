@@ -48,6 +48,16 @@ class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
         override = self._get_override()
         if override is not None:
             return override
+        # Reflect engine's detected is_on — accurate when a physical switch is configured
+        engine = self.hass.data.get(DOMAIN, {}).get("engine")
+        if engine and engine.miner_states:
+            config = self.hass.data.get(DOMAIN, {}).get("config", {})
+            for m in config.get("miners", []):
+                if m.get("miner_ip") == self.coordinator.miner_ip:
+                    miner_id = str(m.get("id", m.get("name", "Unknown")))
+                    miner_state = engine.miner_states.get(miner_id)
+                    if miner_state and "is_on" in miner_state:
+                        return bool(miner_state["is_on"])
         if self.coordinator.data and isinstance(self.coordinator.data, dict):
             return self.coordinator.data.get("is_mining", False)
         return False
