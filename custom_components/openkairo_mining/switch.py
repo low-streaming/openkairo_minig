@@ -36,6 +36,8 @@ class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def available(self) -> bool:
+        if self._override_state is not None:
+            return True
         return self.coordinator.available
 
     @property
