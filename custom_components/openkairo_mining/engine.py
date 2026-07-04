@@ -445,11 +445,26 @@ class MiningEngine:
 
         return global_pv_surplus
 
+    def _resolve_entity(self, entity_id):
+        """Return the entity_id that actually exists in HA states, trying common domain-prefix fallbacks."""
+        if not entity_id:
+            return entity_id
+        if self.hass.states.get(entity_id):
+            return entity_id
+        for candidate in [f"switch.{entity_id.lower()}", entity_id.lower(), f"switch.{entity_id}"]:
+            if self.hass.states.get(candidate):
+                _LOGGER.warning(
+                    f"Switch entity '{entity_id}' not found — auto-resolved to '{candidate}'. "
+                    f"Update the miner config to use the full entity_id."
+                )
+                return candidate
+        return entity_id
+
     async def _detect_miner_state(self, miner, state):
-        miner_switch = miner.get("switch")
-        miner_switch_2 = miner.get("switch_2")
+        miner_switch = self._resolve_entity(miner.get("switch"))
+        miner_switch_2 = self._resolve_entity(miner.get("switch_2"))
         miner_ip = miner.get("miner_ip")
-        
+
         if not miner_switch and miner_ip:
             safe_ip = miner_ip.replace('.', '_')
             patterns = [f"switch.{DOMAIN}_{safe_ip}_switch", f"switch.{DOMAIN}_{safe_ip}_mining_aktiv", f"switch.{safe_ip}_mining_aktiv"]
@@ -457,7 +472,10 @@ class MiningEngine:
                 if self.hass.states.get(p):
                     miner_switch = p
                     break
-        
+
+        if miner_switch and not self.hass.states.get(miner_switch):
+            _LOGGER.warning(f"[{miner.get('name')}] Switch entity '{miner_switch}' not found in HA states — is_on detection may fail.")
+
         switches = [miner_switch] if miner_switch else []
         if miner_switch_2: switches.append(miner_switch_2)
         
@@ -924,34 +942,44 @@ class MiningEngine:
                     _LOGGER.debug(f"[{miner_name}] Min-Off-Zeit: noch {remaining}s verbleibend")
                     state["on_since"] = None
                 else:
-                    # Actual Turn ON
-                    if coord and coord.miner_obj:
-                        try:
-                            await coord.miner_obj.resume_mining()
-                        except Exception as e:
-                            _LOGGER.debug(f"[{miner_name}] resume_mining() failed: {e}")
-                    state["on_since_actual"] = current_time
+                    # Guard against spamming turn-on commands if is_on never becomes True
+                    # (e.g. wrong entity_id, miner not detected). Minimum 60s between commands.
+                    turn_on_cooldown = max(120.0, delay_seconds)
+                    last_cmd = state.get("last_turn_on_cmd", 0)
+                    if not is_on and (current_time - last_cmd) < turn_on_cooldown:
+                        _LOGGER.debug(f"[{miner_name}] Turn-on cooldown active ({int(turn_on_cooldown - (current_time - last_cmd))}s left)")
+                        state["on_since"] = None
+                    else:
+                        # Actual Turn ON
+                        if coord and coord.miner_obj:
+                            try:
+                                await coord.miner_obj.resume_mining()
+                            except Exception as e:
+                                _LOGGER.debug(f"[{miner_name}] resume_mining() failed: {e}")
+                        state["on_since_actual"] = current_time
+                        state["on_since"] = None  # Reset so delay timer restarts if miner doesn't come up
 
-                    # Check Standby Switch recovery
-                    standby_switches = [s for s in [miner.get("standby_switch"), miner.get("standby_switch_2")] if s]
-                    if standby_switches:
-                        any_off = any(self.hass.states.get(s).state == "off" if self.hass.states.get(s) else False for s in standby_switches)
-                        if any_off:
-                            await self.hass.services.async_call("switch", "turn_on", {"entity_id": standby_switches})
+                        # Check Standby Switch recovery
+                        standby_switches = [s for s in [miner.get("standby_switch"), miner.get("standby_switch_2")] if s]
+                        if standby_switches:
+                            any_off = any(self.hass.states.get(s).state == "off" if self.hass.states.get(s) else False for s in standby_switches)
+                            if any_off:
+                                await self.hass.services.async_call("switch", "turn_on", {"entity_id": standby_switches})
 
-                    if not is_on and state.get("ramping") != "up":
-                        if miner.get("soft_start_enabled") and miner.get("power_entity"):
-                            state["total_starts"] = state.get("total_starts", 0) + 1
-                            state["ramping"] = "up"; state["ramping_step"] = 0; state["ramping_last_time"] = 0
-                            self.add_log_entry(f"🎢 {miner_name}: Soft-Start gestartet. {state.get('log_reason_on', '')}")
-                        else:
-                            state["total_starts"] = state.get("total_starts", 0) + 1
-                            self.add_log_entry(f"⚡ {miner_name} wird eingeschaltet. {state.get('log_reason_on', '')}")
-                            await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
-                            p_ent = miner.get("power_entity")
-                            target_p = miner.get("max_power")
-                            if p_ent and target_p:
-                                await self.hass.services.async_call("number", "set_value", {"entity_id": p_ent, "value": float(target_p)})
+                        if not is_on and state.get("ramping") != "up":
+                            if miner.get("soft_start_enabled") and miner.get("power_entity"):
+                                state["total_starts"] = state.get("total_starts", 0) + 1
+                                state["ramping"] = "up"; state["ramping_step"] = 0; state["ramping_last_time"] = 0
+                                self.add_log_entry(f"🎢 {miner_name}: Soft-Start gestartet. {state.get('log_reason_on', '')}")
+                            else:
+                                state["total_starts"] = state.get("total_starts", 0) + 1
+                                self.add_log_entry(f"⚡ {miner_name} wird eingeschaltet. {state.get('log_reason_on', '')}")
+                                await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
+                                state["last_turn_on_cmd"] = current_time
+                                p_ent = miner.get("power_entity")
+                                target_p = miner.get("max_power")
+                                if p_ent and target_p:
+                                    await self.hass.services.async_call("number", "set_value", {"entity_id": p_ent, "value": float(target_p)})
         else: state["on_since"] = None
 
         if turn_off_condition:
