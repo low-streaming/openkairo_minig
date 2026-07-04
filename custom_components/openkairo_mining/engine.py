@@ -435,14 +435,6 @@ class MiningEngine:
         is_on = bool(switches) and all(self.hass.states.get(s).state == "on" if self.hass.states.get(s) else False for s in switches)
         if not plug_on: is_on = False
 
-        # If switch entity is unavailable (coordinator offline), assume miner is on.
-        # Prevents repeated turn_on spam when the OpenKairo coordinator can't reach the miner.
-        if not is_on and bool(switches) and all(
-            self.hass.states.get(s) is not None and self.hass.states.get(s).state == "unavailable"
-            for s in switches
-        ):
-            is_on = True
-
         # Power detection fallback — only when no switch explicitly reports "off".
         # Prevents false "is_on=True" when the switch is off but the sensor shows standby power.
         switch_explicitly_off = bool(switches) and all(
