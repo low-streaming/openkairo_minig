@@ -657,7 +657,7 @@ class OpenKairoMiningPanel extends LitElement {
   }
 
   ensureSwitchHistory(entityId) {
-    if (!entityId) return;
+    if (!entityId || !this.hass) return;
     if (!this.switchHistoryData[entityId] && !this.fetchingSwitchHistory[entityId]) {
       this.fetchingSwitchHistory[entityId] = true;
       this.fetchSwitchHistory(entityId);

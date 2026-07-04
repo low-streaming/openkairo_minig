@@ -966,6 +966,7 @@ class MiningEngine:
                                 await self.hass.services.async_call("switch", "turn_on", {"entity_id": standby_switches})
 
                         if not is_on and state.get("ramping") != "up":
+                            state["last_turn_on_cmd"] = current_time
                             if miner.get("soft_start_enabled") and miner.get("power_entity"):
                                 state["total_starts"] = state.get("total_starts", 0) + 1
                                 state["ramping"] = "up"; state["ramping_step"] = 0; state["ramping_last_time"] = 0
@@ -974,7 +975,6 @@ class MiningEngine:
                                 state["total_starts"] = state.get("total_starts", 0) + 1
                                 self.add_log_entry(f"⚡ {miner_name} wird eingeschaltet. {state.get('log_reason_on', '')}")
                                 await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
-                                state["last_turn_on_cmd"] = current_time
                                 p_ent = miner.get("power_entity")
                                 target_p = miner.get("max_power")
                                 if p_ent and target_p:
