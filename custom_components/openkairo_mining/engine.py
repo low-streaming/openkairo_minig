@@ -11,7 +11,6 @@ from .const import (
     DOMAIN,
     ENGINE_LOOP_INTERVAL,
     MEMPOOL_REFRESH_INTERVAL,
-    SENSOR_TIMEOUT,
     MAX_LOG_ENTRIES,
     AI_HISTORY_CACHE_TTL,
     SOLAR_FORECAST_CACHE_TTL,
@@ -62,8 +61,7 @@ class MiningEngine:
 
     # Fields that survive a HA restart — everything else resets cleanly.
     _PERSIST_FIELDS = (
-        "today_runtime_s", "today_energy_wh", "total_starts",
-        "watchdog_last_action", "off_since_actual", "on_since_actual", "stats_day",
+        "today_runtime_s", "today_energy_wh", "total_starts", "stats_day",
     )
 
     @property
@@ -137,7 +135,6 @@ class MiningEngine:
             "mode": miner.get("mode", "manual"),
             "session_runtime_h": round(state.get("session_runtime_s", 0) / 3600, 2),
             "today_energy_wh": round(state.get("today_energy_wh", 0.0), 1),
-            "temp_alarm": state.get("temp_alarm", False),
         }
         await self._publish_mqtt(base, _json.dumps(payload))
 
@@ -290,12 +287,10 @@ class MiningEngine:
         # Set defaults for any field not already present — preserves values
         # restored from disk by _load_persistent_state on HA restart.
         _defaults = {
-            "on_since": None, "off_since": None, "off_since_actual": None,
-            "standby_since": None, "last_sensor_update": time.time(),
+            "last_sensor_update": time.time(),
             "stats_last_tick": None, "session_runtime_s": 0,
             "session_energy_wh": 0.0, "today_runtime_s": 0,
             "today_energy_wh": 0.0, "stats_day": None, "total_starts": 0,
-            "temp_alarm": False, "max_runtime_alarm": False,
         }
         for k, v in _defaults.items():
             state.setdefault(k, v)
@@ -332,8 +327,6 @@ class MiningEngine:
         self._update_statistics(miner_id, state, current_time)
 
         # --- Logic Handling ---
-        await self._handle_watchdog(miner, state, is_on, current_time)
-
         if mode in ["pv", "soc", "offgrid", "heating", "ai_discharge"]:
             turn_on_condition = False
             turn_off_condition = False
@@ -375,60 +368,8 @@ class MiningEngine:
             elif mode == "ai_discharge":
                 turn_on_condition, turn_off_condition = await self._process_ai_discharge_mode(miner, state, is_on, current_time)
             
-            # Temperature safety override (bypasses mode logic and delay timers)
-            max_temp_cfg = miner.get("max_temp")
-            if max_temp_cfg and state.get("temp", 0) > 0:
-                try:
-                    max_temp_f = float(max_temp_cfg)
-                    if state["temp"] > max_temp_f:
-                        turn_on_condition = False
-                        turn_off_condition = True
-                        state["off_since"] = 0  # Force immediate — no delay
-                        state["log_reason_off"] = f"(TEMP-ALARM: {state['temp']}°C > {max_temp_f}°C)"
-                        if not state.get("temp_alarm"):
-                            self.add_log_entry(f"🌡️ {miner_name}: TEMP-ALARM {state['temp']}°C! Notabschaltung.")
-                        state["temp_alarm"] = True
-                    else:
-                        if state.get("temp_alarm"):
-                            self.add_log_entry(f"✅ {miner_name}: Temp wieder OK ({state['temp']}°C)")
-                        state["temp_alarm"] = False
-                except (ValueError, TypeError):
-                    pass
-
-            # Maximum runtime safety: force turn-off after max_runtime hours
-            max_runtime_h = miner.get("max_runtime")
-            if max_runtime_h and state.get("on_since_actual"):
-                try:
-                    on_hours = (current_time - state["on_since_actual"]) / 3600
-                    if on_hours >= float(max_runtime_h):
-                        turn_on_condition = False
-                        turn_off_condition = True
-                        state["off_since"] = 0  # Immediate — no delay
-                        state["log_reason_off"] = f"(Max-Laufzeit {max_runtime_h}h erreicht)"
-                        if not state.get("max_runtime_alarm"):
-                            self.add_log_entry(
-                                f"⏱️ {miner_name}: Max-Laufzeit {max_runtime_h}h erreicht. Abschaltung."
-                            )
-                            state["max_runtime_alarm"] = True
-                    else:
-                        state["max_runtime_alarm"] = False
-                except (ValueError, TypeError):
-                    pass
-
-            # Global Sensor Watchdog
-            if current_time - state.get("last_sensor_update", current_time) > SENSOR_TIMEOUT:
-                _LOGGER.warning(f"[{miner_name}] Sensor-Timeout (>{SENSOR_TIMEOUT}s)! Sicherheits-Stopp.")
-                turn_on_condition = False
-                turn_off_condition = True
-                state["log_reason_off"] = "(Sicherheits-Stopp: Sensor-Daten veraltet/tot)"
-
             # Execution
             await self._execute_conditions(miner, state, is_on, turn_on_condition, turn_off_condition, coord, current_time)
-            
-        elif mode == "manual":
-            state["on_since"] = None
-            state["off_since"] = None
-            state["ramping"] = None
 
         # Continuous Scaling
         await self._handle_continuous_scaling(miner, state, is_on, mode, current_time, global_pv_surplus)
@@ -506,97 +447,6 @@ class MiningEngine:
         
         state["switches"] = switches # Store for execution
         return is_on
-
-    async def _handle_watchdog(self, miner, state, is_on, current_time):
-        if not miner.get("standby_watchdog_enabled"):
-            state["standby_since"] = None
-            return
-
-        if not is_on:
-            state["standby_since"] = None
-            return
-
-        watchdog_type = miner.get("watchdog_type", "power")
-        target_entity = miner.get("power_entity") if watchdog_type == "limit" else miner.get("power_consumption_sensor")
-
-        if not target_entity:
-            state["standby_since"] = None
-            return
-
-        target_state = self.hass.states.get(target_entity)
-        if not target_state or target_state.state in ["unknown", "unavailable"]:
-            state["standby_since"] = None
-            return
-
-        try:
-            current_value = float(target_state.state)
-            standby_threshold = float(miner.get("standby_power", 100))
-            standby_delay_secs = float(miner.get("standby_delay", 10)) * 60
-
-            if current_value < standby_threshold:
-                # Cooldown: after a watchdog action, wait at least standby_delay (min 5 min)
-                # before starting a new countdown — miner may still be rebooting.
-                last_action = state.get("watchdog_last_action", 0)
-                cooldown = max(standby_delay_secs, 300)
-                if current_time - last_action < cooldown:
-                    state["standby_since"] = None
-                    return
-
-                if state.get("standby_since") is None:
-                    state["standby_since"] = current_time
-                    self.add_log_entry(
-                        f"🛡️ {miner.get('name')}: Watchdog Countdown gestartet "
-                        f"({current_value:.0f}W < {standby_threshold:.0f}W)"
-                    )
-                elif current_time - state["standby_since"] >= standby_delay_secs:
-                    self.add_log_entry(
-                        f"🛡️ {miner.get('name')}: Watchdog ausgelöst! "
-                        f"{current_value:.0f}W < {standby_threshold:.0f}W"
-                    )
-                    await self._execute_watchdog_action(miner, state)
-                    state["standby_since"] = None
-                    state["watchdog_last_action"] = current_time
-            else:
-                state["standby_since"] = None
-        except Exception as e:
-            _LOGGER.debug(f"[{miner.get('name')}] Watchdog value parse error: {e}")
-            state["standby_since"] = None
-
-    async def _execute_watchdog_action(self, miner, state):
-        """Execute the configured watchdog action (reboot / restart_backend / toggle)."""
-        miner_name = miner.get("name", "Miner")
-        miner_ip = miner.get("miner_ip")
-        action = miner.get("watchdog_action", "off")
-
-        # Prefer dedicated standby switches; fall back to the main miner switch(es)
-        target_switches = [s for s in [miner.get("standby_switch"), miner.get("standby_switch_2")] if s]
-        if not target_switches:
-            target_switches = state.get("switches", [])
-
-        if action == "off":
-            # Just turn off — stay off. Mode logic will re-evaluate when to turn on again.
-            if target_switches:
-                await self.hass.services.async_call("switch", "turn_off", {"entity_id": target_switches})
-                self.add_log_entry(f"🛑 {miner_name}: Watchdog → Miner ausgeschaltet (bleibt aus).")
-        elif action == "reboot" and miner_ip:
-            try:
-                await self.hass.services.async_call(DOMAIN, "reboot", {"ip_address": miner_ip})
-                self.add_log_entry(f"🔄 {miner_name}: Watchdog → Hardware-Reboot gestartet.")
-            except Exception as e:
-                _LOGGER.error(f"[{miner_name}] Watchdog reboot failed: {e}")
-        elif action == "restart_backend" and miner_ip:
-            try:
-                await self.hass.services.async_call(DOMAIN, "restart_backend", {"ip_address": miner_ip})
-                self.add_log_entry(f"🔄 {miner_name}: Watchdog → Backend-Neustart gestartet.")
-            except Exception as e:
-                _LOGGER.error(f"[{miner_name}] Watchdog restart_backend failed: {e}")
-        else:
-            # toggle: turn off, wait 5s, turn back on (watchdog restart/recovery)
-            if target_switches:
-                await self.hass.services.async_call("switch", "turn_off", {"entity_id": target_switches})
-                await asyncio.sleep(5)
-                await self.hass.services.async_call("switch", "turn_on", {"entity_id": target_switches})
-                self.add_log_entry(f"🔄 {miner_name}: Watchdog → Schalter Toggle ausgeführt.")
 
     async def _process_pv_mode(self, miner, state, is_on, global_pv_surplus):
         pv_sensor = miner.get("pv_sensor")
@@ -914,191 +764,34 @@ class MiningEngine:
             state["today_runtime_s"] = state.get("today_runtime_s", 0) + elapsed
             state["today_energy_wh"] = round(state.get("today_energy_wh", 0.0) + energy_wh, 3)
 
-    def _min_off_elapsed(self, miner: dict, state: dict, current_time: float) -> bool:
-        """Return True if the configured minimum off-time has been satisfied."""
-        min_off_mins = float(miner.get("min_off_time", 0))
-        if min_off_mins <= 0:
-            return True
-        off_actual = state.get("off_since_actual")
-        if not off_actual:
-            return True
-        return (current_time - off_actual) >= (min_off_mins * 60)
-
     async def _execute_conditions(self, miner, state, is_on, turn_on_condition, turn_off_condition, coord, current_time):
-        delay_seconds = float(miner.get("delay_minutes", 0)) * 60
         switches = state.get("switches", [])
         miner_name = miner.get("name", "Miner")
-        
-        if turn_on_condition:
-            if state.get("ramping") == "down": state["ramping"] = None; state["off_since"] = None
-            
-            if is_on or state.get("ramping") == "up": state["on_since"] = None
-            elif state["on_since"] is None: state["on_since"] = current_time
-            elif current_time - state["on_since"] >= delay_seconds or state.get("hashrate", 0) > 0:
-                # Enforce minimum off-time before turning back on
-                if not self._min_off_elapsed(miner, state, current_time):
-                    remaining = int(float(miner.get("min_off_time", 0)) * 60 - (current_time - (state.get("off_since_actual") or 0)))
-                    _LOGGER.debug(f"[{miner_name}] Min-Off-Zeit: noch {remaining}s verbleibend")
-                    state["on_since"] = None
-                else:
-                    # Guard against spamming turn-on commands if is_on never becomes True
-                    # (e.g. wrong entity_id, miner not detected). Minimum 60s between commands.
-                    turn_on_cooldown = max(120.0, delay_seconds)
-                    last_cmd = state.get("last_turn_on_cmd", 0)
-                    if not is_on and (current_time - last_cmd) < turn_on_cooldown:
-                        _LOGGER.debug(f"[{miner_name}] Turn-on cooldown active ({int(turn_on_cooldown - (current_time - last_cmd))}s left)")
-                        state["on_since"] = None
-                    else:
-                        # Actual Turn ON
-                        if coord and coord.miner_obj:
-                            try:
-                                await coord.miner_obj.resume_mining()
-                            except Exception as e:
-                                _LOGGER.debug(f"[{miner_name}] resume_mining() failed: {e}")
-                        state["on_since_actual"] = current_time
-                        state["on_since"] = None  # Reset so delay timer restarts if miner doesn't come up
 
-                        # Check Standby Switch recovery
-                        standby_switches = [s for s in [miner.get("standby_switch"), miner.get("standby_switch_2")] if s]
-                        if standby_switches:
-                            any_off = any(self.hass.states.get(s).state == "off" if self.hass.states.get(s) else False for s in standby_switches)
-                            if any_off:
-                                await self.hass.services.async_call("switch", "turn_on", {"entity_id": standby_switches})
-
-                        if not is_on and state.get("ramping") != "up":
-                            state["last_turn_on_cmd"] = current_time
-                            if miner.get("soft_start_enabled") and miner.get("power_entity"):
-                                state["total_starts"] = state.get("total_starts", 0) + 1
-                                state["ramping"] = "up"; state["ramping_step"] = 0; state["ramping_last_time"] = 0
-                                self.add_log_entry(f"🎢 {miner_name}: Soft-Start gestartet. {state.get('log_reason_on', '')}")
-                            else:
-                                state["total_starts"] = state.get("total_starts", 0) + 1
-                                self.add_log_entry(f"⚡ {miner_name} wird eingeschaltet. {state.get('log_reason_on', '')}")
-                                await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
-                                p_ent = miner.get("power_entity")
-                                target_p = miner.get("max_power")
-                                if p_ent and target_p:
-                                    await self.hass.services.async_call("number", "set_value", {"entity_id": p_ent, "value": float(target_p)})
-        else: state["on_since"] = None
-
-        if turn_off_condition:
-            min_run_mins = float(miner.get("min_run_time", 5))
-            on_for_secs = (current_time - state.get("on_since_actual", 0)) if state.get("on_since_actual") else 99999
-            
-            if is_on and on_for_secs < (min_run_mins * 60):
-                turn_off_condition = False; state["off_since"] = None
-            
-            if turn_off_condition:
-                if state["off_since"] is None: state["off_since"] = current_time
-                elif current_time - state["off_since"] >= delay_seconds:
-                    if is_on and state.get("ramping") != "down":
-                        if miner.get("soft_stop_enabled") and miner.get("power_entity"):
-                            state["ramping"] = "down"; state["ramping_step"] = 0; state["ramping_last_time"] = 0
-                            self.add_log_entry(f"🎢 {miner_name}: Soft-Stop gestartet. {state.get('log_reason_off', '')}")
-                        else:
-                            self.add_log_entry(f"💤 {miner_name} wird ausgeschaltet. {state.get('log_reason_off', '')}")
-                            if coord and coord.miner_obj:
-                                try:
-                                    await coord.miner_obj.stop_mining()
-                                except Exception as e:
-                                    _LOGGER.debug(f"[{miner_name}] stop_mining() failed: {e}")
-                            await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
-                            state["off_since_actual"] = current_time
-                            state["on_since_actual"] = None
-                            state["session_runtime_s"] = 0
-                            state["session_energy_wh"] = 0.0
-        else: state["off_since"] = None
-
-        # Ramping Execution
-        await self._handle_ramping(miner, state, is_on, coord, current_time)
-
-    def _clamp_to_entity_range(self, power_entity: str, value: float) -> float:
-        """Clamp a power value to the HA number entity's reported min/max (e.g. BraiinsOS hardware limits)."""
-        entity_state = self.hass.states.get(power_entity)
-        if entity_state and entity_state.attributes:
-            try:
-                hw_min = float(entity_state.attributes.get("min", 0))
-                hw_max = float(entity_state.attributes.get("max", value))
-                if value < hw_min:
-                    _LOGGER.warning(
-                        f"[OpenKairo] Power value {value}W below hardware minimum {hw_min}W "
-                        f"(entity: {power_entity}) — clamping. Check soft_start_steps / min_power config."
-                    )
-                    value = hw_min
-                elif value > hw_max:
-                    value = hw_max
-            except (TypeError, ValueError):
-                pass
-        return value
-
-    async def _handle_ramping(self, miner, state, is_on, coord, current_time):
-        ramping = state.get("ramping")
-        if not ramping: return
-
-        # Only cancel an in-progress ramp-up if the miner has ALREADY been on and is now off.
-        # Do not cancel when ramping_step == 0: the switch hasn't turned on yet this tick.
-        if not is_on and ramping == "up" and state.get("ramping_step", 0) > 0:
-            state["ramping"] = None; return
-
-        interval = float(miner.get("soft_interval", 60))
-        if current_time - state.get("ramping_last_time", 0) >= interval:
-            power_entity = miner.get("power_entity")
-            if not power_entity: state["ramping"] = None; return
-
-            if ramping == "up":
+        if turn_on_condition and not is_on:
+            if coord and coord.miner_obj:
                 try:
-                    steps = [float(s.strip()) for s in str(miner.get("soft_start_steps", "100,500,1000")).split(",") if s.strip()]
-                except (ValueError, TypeError):
-                    steps = []
-                if not steps:
-                    _LOGGER.warning(f"[{miner.get('name')}] Soft-Start: keine gültigen Stufen konfiguriert — Abbruch.")
-                    state["ramping"] = None; return
-                target = float(miner.get("max_power") or 1200)
-                if state["ramping_step"] < len(steps):
-                    val = self._clamp_to_entity_range(power_entity, min(steps[state["ramping_step"]], target))
-                    try:
-                        await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val})
-                    except Exception as e:
-                        _LOGGER.warning(f"[{miner.get('name')}] Soft-Start Stufe {state['ramping_step']}: set_value({val}W) fehlgeschlagen: {e}")
-                    if state["ramping_step"] == 0:
-                        await self.hass.services.async_call("switch", "turn_on", {"entity_id": state.get("switches", [])})
-                    state["ramping_step"] += 1; state["ramping_last_time"] = current_time
-                else:
-                    target = self._clamp_to_entity_range(power_entity, target)
-                    try:
-                        await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": target})
-                    except Exception as e:
-                        _LOGGER.warning(f"[{miner.get('name')}] Soft-Start Abschluss: set_value({target}W) fehlgeschlagen: {e}")
-                    self.add_log_entry(f"✅ {miner.get('name')}: Soft-Start abgeschlossen.")
-                    state["ramping"] = None
+                    await coord.miner_obj.resume_mining()
+                except Exception as e:
+                    _LOGGER.debug(f"[{miner_name}] resume_mining() failed: {e}")
+            state["total_starts"] = state.get("total_starts", 0) + 1
+            self.add_log_entry(f"⚡ {miner_name} wird eingeschaltet. {state.get('log_reason_on', '')}")
+            await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
+            p_ent = miner.get("power_entity")
+            target_p = miner.get("max_power")
+            if p_ent and target_p:
+                await self.hass.services.async_call("number", "set_value", {"entity_id": p_ent, "value": float(target_p)})
 
-            elif ramping == "down":
+        elif turn_off_condition and is_on:
+            if coord and coord.miner_obj:
                 try:
-                    steps = [float(s.strip()) for s in str(miner.get("soft_stop_steps", "1000,500,100")).split(",") if s.strip()]
-                except (ValueError, TypeError):
-                    steps = []
-                if not steps:
-                    _LOGGER.warning(f"[{miner.get('name')}] Soft-Stop: keine gültigen Stufen konfiguriert.")
-                    steps = []
-                if state["ramping_step"] < len(steps):
-                    val = self._clamp_to_entity_range(power_entity, steps[state["ramping_step"]])
-                    try:
-                        await self.hass.services.async_call("number", "set_value", {"entity_id": power_entity, "value": val})
-                    except Exception as e:
-                        _LOGGER.warning(f"[{miner.get('name')}] Soft-Stop Stufe {state['ramping_step']}: set_value({val}W) fehlgeschlagen: {e}")
-                    state["ramping_step"] += 1; state["ramping_last_time"] = current_time
-                else:
-                    if coord and coord.miner_obj:
-                        try:
-                            await coord.miner_obj.stop_mining()
-                        except Exception as e:
-                            _LOGGER.debug(f"[{miner.get('name')}] stop_mining() in soft-stop failed: {e}")
-                    await self.hass.services.async_call("switch", "turn_off", {"entity_id": state.get("switches", [])})
-                    state["off_since_actual"] = current_time
-                    state["on_since_actual"] = None
-                    state["session_runtime_s"] = 0
-                    state["session_energy_wh"] = 0.0
-                    state["ramping"] = None
+                    await coord.miner_obj.stop_mining()
+                except Exception as e:
+                    _LOGGER.debug(f"[{miner_name}] stop_mining() failed: {e}")
+            self.add_log_entry(f"💤 {miner_name} wird ausgeschaltet. {state.get('log_reason_off', '')}")
+            await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
+            state["session_runtime_s"] = 0
+            state["session_energy_wh"] = 0.0
 
     async def _handle_continuous_scaling(self, miner, state, is_on, mode, current_time, pv_surplus=None):
         power_entity = miner.get("power_entity")
@@ -1106,7 +799,7 @@ class MiningEngine:
         pv_auto = (mode == "pv" and bool(power_entity))
         if not pv_auto and not miner.get("soft_continuous_scaling"):
             return
-        if not is_on or state.get("ramping"):
+        if not is_on:
             return
 
         if not power_entity:
