@@ -30,11 +30,9 @@ class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
         self._attr_icon = "mdi:hammer-pick"
 
     def _get_override(self):
-        """Read override state from hass.data — survives entity re-creation."""
         return self.hass.data.get(DOMAIN, {}).get("_switch_overrides", {}).get(self._attr_unique_id)
 
     def _set_override(self, value):
-        """Write override state to hass.data."""
         self.hass.data.setdefault(DOMAIN, {}).setdefault("_switch_overrides", {})[self._attr_unique_id] = value
 
     @property
@@ -43,9 +41,7 @@ class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def available(self) -> bool:
-        if self._get_override() is not None:
-            return True
-        return self.coordinator.available
+        return True
 
     @property
     def is_on(self):
