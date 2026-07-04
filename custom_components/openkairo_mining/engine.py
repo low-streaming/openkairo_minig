@@ -769,11 +769,6 @@ class MiningEngine:
         miner_name = miner.get("name", "Miner")
 
         if turn_on_condition and not is_on:
-            if coord and coord.miner_obj:
-                try:
-                    await coord.miner_obj.resume_mining()
-                except Exception as e:
-                    _LOGGER.debug(f"[{miner_name}] resume_mining() failed: {e}")
             state["total_starts"] = state.get("total_starts", 0) + 1
             self.add_log_entry(f"⚡ {miner_name} wird eingeschaltet. {state.get('log_reason_on', '')}")
             await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
@@ -783,11 +778,6 @@ class MiningEngine:
                 await self.hass.services.async_call("number", "set_value", {"entity_id": p_ent, "value": float(target_p)})
 
         elif turn_off_condition and is_on:
-            if coord and coord.miner_obj:
-                try:
-                    await coord.miner_obj.stop_mining()
-                except Exception as e:
-                    _LOGGER.debug(f"[{miner_name}] stop_mining() failed: {e}")
             self.add_log_entry(f"💤 {miner_name} wird ausgeschaltet. {state.get('log_reason_off', '')}")
             await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
             state["session_runtime_s"] = 0
