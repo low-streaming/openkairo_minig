@@ -1779,7 +1779,7 @@ class OpenKairoMiningPanel extends LitElement {
         <div style="text-align: center; margin-bottom: 36px;">
           <div style="font-size: 2.8em; margin-bottom: 8px;">⛏️</div>
           <h1 style="margin: 0 0 6px 0; font-size: 1.7em; color: #fff;">OpenKairo Mining</h1>
-          <div style="color: var(--theme-accent-1); font-size: 1em; font-weight: 600; margin-bottom: 10px;">Benutzerhandbuch — Version 1.4.5</div>
+          <div style="color: var(--theme-accent-1); font-size: 1em; font-weight: 600; margin-bottom: 10px;">Benutzerhandbuch — Version 1.4.6</div>
           <p style="color: #888; max-width: 560px; margin: 0 auto; line-height: 1.6; font-size: 0.95em;">
             Alles was du wissen musst, um deine Miner intelligent zu steuern.
           </p>
@@ -1912,53 +1912,6 @@ class OpenKairoMiningPanel extends LitElement {
         </div>
 
         <!-- ═══ 3. SICHERHEITSFUNKTIONEN ═══ -->
-        <div class="tech-box" style="margin-top: 24px;">
-          <h2 style="${h2Style}"><span>🛡️</span> Sicherheitsfunktionen</h2>
-
-          <div style="display: flex; flex-direction: column; gap: 14px;">
-
-            <div style="background: rgba(231,76,60,0.04); border-radius: 10px; padding: 14px 18px; border-left: 4px solid #e74c3c;">
-              <div style="font-weight: 700; color: #e74c3c; margin-bottom: 6px;">🌡️ Temperatur-Alarm (Notabschaltung)</div>
-              <p style="color: #888; font-size: 0.88em; line-height: 1.55; margin: 0;">
-                Stelle eine maximale Betriebstemperatur ein. Überschreitet dein Miner diesen Wert, schaltet die Engine
-                ihn sofort ab — unabhängig vom aktuellen Modus. Im Dashboard erscheint der rote TEMP-ALARM-Badge.
-                Der Miner startet erst wieder, wenn die Temperatur wieder darunter liegt.
-              </p>
-              <div style="margin-top: 8px; font-size: 0.8em; color: #666;">Einrichten: Miner bearbeiten → Sicherheit & Grenzen → "Max. Temperatur (°C)"</div>
-            </div>
-
-            <div style="background: rgba(255,152,0,0.04); border-radius: 10px; padding: 14px 18px; border-left: 4px solid #ff9800;">
-              <div style="font-weight: 700; color: #ff9800; margin-bottom: 6px;">⏱️ Maximale Laufzeit</div>
-              <p style="color: #888; font-size: 0.88em; line-height: 1.55; margin: 0;">
-                Damit ein Miner nicht unbeabsichtigt tagelang durchläuft: Stelle eine maximale Stundenzahl ein.
-                Nach Ablauf schaltet die Engine ihn ab. Die Automationslogik kann ihn bei passenden Bedingungen
-                wieder starten. Leer lassen = kein Limit.
-              </p>
-              <div style="margin-top: 8px; font-size: 0.8em; color: #666;">Einrichten: Miner bearbeiten → Sicherheit & Grenzen → "Max. Laufzeit (Stunden)"</div>
-            </div>
-
-            <div style="background: rgba(52,152,219,0.04); border-radius: 10px; padding: 14px 18px; border-left: 4px solid #3498db;">
-              <div style="font-weight: 700; color: #3498db; margin-bottom: 6px;">🔄 Mindest-Aus-Zeit (Anti-Cycling)</div>
-              <p style="color: #888; font-size: 0.88em; line-height: 1.55; margin: 0;">
-                Verhindert, dass der Miner bei schwankenden PV-Werten ständig ein- und ausschaltet.
-                Nach dem Abschalten muss erst eine Mindestpause (in Minuten) verstreichen, bevor er wieder starten darf.
-                Empfehlung: 5–10 Minuten für PV-Anlagen mit wechselhafter Bewölkung.
-              </p>
-              <div style="margin-top: 8px; font-size: 0.8em; color: #666;">Einrichten: Miner bearbeiten → Sicherheit & Grenzen → "Mindest-Aus-Zeit (Minuten)"</div>
-            </div>
-
-            <div style="background: rgba(39,174,96,0.04); border-radius: 10px; padding: 14px 18px; border-left: 4px solid #27ae60;">
-              <div style="font-weight: 700; color: #27ae60; margin-bottom: 6px;">📉 Batterie-Hysterese</div>
-              <p style="color: #888; font-size: 0.88em; line-height: 1.55; margin: 0;">
-                Verhindert Pendeln beim SOC-Modus. Beispiel: Einschalten bei 80%, Hysterese 2% — dann schaltet der
-                Miner erst bei 82% ein und erst bei 78% wieder aus. Standard: 2%.
-              </p>
-              <div style="margin-top: 8px; font-size: 0.8em; color: #666;">Einrichten: Miner bearbeiten → Sicherheit & Grenzen → "Batterie-Hysterese (%)"</div>
-            </div>
-
-          </div>
-        </div>
-
         <!-- ═══ 4. STANDBY-WÄCHTER ═══ -->
         <div class="tech-box" style="margin-top: 24px;">
           <h2 style="${h2Style}"><span>🔒</span> Standby-Wächter — automatischer Neustart bei Hängern</h2>
@@ -2162,6 +2115,41 @@ class OpenKairoMiningPanel extends LitElement {
             </div>
           </div>
           <div style="${tipBox('#27ae60', '💾', 'Der Zustand wird alle ~5 Minuten und beim sauberen HA-Shutdown automatisch in <code>.storage/openkairo_mining_state.json</code> gespeichert. Session-Werte (seit letztem Start) setzen bei Neustart bewusst zurück — das ist gewollt.')}"></div>
+        </div>
+
+        <div class="tech-box" style="margin-top: 24px;">
+          <h2 style="${h2Style}"><span>📋</span> Versionslog</h2>
+
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+
+            <div style="border-left: 4px solid var(--theme-accent-1); background: rgba(255,255,255,0.02); border-radius: 0 10px 10px 0; padding: 14px 16px;">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <span style="${badgeStyle('var(--theme-accent-1)')}">v1.4.6</span>
+                <span style="font-weight: 700; color: #fff; font-size: 0.95em;">Stabilitäts-Update — Engine &amp; Config</span>
+              </div>
+              <ul style="color: #aaa; font-size: 0.88em; line-height: 1.7; margin: 0; padding-left: 18px;">
+                <li><strong style="color:#fff;">Unavailable-Switch-Schutz:</strong> Wenn ein Schalter (z.B. Zigbee-Plug) kurz ausfällt und auf "unavailable" geht, schickt die Engine keine turn_on-Befehle mehr — verhindert Log-Spam und falsch hochgezählte Starts. Sobald der Switch wieder verfügbar ist, greift der normale 90s-Cooldown.</li>
+                <li><strong style="color:#fff;">Race-Condition bei Mehrminer-Setup behoben:</strong> Bei gleichzeitigem HA-Start mehrerer Miner-Entries konnten Config-Schreibvorgänge sich gegenseitig überschreiben. Ein Domain-weiter Lock serialisiert jetzt alle <code>sync_with_config</code>-Läufe.</li>
+                <li><strong style="color:#fff;">Fehlerbehandlung in sync_with_config:</strong> Unerwartete Fehler beim automatischen Eintragen neuer Miner werden jetzt geloggt statt als unhandled Task Exception zu verschwinden.</li>
+                <li><strong style="color:#fff;">Switch-Entity ohne API-Calls:</strong> Der OpenKairo-Schalter führt keine Miner-API-Aufrufe mehr durch — kein Hashboard-Reset durch den Engine-Loop.</li>
+                <li><strong style="color:#fff;">battery_hysteresis entfernt:</strong> Der versteckte SOC-Puffer ist raus — der eingestellte Schwellenwert wird direkt verwendet.</li>
+                <li><strong style="color:#fff;">Sicherheit &amp; Grenzen-Panel entfernt:</strong> Vereinfachte Oberfläche — max_temp, max_runtime und min_off_time wurden entfernt.</li>
+              </ul>
+            </div>
+
+            <div style="border-left: 4px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.01); border-radius: 0 10px 10px 0; padding: 14px 16px;">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <span style="${badgeStyle('#888')}">v1.4.5</span>
+                <span style="font-weight: 700; color: #aaa; font-size: 0.95em;">State-Persistenz &amp; Watchdog</span>
+              </div>
+              <ul style="color: #666; font-size: 0.88em; line-height: 1.7; margin: 0; padding-left: 18px;">
+                <li>Engine-Zustand überlebt HA-Neustart (Tagesstatistiken, Watchdog-Cooldown, Min-Pause-Tracking)</li>
+                <li>Standby-Watchdog mit konfigurierbarer Aktion</li>
+                <li>Entity-Registry-Lookup in sync_with_config statt statisch generierter Entity-IDs</li>
+              </ul>
+            </div>
+
+          </div>
         </div>
 
         <div class="tech-box" style="margin-top: 24px; border-color: rgba(var(--theme-accent-1-rgb), 0.2); background: rgba(0,0,0,0.1); border-radius: 20px; padding: 30px;">
@@ -3479,7 +3467,7 @@ class OpenKairoMiningPanel extends LitElement {
                         </div>
                         <div class="form-group flex-1" style="display: flex; align-items: center; background: rgba(11,196,226,0.05); border: 1px dashed rgba(11,196,226,0.2); border-radius: 8px; padding: 12px; gap: 10px;">
                             <span style="font-size: 1.4em;">ℹ️</span>
-                            <span style="color: #888; font-size: 0.85em; line-height: 1.5;">Die Ziel-Leistung nach dem Hochfahren wird aus <strong style="color: var(--theme-accent-1);">Max. Leistung</strong> übernommen (Sicherheit & Grenzen unten).</span>
+                            <span style="color: #888; font-size: 0.85em; line-height: 1.5;">Die Ziel-Leistung nach dem Hochfahren wird aus <strong style="color: var(--theme-accent-1);">Max. Leistung</strong> des Miners übernommen.</span>
                         </div>
                     </div>
                 ` : ''}
@@ -3814,7 +3802,7 @@ class OpenKairoMiningPanel extends LitElement {
             <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
                 <label>⚡ Voraussichtlicher Miner-Verbrauch (Watt)</label>
                 <input type="number" name="soft_target_power" .value="${this.editForm.soft_target_power || this.editForm.max_power || (this.editForm.name && this.editForm.name.toLowerCase().includes('nerd') ? 2 : 1200)}" @input="${this.handleFormInput}">
-                <small>Für die KI-Berechnung (Standard: Max. Leistung aus Sicherheit & Grenzen). Für Nerdminer/Bitaxe manuell anpassen.</small>
+                <small>Für die KI-Berechnung (Standard: Max. Leistung des Miners). Für Nerdminer/Bitaxe manuell anpassen.</small>
             </div>
 
             <div class="form-group mt-3" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">

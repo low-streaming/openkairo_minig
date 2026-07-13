@@ -1,6 +1,6 @@
 # OpenKairo Mining ⛏️ — Home Assistant Integration
 
-[![Version](https://img.shields.io/badge/Version-1.4.5-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
+[![Version](https://img.shields.io/badge/Version-1.4.6-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg?style=for-the-badge)](https://home-assistant.io)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://hacs.xyz)
 [![Powered by OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
@@ -261,6 +261,16 @@ Status-Daten an einen MQTT-Broker senden:
 
 ## 📋 Changelog
 
+### v1.4.6 — Stabilitäts-Update: Engine-Schutz, Config-Lock, Switch-Rework
+
+- **Unavailable-Switch-Guard** — Engine schickt keine turn_on-Befehle mehr an unavailable Entities (Zigbee-Dropout etc.) — verhindert Log-Spam und falsches total_starts-Hochzählen
+- **Config-Lock** — asyncio.Lock serialisiert sync_with_config-Läufe bei Mehrminer-Setup — kein Miner geht mehr beim gleichzeitigen HA-Start verloren
+- **Fehlerbehandlung sync_with_config** — Exceptions werden jetzt geloggt statt als unhandled Task zu verschwinden
+- **Switch ohne API-Calls** — `async_turn_on/off` führen keine Miner-API-Calls mehr durch — kein Hashboard-Reset durch den Engine-Loop
+- **Switch always available** — Switch-Entity ist immer verfügbar, damit Engine-Befehle nie von HA gefiltert werden
+- **battery_hysteresis entfernt** — SOC-Schwellenwert wird direkt verwendet, kein versteckter Puffer mehr
+- **UI** — „Sicherheit & Grenzen"-Panel entfernt (max_temp, max_runtime, min_off_time)
+
 ### v1.4.5 — Config Backup + Miner-Vorlagen + Watchdog Badge + State-Persistenz
 
 - **Config Backup** — vollständiges Export/Import der Konfiguration (Einstellungen-Tab)
@@ -330,4 +340,4 @@ OpenKairo ist ein Community-Projekt. Wenn dir die Integration hilft, freuen wir 
 
 ---
 
-**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.5
+**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.6
