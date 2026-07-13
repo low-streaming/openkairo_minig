@@ -47,54 +47,59 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             from homeassistant.helpers import entity_registry as er
             # Wait for platform setup to complete so entities are in the registry.
             await _asyncio.sleep(5)
-            config = await hass.async_add_executor_job(_load_config, hass)
-            ip = entry.data["ip_address"]
-            safe_ip = ip.replace('.', '_')
+            try:
+                lock = hass.data[DOMAIN].setdefault("_config_lock", _asyncio.Lock())
+                async with lock:
+                    config = await hass.async_add_executor_job(_load_config, hass)
+                    ip = entry.data["ip_address"]
+                    safe_ip = ip.replace('.', '_')
 
-            ent_reg = er.async_get(hass)
+                    ent_reg = er.async_get(hass)
 
-            def _lookup(platform, uid_suffix):
-                uid = f"{DOMAIN}_{safe_ip}_{uid_suffix}"
-                return ent_reg.async_get_entity_id(platform, DOMAIN, uid)
+                    def _lookup(platform, uid_suffix):
+                        uid = f"{DOMAIN}_{safe_ip}_{uid_suffix}"
+                        return ent_reg.async_get_entity_id(platform, DOMAIN, uid)
 
-            auto_entities = {}
-            for platform, uid_suffix, cfg_key in [
-                ("switch", "mining_aktiv", "switch"),
-                ("number", "power_limit", "power_entity"),
-                ("sensor", "hashrate", "hashrate_sensor"),
-                ("sensor", "temperature", "temp_sensor"),
-                ("sensor", "power", "power_consumption_sensor"),
-            ]:
-                eid = _lookup(platform, uid_suffix)
-                if eid:
-                    auto_entities[cfg_key] = eid
+                    auto_entities = {}
+                    for platform, uid_suffix, cfg_key in [
+                        ("switch", "mining_aktiv", "switch"),
+                        ("number", "power_limit", "power_entity"),
+                        ("sensor", "hashrate", "hashrate_sensor"),
+                        ("sensor", "temperature", "temp_sensor"),
+                        ("sensor", "power", "power_consumption_sensor"),
+                    ]:
+                        eid = _lookup(platform, uid_suffix)
+                        if eid:
+                            auto_entities[cfg_key] = eid
 
-            existing_idx = next((i for i, m in enumerate(config.get("miners", [])) if m.get("miner_ip") == ip), None)
-            if existing_idx is None:
-                import uuid
-                new_miner = {
-                    "id": str(uuid.uuid4()),
-                    "name": entry.title,
-                    "miner_ip": ip,
-                    "miner_user": entry.data.get("username", "root"),
-                    "miner_password": entry.data.get("password", ""),
-                    "priority": "10",
-                    "mode": "manual",
-                    "min_power": entry.data.get("min_power", 400),
-                    "max_power": entry.data.get("max_power", 1400),
-                    **auto_entities,
-                }
-                config["miners"].append(new_miner)
-                await hass.async_add_executor_job(_save_config, hass, config)
-            else:
-                miner = config["miners"][existing_idx]
-                changed = False
-                for key, val in auto_entities.items():
-                    if key not in miner or not miner.get(key):
-                        miner[key] = val
-                        changed = True
-                if changed:
-                    await hass.async_add_executor_job(_save_config, hass, config)
+                    existing_idx = next((i for i, m in enumerate(config.get("miners", [])) if m.get("miner_ip") == ip), None)
+                    if existing_idx is None:
+                        import uuid
+                        new_miner = {
+                            "id": str(uuid.uuid4()),
+                            "name": entry.title,
+                            "miner_ip": ip,
+                            "miner_user": entry.data.get("username", "root"),
+                            "miner_password": entry.data.get("password", ""),
+                            "priority": "10",
+                            "mode": "manual",
+                            "min_power": entry.data.get("min_power", 400),
+                            "max_power": entry.data.get("max_power", 1400),
+                            **auto_entities,
+                        }
+                        config["miners"].append(new_miner)
+                        await hass.async_add_executor_job(_save_config, hass, config)
+                    else:
+                        miner = config["miners"][existing_idx]
+                        changed = False
+                        for key, val in auto_entities.items():
+                            if key not in miner or not miner.get(key):
+                                miner[key] = val
+                                changed = True
+                        if changed:
+                            await hass.async_add_executor_job(_save_config, hass, config)
+            except Exception as e:
+                _LOGGER.error(f"sync_with_config failed for {entry.data.get('ip_address')}: {e}")
 
         hass.async_create_task(sync_with_config())
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

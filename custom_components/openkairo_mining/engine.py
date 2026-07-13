@@ -771,6 +771,14 @@ class MiningEngine:
         miner_name = miner.get("name", "Miner")
 
         if turn_on_condition and not is_on:
+            # Skip turn_on when all switches are unavailable — HA will drop the call anyway,
+            # and we'd inflate total_starts. Don't reset the timer so we retry once they recover.
+            switches_all_unavailable = bool(switches) and all(
+                self.hass.states.get(s) is not None and self.hass.states.get(s).state == "unavailable"
+                for s in switches
+            )
+            if switches_all_unavailable:
+                return
             last_cmd_ts = state.get("_last_turn_on_ts", 0)
             if current_time - last_cmd_ts < 90:
                 return
