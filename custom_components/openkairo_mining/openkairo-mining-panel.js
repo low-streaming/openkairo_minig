@@ -3413,6 +3413,18 @@ class OpenKairoMiningPanel extends LitElement {
                 </div>
             </div>
 
+            <div class="form-row" style="margin-top: 12px;">
+                <div class="form-group flex-1">
+                    <label>Avalon Startmodus</label>
+                    <select name="avalon_work_mode" @change="${this.handleFormInput}" style="width: 100%; padding: 8px; background: var(--card-bg, #1a1a2e); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: inherit;">
+                        <option value="normal" ?selected="${(this.editForm.avalon_work_mode || 'normal') === 'normal'}">Standard (Normal)</option>
+                        <option value="low"    ?selected="${this.editForm.avalon_work_mode === 'low'}">Eco (Low Power)</option>
+                        <option value="high"   ?selected="${this.editForm.avalon_work_mode === 'high'}">Super (High Performance)</option>
+                    </select>
+                    <small>Nur für Avalon-Miner. Bestimmt den Leistungsmodus beim Einschalten (API-gesteuert).</small>
+                </div>
+            </div>
+
             <div style="margin-top: 20px; padding: 15px; border: 1px dashed rgba(11, 196, 226, 0.3); border-radius: 8px; background: rgba(11, 196, 226, 0.05);">
                 <h4 style="margin: 0 0 10px 0; color: #0bc4e2; display: flex; align-items: center; gap: 8px;">🚀 Soft Start / Stop (Mehrstufiges Hochfahren)</h4>
                 

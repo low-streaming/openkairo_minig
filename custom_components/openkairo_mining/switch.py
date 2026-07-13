@@ -62,10 +62,36 @@ class MinerMiningSwitch(CoordinatorEntity, SwitchEntity):
             return self.coordinator.data.get("is_mining", False)
         return False
 
+    def _is_api_controlled(self) -> bool:
+        """True when this entity is the miner's primary switch (no external physical switch configured)."""
+        config = self.hass.data.get(DOMAIN, {}).get("config", {})
+        for m in config.get("miners", []):
+            if m.get("miner_ip") == self.coordinator.miner_ip:
+                sw = m.get("switch", "")
+                return not sw or "mining_aktiv" in sw
+        return True
+
+    def _avalon_work_mode(self) -> str:
+        config = self.hass.data.get(DOMAIN, {}).get("config", {})
+        for m in config.get("miners", []):
+            if m.get("miner_ip") == self.coordinator.miner_ip:
+                return m.get("avalon_work_mode", "normal")
+        return "normal"
+
     async def async_turn_on(self, **kwargs):
         self._set_override(True)
         self.async_write_ha_state()
+        if self._is_api_controlled():
+            await self.hass.services.async_call(
+                DOMAIN, "set_work_mode",
+                {"ip_address": self.coordinator.miner_ip, "mode": self._avalon_work_mode()}
+            )
 
     async def async_turn_off(self, **kwargs):
         self._set_override(False)
         self.async_write_ha_state()
+        if self._is_api_controlled():
+            await self.hass.services.async_call(
+                DOMAIN, "set_work_mode",
+                {"ip_address": self.coordinator.miner_ip, "mode": "standby"}
+            )

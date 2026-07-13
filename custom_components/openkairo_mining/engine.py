@@ -62,6 +62,7 @@ class MiningEngine:
     # Fields that survive a HA restart — everything else resets cleanly.
     _PERSIST_FIELDS = (
         "today_runtime_s", "today_energy_wh", "total_starts", "stats_day",
+        "watchdog_last_action",
     )
 
     @property
@@ -370,6 +371,10 @@ class MiningEngine:
             
             # Execution
             await self._execute_conditions(miner, state, is_on, turn_on_condition, turn_off_condition, coord, current_time)
+
+        # Watchdog — fires when miner is on but monitored value stays below threshold
+        if miner.get("standby_watchdog_enabled") and is_on:
+            await self._process_watchdog(miner, state, current_time)
 
         # Continuous Scaling
         await self._handle_continuous_scaling(miner, state, is_on, mode, current_time, global_pv_surplus)
@@ -765,6 +770,73 @@ class MiningEngine:
             state["session_energy_wh"] = round(state.get("session_energy_wh", 0.0) + energy_wh, 3)
             state["today_runtime_s"] = state.get("today_runtime_s", 0) + elapsed
             state["today_energy_wh"] = round(state.get("today_energy_wh", 0.0) + energy_wh, 3)
+
+    async def _process_watchdog(self, miner, state, current_time):
+        """Fire watchdog action when monitored value stays below threshold for the configured delay."""
+        threshold = float(miner.get("standby_power", 100))
+        delay_s = float(miner.get("standby_delay", 10)) * 60
+        action = miner.get("watchdog_action", "off")
+        miner_name = miner.get("name", "Miner")
+        wtype = miner.get("watchdog_type", "power")
+
+        # Read watched value
+        watched_val = None
+        if wtype == "limit" and miner.get("power_entity"):
+            s = self.hass.states.get(miner["power_entity"])
+            if s and s.state not in ["unknown", "unavailable"]:
+                try:
+                    watched_val = float(s.state)
+                except ValueError:
+                    pass
+        if watched_val is None and miner.get("power_consumption_sensor"):
+            s = self.hass.states.get(miner["power_consumption_sensor"])
+            if s and s.state not in ["unknown", "unavailable"]:
+                try:
+                    watched_val = float(s.state)
+                except ValueError:
+                    pass
+
+        if watched_val is None:
+            state.pop("standby_since", None)
+            return
+
+        # Cooldown: don't re-trigger until delay has passed since last action
+        last_action = state.get("watchdog_last_action", 0)
+        cooldown = max(delay_s, 300)
+        if current_time - last_action < cooldown:
+            state.pop("standby_since", None)
+            return
+
+        if watched_val < threshold:
+            if not state.get("standby_since"):
+                state["standby_since"] = current_time
+            elapsed = current_time - state["standby_since"]
+            if elapsed >= delay_s:
+                state["watchdog_last_action"] = current_time
+                state.pop("standby_since", None)
+                switches = state.get("switches", [])
+                self.add_log_entry(
+                    f"🛡️ {miner_name} Watchdog: {watched_val:.0f}W < {threshold:.0f}W "
+                    f"für >{int(delay_s / 60)} Min. → Aktion: {action}"
+                )
+                if action == "off":
+                    if switches:
+                        await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
+                elif action == "toggle":
+                    if switches:
+                        await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
+                        await asyncio.sleep(5)
+                        await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
+                elif action == "reboot":
+                    miner_ip = miner.get("miner_ip")
+                    if miner_ip:
+                        await self.hass.services.async_call(DOMAIN, "reboot", {"ip_address": miner_ip})
+                elif action == "restart_backend":
+                    miner_ip = miner.get("miner_ip")
+                    if miner_ip:
+                        await self.hass.services.async_call(DOMAIN, "restart_backend", {"ip_address": miner_ip})
+        else:
+            state.pop("standby_since", None)
 
     async def _execute_conditions(self, miner, state, is_on, turn_on_condition, turn_off_condition, coord, current_time):
         switches = state.get("switches", [])
