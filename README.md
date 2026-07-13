@@ -142,18 +142,6 @@ Die KI berechnet wie lange der Miner nachts laufen kann, damit der Akku morgens 
 
 ---
 
-### 🛡️ Sicherheit & Grenzen (gilt für alle Modi)
-
-| Feld | Funktion |
-| --- | --- |
-| **Min. Leistung (W)** | Untere Grenze — Miner geht nie darunter |
-| **Max. Leistung (W)** | Obere Grenze — wird auch für Soft-Start und Leistungstracking genutzt |
-| **Max. Temperatur (°C)** | Notabschaltung wenn Miner-Sensor diesen Wert überschreitet |
-| **Max. Laufzeit (Std)** | Automatische Pause nach X Stunden Dauerbetrieb |
-| **Min. Pause (Min)** | Pflichtpause nach Abschaltung (schont Hardware) |
-
----
-
 ### 🚀 Soft-Start / Soft-Stop
 
 Schont Netzteile durch mehrstufiges Hoch- und Runterfahren.
