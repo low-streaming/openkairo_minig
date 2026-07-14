@@ -369,11 +369,14 @@ class MiningEngine:
             elif mode == "ai_discharge":
                 turn_on_condition, turn_off_condition = await self._process_ai_discharge_mode(miner, state, is_on, current_time)
             
-            # Execution
-            await self._execute_conditions(miner, state, is_on, turn_on_condition, turn_off_condition, coord, current_time)
+            # Execution — returns True if a turn_off was issued this tick
+            just_turned_off = await self._execute_conditions(miner, state, is_on, turn_on_condition, turn_off_condition, coord, current_time) or False
+        else:
+            just_turned_off = False
 
-        # Watchdog — fires when miner is on but monitored value stays below threshold
-        if miner.get("standby_watchdog_enabled") and is_on:
+        # Watchdog — fires when miner is on but monitored value stays below threshold.
+        # Skip if the engine already turned the miner off this tick to avoid fighting conditions.
+        if miner.get("standby_watchdog_enabled") and is_on and not just_turned_off:
             await self._process_watchdog(miner, state, current_time)
 
         # Continuous Scaling
@@ -869,6 +872,7 @@ class MiningEngine:
             await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
             state["session_runtime_s"] = 0
             state["session_energy_wh"] = 0.0
+            return True
 
     async def _handle_continuous_scaling(self, miner, state, is_on, mode, current_time, pv_surplus=None):
         power_entity = miner.get("power_entity")
