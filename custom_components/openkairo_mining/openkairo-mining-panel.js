@@ -376,6 +376,7 @@ class OpenKairoMiningPanel extends LitElement {
 
   _startIntervals() {
     this.intervals.push(setInterval(() => { this.loadConfig(); }, 15 * 1000));
+    this.intervals.push(setInterval(() => { this.requestUpdate(); }, 1000));
     this.intervals.push(setInterval(() => {
       this.fetchBtcPrice();
       this.fetchMarketData();
@@ -868,6 +869,7 @@ class OpenKairoMiningPanel extends LitElement {
         if (data.config && data.config.miners) {
           this.config = data.config;
           this.states = data.states || {};
+          this._statesReceivedAt = Date.now();
           this.mempool = data.mempool || { fees: null, height: null, halving: null };
           this.logs = data.logs || [];
           this.fleet = data.fleet || {};
@@ -2666,17 +2668,23 @@ class OpenKairoMiningPanel extends LitElement {
                 ` : ''}
 
                 ${stateObj && miner.standby_watchdog_enabled ? html`
-                  ${stateObj.watchdog_remaining > 0 ? html`
-                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 6px 10px; background: rgba(243,156,18,0.1); border: 1px solid rgba(243,156,18,0.35); border-radius: 8px; font-size: 0.75em; color: rgba(243,156,18,0.9);">
-                      <ha-icon icon="mdi:shield-alert-outline" style="--mdc-icon-size: 13px; flex-shrink: 0;"></ha-icon>
-                      <span>Watchdog Countdown: noch ${Math.ceil(stateObj.watchdog_remaining / 60)} min</span>
-                    </div>
-                  ` : stateObj.watchdog_cooldown_remaining > 0 ? html`
-                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 6px 10px; background: rgba(100,116,139,0.1); border: 1px solid rgba(100,116,139,0.3); border-radius: 8px; font-size: 0.75em; color: rgba(148,163,184,0.8);">
-                      <ha-icon icon="mdi:shield-sync-outline" style="--mdc-icon-size: 13px; flex-shrink: 0;"></ha-icon>
-                      <span>Watchdog Cooldown: noch ${Math.ceil(stateObj.watchdog_cooldown_remaining / 60)} min</span>
-                    </div>
-                  ` : ''}
+                  ${(() => {
+                    const elapsed = (Date.now() - (this._statesReceivedAt || Date.now())) / 1000;
+                    const remaining = Math.max(0, (stateObj.watchdog_remaining || 0) - elapsed);
+                    const cooldown  = Math.max(0, (stateObj.watchdog_cooldown_remaining || 0) - elapsed);
+                    const fmt = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+                    if (remaining > 0) return html`
+                      <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 6px 10px; background: rgba(243,156,18,0.1); border: 1px solid rgba(243,156,18,0.35); border-radius: 8px; font-size: 0.75em; color: rgba(243,156,18,0.9);">
+                        <ha-icon icon="mdi:shield-alert-outline" style="--mdc-icon-size: 13px; flex-shrink: 0;"></ha-icon>
+                        <span>Watchdog Countdown: noch ${fmt(remaining)}</span>
+                      </div>`;
+                    if (cooldown > 0) return html`
+                      <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 6px 10px; background: rgba(100,116,139,0.1); border: 1px solid rgba(100,116,139,0.3); border-radius: 8px; font-size: 0.75em; color: rgba(148,163,184,0.8);">
+                        <ha-icon icon="mdi:shield-sync-outline" style="--mdc-icon-size: 13px; flex-shrink: 0;"></ha-icon>
+                        <span>Watchdog Cooldown: noch ${fmt(cooldown)}</span>
+                      </div>`;
+                    return '';
+                  })()}
                 ` : ''}
 
                 <div class="api-stats" style="background: rgba(15,15,20,0.9); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; /* Removed backdrop-filter */">
