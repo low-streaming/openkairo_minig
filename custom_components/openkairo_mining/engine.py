@@ -800,8 +800,12 @@ class MiningEngine:
                     pass
 
         if watched_val is None:
-            state.pop("standby_since", None)
-            return
+            coord_power = state.get("power")
+            if coord_power is not None and coord_power > 0:
+                watched_val = float(coord_power)
+            else:
+                state.pop("standby_since", None)
+                return
 
         # Cooldown: don't re-trigger until delay has passed since last action
         last_action = state.get("watchdog_last_action", 0)

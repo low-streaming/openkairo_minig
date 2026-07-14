@@ -2890,12 +2890,19 @@ class OpenKairoMiningPanel extends LitElement {
                           hasWatchData = true;
                       }
 
-                      if (hasWatchData && switchState === 'on' && watchObj) {
+                      // Fallback: Coordinator-Power nutzen wenn keine Sensor-Entity konfiguriert
+                      if (!hasWatchData && stateObj && stateObj.power != null) {
+                          currentWatchValue = parseFloat(stateObj.power) || 0;
+                          hasWatchData = true;
+                      }
+
+                      if (hasWatchData && switchState === 'on') {
                         const threshold = miner.standby_power || 100;
                         const delayMins = miner.standby_delay || 10;
 
-                        const sensorState = watchObj.state;
-                        const isNumeric = sensorState !== 'unavailable' && sensorState !== 'unknown' && !isNaN(parseFloat(sensorState));
+                        const isNumeric = watchObj
+                            ? (watchObj.state !== 'unavailable' && watchObj.state !== 'unknown' && !isNaN(parseFloat(watchObj.state)))
+                            : stateObj?.power != null;
 
                         const elapsed = (Date.now() - (this._statesReceivedAt || Date.now())) / 1000;
                         const wdCooldown = Math.max(0, (stateObj?.watchdog_cooldown_remaining || 0) - elapsed);
