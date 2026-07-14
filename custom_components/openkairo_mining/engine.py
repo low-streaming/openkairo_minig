@@ -375,9 +375,21 @@ class MiningEngine:
             just_turned_off = False
 
         # Watchdog — fires when miner is on but monitored value stays below threshold.
-        # Skip if the engine already turned the miner off this tick to avoid fighting conditions.
-        if miner.get("standby_watchdog_enabled") and is_on and not just_turned_off:
-            await self._process_watchdog(miner, state, current_time)
+        # Also runs when physical power shows miner is still running (stock miners ignore API commands).
+        # Skip only if we issued a turn_off this tick to avoid fighting.
+        if miner.get("standby_watchdog_enabled") and not just_turned_off:
+            _phys_power = float(state.get("power") or 0)
+            if not _phys_power:
+                _ps = miner.get("power_consumption_sensor") or miner.get("power_entity")
+                if _ps:
+                    _ps_s = self.hass.states.get(_ps)
+                    if _ps_s and _ps_s.state not in ["unknown", "unavailable"]:
+                        try:
+                            _phys_power = float(_ps_s.state)
+                        except ValueError:
+                            pass
+            if is_on or _phys_power > 5:
+                await self._process_watchdog(miner, state, current_time)
 
         # Continuous Scaling
         await self._handle_continuous_scaling(miner, state, is_on, mode, current_time, global_pv_surplus)
