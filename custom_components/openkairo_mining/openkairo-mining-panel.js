@@ -947,7 +947,6 @@ class OpenKairoMiningPanel extends LitElement {
       soc_on: 90,
       soc_off: 30,
       standby_watchdog_enabled: false,
-      standby_switch: '',
       standby_power: 100,
       standby_delay: 10,
       soft_start_enabled: false,
@@ -963,8 +962,6 @@ class OpenKairoMiningPanel extends LitElement {
       offgrid_soc_max: 98,
       offgrid_min_power: 400,
       offgrid_max_power: 1400,
-      watchdog_type: 'power',
-      watchdog_action: 'off',
       min_run_time: 5,
       grid_price_limit: null,
       min_power: 400,
@@ -1006,7 +1003,7 @@ class OpenKairoMiningPanel extends LitElement {
       'min_power', 'max_power', 'min_run_time',
       'soft_start_enabled', 'soft_stop_enabled', 'soft_continuous_scaling',
       'soft_start_steps', 'soft_stop_steps', 'soft_interval',
-      'standby_watchdog_enabled', 'watchdog_type', 'watchdog_action', 'standby_power', 'standby_delay',
+      'standby_watchdog_enabled', 'standby_power', 'standby_delay',
       'scaling_mode', 'scaling_factor', 'power_step_limit', 'soc_proportional_scaling',
       'calc_method', 'coin_price_source', 'electricity_price_source', 'electricity_price_manual',
     ];
@@ -2867,25 +2864,21 @@ class OpenKairoMiningPanel extends LitElement {
 
                   ${miner.standby_watchdog_enabled ? html`
                     ${(() => {
-                      let stState = 'Unbekannt';
-                      if (this.hass && miner.standby_switch && this.hass.states[miner.standby_switch]) {
-                        stState = this.hass.states[miner.standby_switch].state;
-                      }
+                      const wdEnabled = miner.standby_watchdog_enabled;
 
                       let watchdogWarning = '';
                       let watchdogProgress = 0;
-                      const wType = miner.watchdog_type || 'power';
-                      
+
                       let currentWatchValue = 0;
                       let hasWatchData = false;
                       let watchObj = null;
 
-                      if (wType === 'limit' && miner.power_entity && this.hass && this.hass.states[miner.power_entity]) {
-                          watchObj = this.hass.states[miner.power_entity];
+                      if (miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]) {
+                          watchObj = this.hass.states[miner.power_consumption_sensor];
                           currentWatchValue = parseFloat(watchObj.state) || 0;
                           hasWatchData = true;
-                      } else if (miner.power_consumption_sensor && this.hass && this.hass.states[miner.power_consumption_sensor]) {
-                          watchObj = this.hass.states[miner.power_consumption_sensor];
+                      } else if (miner.power_entity && this.hass && this.hass.states[miner.power_entity]) {
+                          watchObj = this.hass.states[miner.power_entity];
                           currentWatchValue = parseFloat(watchObj.state) || 0;
                           hasWatchData = true;
                       }
@@ -2909,8 +2902,11 @@ class OpenKairoMiningPanel extends LitElement {
                         const wdRemaining = Math.max(0, (stateObj?.watchdog_remaining || 0) - elapsed);
 
                         if (wdCooldown > 0) {
-                          // Watchdog hat bereits gefeuert — Cooldown läuft, kein neuer Countdown
+                          // Watchdog hat bereits gefeuert — Cooldown läuft
                           watchdogProgress = 100;
+                          const coolM = Math.floor(wdCooldown / 60);
+                          const coolS = Math.floor(wdCooldown % 60);
+                          watchdogWarning = `⏸️ Cooldown: ${coolM}:${String(coolS).padStart(2,'0')} Min.`;
                         } else if (wdRemaining > 0) {
                           // Countdown läuft
                           const delaySec = delayMins * 60;
@@ -2934,11 +2930,8 @@ class OpenKairoMiningPanel extends LitElement {
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
                                 <label style="margin: 0; display: flex; align-items: center; gap: 10px; cursor: pointer;">
                                     <input type="checkbox" .checked="${miner.standby_watchdog_enabled}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_watchdog_enabled', e.target.checked)}" style="width: 18px; height: 18px; margin: 0; accent-color: #e74c3c;">
-                                    <b style="font-size: 1.1em;">🛡️ Watchdog:</b> <span class="highlight-val" style="color: ${stState === 'on' ? '#d62cf6' : '#e74c3c'}; text-transform: uppercase; font-weight: 900; font-size: 1.1em; margin-left: 5px;">${stState === 'on' ? 'ON' : 'OFF'}</span>
+                                    <b style="font-size: 1.1em;">🛡️ Watchdog:</b> <span class="highlight-val" style="color: ${wdEnabled ? '#d62cf6' : '#e74c3c'}; text-transform: uppercase; font-weight: 900; font-size: 1.1em; margin-left: 5px;">${wdEnabled ? 'ON' : 'OFF'}</span>
                                 </label>
-                                <div class="badge" style="background: rgba(var(--theme-accent-1-rgb), 0.2); color: #fff; border: 1px solid rgba(var(--theme-accent-1-rgb), 0.5); border-radius: 6px; padding: 6px 14px; font-weight: 900; display: flex; align-items: center; gap: 8px; font-size: 0.8em; cursor: pointer; text-transform: uppercase; box-shadow: 0 0 15px rgba(var(--theme-accent-1-rgb), 0.3);" @click="${() => this.toggleMiner(miner.standby_switch)}">
-                                   <span>🔌</span> Plug
-                                </div>
                             </div>
                             <div class="small-text mt-1 watchdog-controls" style="margin-top: 10px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
                                 <span>Off wenn &lt; <input type="number" class="tech-input" .value="${miner.standby_power || 100}" @change="${(e) => this.quickUpdateMiner(miner.id, 'standby_power', e.target.value)}"> W</span>
@@ -3858,27 +3851,6 @@ class OpenKairoMiningPanel extends LitElement {
             ${this.editForm.standby_watchdog_enabled ? html`
             <div class="form-row mt-3">
                 <div class="form-group flex-1">
-                    <label>Watchdog Steckdose 1 (Hard-Off)</label>
-                    <openkairo-entity-picker name="standby_switch" placeholder="-- Steckdose suchen --" .value="${this.editForm.standby_switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
-                </div>
-                <div class="form-group flex-1">
-                    <label>Watchdog Steckdose 2 (Optional)</label>
-                    <openkairo-entity-picker name="standby_switch_2" placeholder="-- Steckdose suchen --" .value="${this.editForm.standby_switch_2 || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
-                </div>
-            </div>
-            <small style="margin-top: -15px; display: block;">HINWEIS: Die Plugs werden automatisch wieder hochgefahren, sobald die PV- oder SOC-Einschaltregeln erfüllt sind.</small>
-            
-            <div class="form-group mt-3">
-                <label>Überwachungs-Ziel (Was soll geprüft werden?)</label>
-                <select class="btc-select" name="watchdog_type" @change="${this.handleFormInput}">
-                  <option value="power" ?selected="${this.editForm.watchdog_type === 'power'}">Tatsächlicher Verbrauch (Watt-Sensor)</option>
-                  <option value="limit" ?selected="${this.editForm.watchdog_type === 'limit'}">Eingestelltes Limit (Power-Entität)</option>
-                </select>
-                <small>Wähle "Limit", wenn dein Miner-Verbrauch stark vom eingestellten Wert abweicht.</small>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group flex-1">
                     <label>Abschalten wenn Strom &lt; (Watt)</label>
                     <input type="number" name="standby_power" min="0" .value="${this.editForm.standby_power || 100}" @input="${this.handleFormInput}">
                 </div>
@@ -3887,23 +3859,7 @@ class OpenKairoMiningPanel extends LitElement {
                     <input type="number" name="standby_delay" min="0" step="1" .value="${this.editForm.standby_delay || 10}" @input="${this.handleFormInput}">
                 </div>
             </div>
-
-            <div class="form-group mt-3">
-                <label>Watchdog-Aktion (Was soll passieren?)</label>
-                <select class="btc-select" name="watchdog_action" @change="${this.handleFormInput}">
-                  <option value="off"              ?selected="${(this.editForm.watchdog_action || 'off') === 'off'}">🛑 Nur ausschalten — bleibt aus bis Modus-Regel greift (Standard)</option>
-                  <option value="toggle"           ?selected="${this.editForm.watchdog_action === 'toggle'}">🔄 Neustart — Steckdose kurz aus/an</option>
-                  <option value="reboot"           ?selected="${this.editForm.watchdog_action === 'reboot'}">⚡ Hardware-Reboot — API-Befehl direkt an Miner</option>
-                  <option value="restart_backend"  ?selected="${this.editForm.watchdog_action === 'restart_backend'}">🔧 Backend-Neustart — nur Mining-Software neu starten</option>
-                </select>
-                <small>
-                  ${(this.editForm.watchdog_action || 'off') === 'off'
-                    ? 'Miner wird ausgeschaltet und bleibt aus. PV/SOC-Regel entscheidet wann er wieder startet.'
-                    : (this.editForm.watchdog_action === 'reboot' || this.editForm.watchdog_action === 'restart_backend')
-                      ? 'Benötigt eine konfigurierte Miner-IP.'
-                      : 'Steckdose geht 5 Sekunden aus und wieder an — Miner bootet neu.'}
-                </small>
-            </div>
+            <small style="margin-top: 6px; display: block; color: #888;">Miner wird ausgeschaltet und bleibt aus. PV/SOC-Regel entscheidet wann er wieder startet.</small>
             ` : ''}
         </div>
 

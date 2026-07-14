@@ -775,30 +775,27 @@ class MiningEngine:
             state["today_energy_wh"] = round(state.get("today_energy_wh", 0.0) + energy_wh, 3)
 
     async def _process_watchdog(self, miner, state, current_time):
-        """Fire watchdog action when monitored value stays below threshold for the configured delay."""
+        """Turn off miner when monitored power stays below threshold for the configured delay."""
         threshold = float(miner.get("standby_power", 100))
         delay_s = float(miner.get("standby_delay", 10)) * 60
-        action = miner.get("watchdog_action", "off")
         miner_name = miner.get("name", "Miner")
-        wtype = miner.get("watchdog_type", "power")
 
-        # Read watched value
+        # Read watched value — sensor entity preferred, coordinator power as fallback
         watched_val = None
-        if wtype == "limit" and miner.get("power_entity"):
-            s = self.hass.states.get(miner["power_entity"])
-            if s and s.state not in ["unknown", "unavailable"]:
-                try:
-                    watched_val = float(s.state)
-                except ValueError:
-                    pass
-        if watched_val is None and miner.get("power_consumption_sensor"):
+        if miner.get("power_consumption_sensor"):
             s = self.hass.states.get(miner["power_consumption_sensor"])
             if s and s.state not in ["unknown", "unavailable"]:
                 try:
                     watched_val = float(s.state)
                 except ValueError:
                     pass
-
+        if watched_val is None and miner.get("power_entity"):
+            s = self.hass.states.get(miner["power_entity"])
+            if s and s.state not in ["unknown", "unavailable"]:
+                try:
+                    watched_val = float(s.state)
+                except ValueError:
+                    pass
         if watched_val is None:
             coord_power = state.get("power")
             if coord_power is not None and coord_power > 0:
@@ -824,24 +821,10 @@ class MiningEngine:
                 switches = state.get("switches", [])
                 self.add_log_entry(
                     f"🛡️ {miner_name} Watchdog: {watched_val:.0f}W < {threshold:.0f}W "
-                    f"für >{int(delay_s / 60)} Min. → Aktion: {action}"
+                    f"für >{int(delay_s / 60)} Min. → Miner ausgeschaltet"
                 )
-                if action == "off":
-                    if switches:
-                        await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
-                elif action == "toggle":
-                    if switches:
-                        await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
-                        await asyncio.sleep(5)
-                        await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
-                elif action == "reboot":
-                    miner_ip = miner.get("miner_ip")
-                    if miner_ip:
-                        await self.hass.services.async_call(DOMAIN, "reboot", {"ip_address": miner_ip})
-                elif action == "restart_backend":
-                    miner_ip = miner.get("miner_ip")
-                    if miner_ip:
-                        await self.hass.services.async_call(DOMAIN, "restart_backend", {"ip_address": miner_ip})
+                if switches:
+                    await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
         else:
             state.pop("standby_since", None)
 
