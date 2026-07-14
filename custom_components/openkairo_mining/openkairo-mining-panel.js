@@ -947,6 +947,8 @@ class OpenKairoMiningPanel extends LitElement {
       soc_on: 90,
       soc_off: 30,
       standby_watchdog_enabled: false,
+      standby_switch: '',
+      standby_switch_2: '',
       standby_power: 100,
       standby_delay: 10,
       soft_start_enabled: false,
@@ -1003,7 +1005,7 @@ class OpenKairoMiningPanel extends LitElement {
       'min_power', 'max_power', 'min_run_time',
       'soft_start_enabled', 'soft_stop_enabled', 'soft_continuous_scaling',
       'soft_start_steps', 'soft_stop_steps', 'soft_interval',
-      'standby_watchdog_enabled', 'standby_power', 'standby_delay',
+      'standby_watchdog_enabled', 'standby_switch', 'standby_switch_2', 'standby_power', 'standby_delay',
       'scaling_mode', 'scaling_factor', 'power_step_limit', 'soc_proportional_scaling',
       'calc_method', 'coin_price_source', 'electricity_price_source', 'electricity_price_manual',
     ];
@@ -3851,6 +3853,18 @@ class OpenKairoMiningPanel extends LitElement {
             ${this.editForm.standby_watchdog_enabled ? html`
             <div class="form-row mt-3">
                 <div class="form-group flex-1">
+                    <label>Watchdog Steckdose 1</label>
+                    <openkairo-entity-picker name="standby_switch" placeholder="-- Steckdose suchen --" .value="${this.editForm.standby_switch || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                </div>
+                <div class="form-group flex-1">
+                    <label>Watchdog Steckdose 2 (Optional)</label>
+                    <openkairo-entity-picker name="standby_switch_2" placeholder="-- Steckdose suchen --" .value="${this.editForm.standby_switch_2 || ''}" .entities="${switchOptions}" @change="${this.handleFormInput}"></openkairo-entity-picker>
+                </div>
+            </div>
+            <small style="margin-top: 4px; display: block; color: #888;">Die Steckdose wird bei zu niedrigem Verbrauch getrennt. Schalter 1 (mining_aktiv) bleibt davon unberührt.</small>
+
+            <div class="form-row mt-3">
+                <div class="form-group flex-1">
                     <label>Abschalten wenn Strom &lt; (Watt)</label>
                     <input type="number" name="standby_power" min="0" .value="${this.editForm.standby_power || 100}" @input="${this.handleFormInput}">
                 </div>
@@ -3859,7 +3873,7 @@ class OpenKairoMiningPanel extends LitElement {
                     <input type="number" name="standby_delay" min="0" step="1" .value="${this.editForm.standby_delay || 10}" @input="${this.handleFormInput}">
                 </div>
             </div>
-            <small style="margin-top: 6px; display: block; color: #888;">Miner wird ausgeschaltet und bleibt aus. PV/SOC-Regel entscheidet wann er wieder startet.</small>
+            <small style="margin-top: 6px; display: block; color: #888;">Steckdose wird getrennt und bleibt aus. PV/SOC-Regel schaltet sie wieder ein wenn die Bedingungen stimmen.</small>
             ` : ''}
         </div>
 

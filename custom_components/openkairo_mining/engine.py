@@ -823,8 +823,14 @@ class MiningEngine:
                     f"🛡️ {miner_name} Watchdog: {watched_val:.0f}W < {threshold:.0f}W "
                     f"für >{int(delay_s / 60)} Min. → Miner ausgeschaltet"
                 )
-                if switches:
-                    await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
+                # Watchdog trennt die physische Stromzufuhr (standby_switch/plug).
+                # Wenn kein Plug konfiguriert, fällt es auf den Software-Switch zurück.
+                standby_plug = miner.get("standby_switch")
+                standby_plug_2 = miner.get("standby_switch_2")
+                plug_entities = [s for s in [standby_plug, standby_plug_2] if s]
+                target_entities = plug_entities if plug_entities else switches
+                if target_entities:
+                    await self.hass.services.async_call("switch", "turn_off", {"entity_id": target_entities})
         else:
             state.pop("standby_since", None)
 
@@ -847,6 +853,13 @@ class MiningEngine:
             state["_last_turn_on_ts"] = current_time
             state["total_starts"] = state.get("total_starts", 0) + 1
             self.add_log_entry(f"⚡ {miner_name} wird eingeschaltet. {state.get('log_reason_on', '')}")
+            # Physischen Plug zuerst einschalten wenn Watchdog-Plug konfiguriert
+            standby_plug = miner.get("standby_switch")
+            standby_plug_2 = miner.get("standby_switch_2")
+            plug_entities = [s for s in [standby_plug, standby_plug_2] if s]
+            if plug_entities:
+                await self.hass.services.async_call("switch", "turn_on", {"entity_id": plug_entities})
+                await asyncio.sleep(3)
             await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
             p_ent = miner.get("power_entity")
             target_p = miner.get("max_power")
