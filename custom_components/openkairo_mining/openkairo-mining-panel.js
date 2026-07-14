@@ -2916,26 +2916,24 @@ class OpenKairoMiningPanel extends LitElement {
                         const sensorState = watchObj.state;
                         const isNumeric = sensorState !== 'unavailable' && sensorState !== 'unknown' && !isNaN(parseFloat(sensorState));
 
-                        if ((isNumeric && currentWatchValue < threshold) || (stateObj && stateObj.standby_since)) {
-                          // Priorität: Backend Standby-Zeitstempel (Sekunden -> Millisekunden)
-                          // Falls das Backend noch keine Zeit hat, nehmen wir last_changed als Fallback
-                          const startMillis = (stateObj && stateObj.standby_since) 
-                                              ? (stateObj.standby_since * 1000) 
-                                              : new Date(watchObj.last_changed).getTime();
-                                              
-                          const nowMillis = new Date().getTime();
-                          const elapsedMins = (nowMillis - startMillis) / 60000;
-                          
-                          if (elapsedMins >= 0) {
-                            const remainingMins = Math.max(0, delayMins - elapsedMins);
-                            watchdogProgress = Math.min(100, (elapsedMins / delayMins) * 100);
+                        const elapsed = (Date.now() - (this._statesReceivedAt || Date.now())) / 1000;
+                        const wdCooldown = Math.max(0, (stateObj?.watchdog_cooldown_remaining || 0) - elapsed);
+                        const wdRemaining = Math.max(0, (stateObj?.watchdog_remaining || 0) - elapsed);
 
-                            if (remainingMins > 0) {
-                              watchdogWarning = `⏳ Abschaltung in ${Math.ceil(remainingMins)} Min.`;
-                            } else {
-                              watchdogWarning = `⚠️ Abschaltung wird ausgelöst...`;
-                            }
-                          }
+                        if (wdCooldown > 0) {
+                          // Watchdog hat bereits gefeuert — Cooldown läuft, kein neuer Countdown
+                          watchdogProgress = 100;
+                        } else if (wdRemaining > 0) {
+                          // Countdown läuft
+                          const delaySec = delayMins * 60;
+                          watchdogProgress = Math.min(100, ((delaySec - wdRemaining) / delaySec) * 100);
+                          const remM = Math.floor(wdRemaining / 60);
+                          const remS = Math.floor(wdRemaining % 60);
+                          watchdogWarning = `⏳ Abschaltung in ${remM}:${String(remS).padStart(2,'0')} Min.`;
+                        } else if (isNumeric && currentWatchValue < threshold) {
+                          // Unter Schwelle aber noch kein Backend-Timestamp → kurz nach Start
+                          watchdogProgress = 0;
+                          watchdogWarning = `⏳ Abschaltung in ${delayMins}:00 Min.`;
                         }
                       }
 
