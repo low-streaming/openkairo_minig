@@ -105,7 +105,7 @@ async def async_setup_services(hass):
                             _LOGGER.warning(f"Native stop failed: {e_stop}. Trying absolute Raw Socket pause...")
                             await async_send_raw_command(coord.miner_ip, "pause")
                     else:
-                        if not coord.data.get("is_mining", True):
+                        if not (coord.data or {}).get("is_mining", False):
                             try:
                                 _LOGGER.info(f"[{coord.miner_ip}] Resuming mining natively...")
                                 await miner.resume_mining()
