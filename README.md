@@ -1,6 +1,6 @@
 # OpenKairo Mining ⛏️ — Home Assistant Integration
 
-[![Version](https://img.shields.io/badge/Version-1.4.6-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
+[![Version](https://img.shields.io/badge/Version-1.4.18-0bc4e2.svg?style=for-the-badge)](https://github.com/openkairo/openKairo_Mining)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41bdf5.svg?style=for-the-badge)](https://home-assistant.io)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://hacs.xyz)
 [![Powered by OpenKairo](https://img.shields.io/badge/Powered%20by-OpenKairo-0bc4e2.svg?style=for-the-badge)](https://openkairo.de)
@@ -158,26 +158,29 @@ Schont Netzteile durch mehrstufiges Hoch- und Runterfahren.
 
 ### 🛡️ Standby-Watchdog
 
-Erkennt wenn ein Miner eingefroren ist (z.B. Hashrate = 0 aber Stromverbrauch > 0) und greift automatisch ein.
+Erkennt wenn ein Miner eingefroren ist (Stromverbrauch zu niedrig, Miner reagiert nicht) und schaltet ihn ab — die Engine bringt ihn automatisch wieder hoch sobald SOC/PV-Bedingung erfüllt ist.
 
 **Einrichtung:**
 
 1. *Watchdog aktivieren*
-2. **Überwachter Sensor** wählen:
-   - *Verbrauch* → überwacht den Stromverbrauch-Sensor
-   - *Power-Limit* → überwacht den Power-Limit Sensor
-3. **Standby-Grenzwert** setzen (z.B. 100W — darunter gilt Miner als hängend)
-4. **Wartezeit** setzen (z.B. 10 Minuten — erst dann wird die Aktion ausgelöst)
-5. **Aktion** wählen:
-   - `off` — Miner bleibt aus bis PV/SOC-Regel greift (Standard)
-   - `toggle` — Steckdose kurz aus/an
-   - `reboot` — Hardware-Reboot per API
-   - `restart_backend` — Nur Mining-Software neu starten
+2. **Watchdog Steckdose** wählen (optional) — physischer Smart-Plug der die Stromzufuhr trennt. Wenn leer: Watchdog schaltet den Software-Switch ab.
+3. **Abschalten wenn Strom <** setzen (z.B. 100W — darunter gilt Miner als hängend)
+4. **Verzögerung** setzen (z.B. 2 Minuten — erst dann wird abgeschaltet)
+
+**Ablauf:**
+
+- Verbrauch fällt unter Schwelle → Countdown startet
+- Countdown läuft ab → Watchdog schaltet Steckdose / Mining-Switch ab
+- Engine wartet Cooldown ab, dann: Steckdose wieder ein → Mining startet neu
+
+**Manueller Eingriff:**
+
+- 🔌 **PLUG-Button** in der Miner-Karte (erscheint wenn Watchdog-Steckdose konfiguriert) — Steckdose manuell ein-/ausschalten
 
 **Status-Anzeige in der Miner-Karte:**
 
-- 🟡 **Watchdog Countdown: noch X min** — Miner läuft, aber Leistung ist zu niedrig. Watchdog feuert wenn Zeit abläuft.
-- ⬜ **Watchdog Cooldown: noch X min** — Aktion wurde bereits ausgelöst. Neuer Countdown startet erst nach Cooldown.
+- ⏳ **Abschaltung in X:XX Min.** — Countdown läuft, Verbrauch unter Schwelle
+- ⏸️ **Cooldown: X:XX Min.** — Watchdog hat gefeuert, Neustartschutz aktiv
 
 ---
 
@@ -248,6 +251,34 @@ Status-Daten an einen MQTT-Broker senden:
 ---
 
 ## 📋 Changelog
+
+### v1.4.18 — Watchdog Rework: Vereinfacht, Stock-Miner-tauglich, PLUG-Button
+
+- **Watchdog vereinfacht** — kein Action-Selector mehr; Watchdog schaltet immer ab, Engine bringt Miner wieder hoch
+- **Physische Steckdose** — `Watchdog Steckdose` konfigurierbar; Watchdog trennt Strom, Engine schaltet Steckdose beim Neustart zuerst ein
+- **PLUG-Button** — manueller Ein-/Ausschalter für die Watchdog-Steckdose direkt in der Miner-Karte
+- **Stock-Miner-Fix** — Watchdog feuert auch wenn Software-Switch off, aber Miner physisch noch läuft (erkennt Verbrauch via HA-Sensor-Entity)
+- **Coordinator-Fallback** — Watchdog läuft auch ohne konfigurierten Sensor (nutzt pyasic-Daten)
+- **Sekundengenauer Countdown** — min:sec Anzeige, lokal interpoliert (nicht auf Engine-Tick angewiesen)
+- **Cooldown sichtbar** — ⏸️ Cooldown-Countdown in der Karte
+
+### v1.4.10 — Hotfix: S21+/VNish startet nach Standby nicht wieder
+
+- **`resume_mining()` Fix** — Falscher Default (`True`) in `services.py` verhinderte Neustart nach Watchdog-Abschaltung
+- **None-Guard** — `coord.data = None` crashte den Service-Handler
+
+### v1.4.9 — Hotfix: Watchdog vs. Engine Race Condition
+
+- **`just_turned_off` Flag** — Watchdog überschrieb Engine-Abschaltung im selben Tick nicht mehr
+
+### v1.4.8 — Avalon Startmodus konfigurierbar
+
+- **`avalon_work_mode`** — Eco / Standard / Super wählbar pro Avalon-Miner im Edit-Formular
+
+### v1.4.7 — Hotfix: STOPP-Button + Watchdog nie ausgeführt
+
+- **API-Miner STOPP-Fix** — `_is_api_controlled()` unterscheidet physischen Plug von API-Switch; Avalon/VNish bekommen wieder `softoff`/`stop_mining`
+- **Watchdog-Engine-Fix** — `_process_watchdog()` wurde nie aufgerufen (Code fehlte komplett)
 
 ### v1.4.6 — Stabilitäts-Update: Engine-Schutz, Config-Lock, Switch-Rework
 
@@ -328,4 +359,4 @@ OpenKairo ist ein Community-Projekt. Wenn dir die Integration hilft, freuen wir 
 
 ---
 
-**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.6
+**Powered by OpenKairo** | [openkairo.de](https://openkairo.de) | v1.4.18
