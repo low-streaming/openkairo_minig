@@ -246,11 +246,12 @@ class OpenKairoMiningApiView(HomeAssistantView):
             except Exception:
                 pass
             sw_on, is_mining, ramping = s.get("is_on", False), s.get("is_mining", False), s.get("ramping")
-            if not sw_on: clean_s["status_msg"] = "AUS"
+            _power = float(s.get("power") or 0)
+            if not sw_on and _power < 5: clean_s["status_msg"] = "AUS"
             elif ramping == "up": clean_s["status_msg"] = "SOFT-UP"
             elif ramping == "down": clean_s["status_msg"] = "SOFT-DN"
-            elif sw_on and not is_mining: clean_s["status_msg"] = "STANDBY"
-            elif is_mining: clean_s["status_msg"] = "MINING"
+            elif is_mining or _power > 5: clean_s["status_msg"] = "MINING"
+            elif sw_on: clean_s["status_msg"] = "STANDBY"
             else: clean_s["status_msg"] = "AUS"
             # Temp alarm indicator
             if s.get("temp_alarm"):

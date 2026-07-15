@@ -1,7 +1,22 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep -i \"editForm\\\\|html\\\\`\\\\|<label\\\\|<select\\\\|<input\\\\|<option\")"
+      "Bash(grep -i \"editForm\\\\|html\\\\`\\\\|<label\\\\|<select\\\\|<input\\\\|<option\")",
+      "PowerShell(Get-Command pio -ErrorAction SilentlyContinue)",
+      "PowerShell(& \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\")",
+      "PowerShell(& \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining --target upload -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\")",
+      "PowerShell(& \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining --target erase -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\")",
+      "PowerShell(& \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" device monitor --port COM37 --baud 115200 -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\" 2>&1)",
+      "PowerShell(& \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\" 2>&1 | Where-Object { $_ -match \"error:|warning:\" })",
+      "PowerShell(& \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining --target upload -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\" 2>&1)",
+      "PowerShell(Get-Process | Where-Object { $_.Name -match \"pio|python\" } | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; & \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining --target upload -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\" 2>&1 | Select-Object -Last 8)",
+      "PowerShell(& \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\" 2>&1)",
+      "PowerShell(& \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining --target erase -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\" 2>&1)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\wait_whois_low\\Documents\\mining-display",
+      "C:\\Users\\wait_whois_low\\Documents\\GitHub\\zendure display\\src",
+      "C:\\Users\\wait_whois_low\\Documents\\mining-display\\src"
     ]
   }
 }
