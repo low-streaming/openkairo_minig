@@ -11,7 +11,8 @@
       "PowerShell(& \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining --target upload -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\" 2>&1)",
       "PowerShell(Get-Process | Where-Object { $_.Name -match \"pio|python\" } | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; & \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining --target upload -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\" 2>&1 | Select-Object -Last 8)",
       "PowerShell(& \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\" 2>&1)",
-      "PowerShell(& \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining --target erase -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\" 2>&1)"
+      "PowerShell(& \"C:\\\\Users\\\\wait_whois_low\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e mining --target erase -d \"C:\\\\Users\\\\wait_whois_low\\\\Documents\\\\mining-display\" 2>&1)",
+      "PowerShell(\\(Get-Command python -ErrorAction SilentlyContinue\\).Source; python -m platformio --version 2>&1)"
     ],
     "additionalDirectories": [
       "C:\\Users\\wait_whois_low\\Documents\\mining-display",
