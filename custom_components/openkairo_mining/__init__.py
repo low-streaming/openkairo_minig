@@ -280,7 +280,7 @@ class OpenKairoMiningApiView(HomeAssistantView):
                     except (ValueError, TypeError):
                         pass
         logs = [] if is_short else (engine.logs if engine else [])
-        fleet_power = sum(float(s.get("power", 0)) for s in clean_states.values() if s.get("is_on"))
+        fleet_power = sum(float(s.get("power", 0)) for s in clean_states.values() if s.get("is_on") or float(s.get("power", 0)) > 5)
         fleet_budget = config.get("fleet_max_power")
         from aiohttp import web
         return web.json_response({
@@ -294,8 +294,8 @@ class OpenKairoMiningApiView(HomeAssistantView):
             "fleet": {
                 "total_power_w": round(fleet_power, 1),
                 "budget_w": fleet_budget,
-                "miners_on": sum(1 for s in clean_states.values() if s.get("is_on")),
-                "miners_mining": sum(1 for s in clean_states.values() if s.get("is_mining")),
+                "miners_on": sum(1 for s in clean_states.values() if s.get("is_on") or float(s.get("power", 0)) > 5),
+                "miners_mining": sum(1 for s in clean_states.values() if s.get("is_mining") or float(s.get("power", 0)) > 5),
             }
         })
 

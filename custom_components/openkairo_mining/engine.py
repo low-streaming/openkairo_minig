@@ -324,6 +324,15 @@ class MiningEngine:
                 state["power"] = 0
                 state["is_mining"] = False
 
+        # Stock miners report power=0 via coordinator; fall back to power_consumption_sensor
+        if not state.get("power") and miner.get("power_consumption_sensor"):
+            _ps = self.hass.states.get(miner["power_consumption_sensor"])
+            if _ps and _ps.state not in ("unknown", "unavailable"):
+                try:
+                    state["power"] = float(_ps.state)
+                except (ValueError, TypeError):
+                    pass
+
         # --- Statistics ---
         self._update_statistics(miner_id, state, current_time)
 
@@ -777,8 +786,8 @@ class MiningEngine:
         elapsed = current_time - state["stats_last_tick"]
         state["stats_last_tick"] = current_time
 
-        # Only count while actually mining; ignore gaps > 2 loop intervals (HA restart etc.)
-        if state.get("is_mining") and 0 < elapsed <= (ENGINE_LOOP_INTERVAL * 2):
+        # Count while mining OR physical power > 5W (stock miners: is_mining=False but power is real)
+        if (state.get("is_mining") or float(state.get("power", 0)) > 5) and 0 < elapsed <= (ENGINE_LOOP_INTERVAL * 2):
             power_w = float(state.get("power", 0))
             energy_wh = (power_w * elapsed) / 3600.0
             state["session_runtime_s"] = state.get("session_runtime_s", 0) + elapsed
