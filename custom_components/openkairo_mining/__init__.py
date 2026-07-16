@@ -125,6 +125,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     hass.http.register_view(OpenKairoMiningFrontendView())
     hass.http.register_view(OpenKairoMiningApiView())
+    hass.http.register_view(OpenKairoMiningActionView())
     
     from .services import async_setup_services
     await async_setup_services(hass)
@@ -339,3 +340,40 @@ class OpenKairoMiningApiView(HomeAssistantView):
             _LOGGER.error(f"Error in API POST: {e}")
             from aiohttp import web
             return web.json_response({"status": "error", "message": str(e)}, status=500)
+
+
+class OpenKairoMiningActionView(HomeAssistantView):
+    """Display action endpoint: turn miners on/off from the ESP32 display."""
+    url = f"/api/{DOMAIN}/action"
+    name = f"api:{DOMAIN}:action"
+    requires_auth = False
+
+    async def post(self, request):
+        from aiohttp import web
+        hass = request.app["hass"]
+        try:
+            data = await request.json()
+        except Exception:
+            return web.json_response({"error": "invalid json"}, status=400)
+
+        miner_id = data.get("miner_id", "")
+        action   = data.get("action", "")
+
+        if action not in ("turn_on", "turn_off"):
+            return web.json_response({"error": "unknown action"}, status=400)
+
+        config = hass.data.get(DOMAIN, {}).get("config", {})
+        miner = next(
+            (m for m in config.get("miners", []) if m.get("id") == miner_id or m.get("miner_ip") == miner_id),
+            None
+        )
+        if not miner:
+            return web.json_response({"error": "miner not found"}, status=404)
+
+        switches = miner.get("switches", [])
+        if not switches:
+            return web.json_response({"error": "no switches configured"}, status=400)
+
+        await hass.services.async_call("switch", action, {"entity_id": switches})
+        _LOGGER.info(f"[Display-Action] {action} → {miner.get('name')} ({switches})")
+        return web.json_response({"status": "ok", "miner": miner.get("name"), "action": action})
