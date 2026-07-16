@@ -333,6 +333,15 @@ class MiningEngine:
                 except (ValueError, TypeError):
                     pass
 
+        # Stock miners report temp=0 via coordinator; fall back to temp_sensor entity
+        if not state.get("temp") and miner.get("temp_sensor"):
+            _ts = self.hass.states.get(miner["temp_sensor"])
+            if _ts and _ts.state not in ("unknown", "unavailable"):
+                try:
+                    state["temp"] = float(_ts.state)
+                except (ValueError, TypeError):
+                    pass
+
         # --- Statistics ---
         self._update_statistics(miner_id, state, current_time)
 
