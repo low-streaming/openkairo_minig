@@ -899,6 +899,9 @@ class MiningEngine:
             return ", ".join(parts) if parts else "KEINE SWITCHES KONFIGURIERT"
 
         if turn_on_condition and not is_on:
+            # Switch-on clears any pending turn-off state from the previous cycle
+            state.pop("_last_turn_off_ts", None)
+            state.pop("_turn_off_logged", None)
             # Skip turn_on when all switches are unavailable — HA will drop the call anyway,
             # and we'd inflate total_starts. Don't reset the timer so we retry once they recover.
             switches_all_unavailable = bool(switches) and all(
@@ -937,12 +940,17 @@ class MiningEngine:
 
         elif turn_off_condition and is_on:
             state.pop("_last_turn_on_ts", None)
-            # Retry-Cooldown: nicht jeden Zyklus senden/loggen, nur alle 60s
+            # Retry-Cooldown: nicht jeden Zyklus senden, nur alle 60s.
+            # Wichtig: im Cooldown-Pfad None zurückgeben (nicht True), damit der
+            # Watchdog als Backup feuern kann falls der Switch-Befehl nicht wirkt.
             last_off_ts = state.get("_last_turn_off_ts", 0)
             if current_time - last_off_ts < 60:
-                return True
+                return None
             state["_last_turn_off_ts"] = current_time
-            self.add_log_entry(f"💤 {miner_name} wird ausgeschaltet. {state.get('log_reason_off', '')}")
+            # UI-Log nur beim ersten Versuch, nicht bei jedem Retry
+            if not state.get("_turn_off_logged"):
+                state["_turn_off_logged"] = True
+                self.add_log_entry(f"💤 {miner_name} wird ausgeschaltet. {state.get('log_reason_off', '')}")
             if not switches:
                 _LOGGER.error(
                     "[TURN_OFF] %s → ABBRUCH: Keine Switch-Entity konfiguriert! "
