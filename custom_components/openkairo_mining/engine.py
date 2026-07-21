@@ -831,19 +831,24 @@ class MiningEngine:
             if coord_power is not None and coord_power > 0:
                 watched_val = float(coord_power)
             else:
-                state.pop("standby_since", None)
+                # Keine Leistungsdaten verfügbar — Timer pausieren, nicht zurücksetzen.
                 return
 
-        # Cooldown: don't re-trigger until delay has passed since last action
+        # Cooldown: don't re-trigger until delay has passed since last action.
+        # standby_since wird im Cooldown NICHT gelöscht — der Miner läuft vielleicht noch.
         last_action = state.get("watchdog_last_action", 0)
         cooldown = max(delay_s, 300)
         if current_time - last_action < cooldown:
-            state.pop("standby_since", None)
             return
 
         if watched_val < threshold:
             if not state.get("standby_since"):
                 state["standby_since"] = current_time
+                _LOGGER.warning(
+                    "[WATCHDOG] %s: Timer gestartet — %.0fW < %.0fW (Schwelle). "
+                    "Schaltet ab in %d Min. falls Wert bleibt.",
+                    miner_name, watched_val, threshold, int(delay_s / 60)
+                )
             elapsed = current_time - state["standby_since"]
             if elapsed >= delay_s:
                 state["watchdog_last_action"] = current_time
@@ -853,20 +858,45 @@ class MiningEngine:
                     f"🛡️ {miner_name} Watchdog: {watched_val:.0f}W < {threshold:.0f}W "
                     f"für >{int(delay_s / 60)} Min. → Miner ausgeschaltet"
                 )
-                # Watchdog trennt die physische Stromzufuhr (standby_switch/plug).
-                # Wenn kein Plug konfiguriert, fällt es auf den Software-Switch zurück.
                 standby_plug = miner.get("standby_switch")
                 standby_plug_2 = miner.get("standby_switch_2")
                 plug_entities = [s for s in [standby_plug, standby_plug_2] if s]
                 target_entities = plug_entities if plug_entities else switches
+                _LOGGER.warning(
+                    "[WATCHDOG] %s → FEUERT! watched=%.0fW threshold=%.0fW. "
+                    "target_entities=%s",
+                    miner_name, watched_val, threshold, target_entities
+                )
                 if target_entities:
-                    await self.hass.services.async_call("switch", "turn_off", {"entity_id": target_entities})
+                    try:
+                        await self.hass.services.async_call("switch", "turn_off", {"entity_id": target_entities})
+                        _LOGGER.warning("[WATCHDOG] %s → switch.turn_off gesendet OK", miner_name)
+                    except Exception as e:
+                        _LOGGER.error("[WATCHDOG] %s → switch.turn_off FEHLER: %s", miner_name, e)
+                else:
+                    _LOGGER.error(
+                        "[WATCHDOG] %s → KEIN target_entity! switches=%s, standby_switch=%s. "
+                        "Miner kann nicht abgeschaltet werden.",
+                        miner_name, switches, standby_plug
+                    )
         else:
+            if state.get("standby_since"):
+                _LOGGER.warning(
+                    "[WATCHDOG] %s: Timer zurückgesetzt — %.0fW >= %.0fW",
+                    miner_name, watched_val, threshold
+                )
             state.pop("standby_since", None)
 
     async def _execute_conditions(self, miner, state, is_on, turn_on_condition, turn_off_condition, coord, current_time):
         switches = state.get("switches", [])
         miner_name = miner.get("name", "Miner")
+
+        def _switch_states_str(sw_list):
+            parts = []
+            for s in sw_list:
+                st = self.hass.states.get(s)
+                parts.append(f"{s}={st.state if st else 'NOT_FOUND'}")
+            return ", ".join(parts) if parts else "KEINE SWITCHES KONFIGURIERT"
 
         if turn_on_condition and not is_on:
             # Skip turn_on when all switches are unavailable — HA will drop the call anyway,
@@ -883,14 +913,23 @@ class MiningEngine:
             state["_last_turn_on_ts"] = current_time
             state["total_starts"] = state.get("total_starts", 0) + 1
             self.add_log_entry(f"⚡ {miner_name} wird eingeschaltet. {state.get('log_reason_on', '')}")
+            _LOGGER.warning(
+                "[TURN_ON] %s → Sende switch.turn_on an: [%s]",
+                miner_name, _switch_states_str(switches)
+            )
             # Physischen Plug zuerst einschalten wenn Watchdog-Plug konfiguriert
             standby_plug = miner.get("standby_switch")
             standby_plug_2 = miner.get("standby_switch_2")
             plug_entities = [s for s in [standby_plug, standby_plug_2] if s]
             if plug_entities:
+                _LOGGER.warning("[TURN_ON] %s → Plug zuerst: %s", miner_name, plug_entities)
                 await self.hass.services.async_call("switch", "turn_on", {"entity_id": plug_entities})
                 await asyncio.sleep(3)
-            await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
+            try:
+                await self.hass.services.async_call("switch", "turn_on", {"entity_id": switches})
+                _LOGGER.warning("[TURN_ON] %s → switch.turn_on OK", miner_name)
+            except Exception as e:
+                _LOGGER.error("[TURN_ON] %s → switch.turn_on FEHLER: %s", miner_name, e)
             p_ent = miner.get("power_entity")
             target_p = miner.get("max_power")
             if p_ent and target_p:
@@ -898,8 +937,32 @@ class MiningEngine:
 
         elif turn_off_condition and is_on:
             state.pop("_last_turn_on_ts", None)
+            # Retry-Cooldown: nicht jeden Zyklus senden/loggen, nur alle 60s
+            last_off_ts = state.get("_last_turn_off_ts", 0)
+            if current_time - last_off_ts < 60:
+                return True
+            state["_last_turn_off_ts"] = current_time
             self.add_log_entry(f"💤 {miner_name} wird ausgeschaltet. {state.get('log_reason_off', '')}")
-            await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
+            if not switches:
+                _LOGGER.error(
+                    "[TURN_OFF] %s → ABBRUCH: Keine Switch-Entity konfiguriert! "
+                    "miner_switch im Config prüfen.",
+                    miner_name
+                )
+                state["session_runtime_s"] = 0
+                state["session_energy_wh"] = 0.0
+                return True
+            _LOGGER.warning(
+                "[TURN_OFF] %s → Sende switch.turn_off an: [%s]",
+                miner_name, _switch_states_str(switches)
+            )
+            try:
+                await self.hass.services.async_call("switch", "turn_off", {"entity_id": switches})
+            except Exception as e:
+                _LOGGER.error("[TURN_OFF] %s → switch.turn_off FEHLER: %s", miner_name, e)
+            await asyncio.sleep(2)
+            after = _switch_states_str(switches)
+            _LOGGER.warning("[TURN_OFF] %s → Switch-Zustand danach: [%s]", miner_name, after)
             state["session_runtime_s"] = 0
             state["session_energy_wh"] = 0.0
             return True
