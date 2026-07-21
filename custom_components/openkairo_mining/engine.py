@@ -891,6 +891,11 @@ class MiningEngine:
         switches = state.get("switches", [])
         miner_name = miner.get("name", "Miner")
 
+        # Miner ist aus → turn_off-Zyklus abgeschlossen, Flags für nächsten Zyklus zurücksetzen
+        if not is_on:
+            state.pop("_turn_off_logged", None)
+            state.pop("_last_turn_off_ts", None)
+
         def _switch_states_str(sw_list):
             parts = []
             for s in sw_list:
