@@ -1819,6 +1819,7 @@ class OpenKairoMiningPanel extends LitElement {
                 fährt er runter — fällt er ganz weg, schaltet er sich aus.
               </p>
               <div style="font-size: 0.8em; color: #666;">Voraussetzung: PV-Sensor in Home Assistant · Optional: Batterie-Sensor für SOC-Sperre</div>
+              <div style="font-size: 0.8em; color: #666; margin-top: 4px;">💡 Bei stark schwankendem Ertrag (z.B. Wolken): unter <em>Einstellungen → PV-Glättung</em> eine Glättungszeit (Standard 30s) einstellen, damit kurze Einbrüche das Ein-/Ausschalten nicht verzögern oder zum Flackern führen.</div>
             </div>
 
             <div style="border-left: 4px solid #27ae60; background: rgba(39,174,96,0.03); border-radius: 0 10px 10px 0; padding: 12px 16px;">
@@ -3216,6 +3217,11 @@ class OpenKairoMiningPanel extends LitElement {
                 @change="${(e) => { this.config.house_power_sensor = e.target.value; this.saveConfig(true); }}">
               </openkairo-entity-picker>
               <small style="color: #888;">Netz-Sensor (z.B. Shelly EM, Tibber Pulse). <b>Negativ = Bezug, Positiv = Einspeisung.</b> Wenn gesetzt, berechnet der PV-Modus den echten Überschuss statt der Rohproduktion.</small>
+            </div>
+            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+              <label>PV-Glättung (Sekunden)</label>
+              <input type="number" min="0" step="5" .value="${this.config.pv_smoothing ?? 30}" @change="${(e) => { this.config.pv_smoothing = e.target.value ? parseFloat(e.target.value) : 0; this.saveConfig(true); }}" placeholder="30">
+              <small style="color: #888;">Glättet den PV-Überschuss über die letzten Sekunden, damit kurze Wolken-Schwankungen den PV-Modus nicht verzögern oder flackern lassen. 0 = keine Glättung.</small>
             </div>
             <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 250px;">
               <label>Akku-Leistung Sensor (Laden/Entladen)</label>

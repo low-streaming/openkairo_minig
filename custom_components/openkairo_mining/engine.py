@@ -1,5 +1,6 @@
 import logging
 import json
+import math
 import os
 import time
 import asyncio
@@ -31,6 +32,7 @@ class MiningEngine:
         self._btc_price = 0
         self._logs = []
         self._miner_states = {}
+        self._pv_surplus_ema = None
 
     @property
     def miner_states(self):
@@ -51,6 +53,17 @@ class MiningEngine:
             "height": self._mempool_height,
             "halving": self._mempool_halving
         }
+
+    def _ema_step(self, prev, raw, tau_s):
+        """Exponential smoothing towards `raw`, with time constant tau_s (seconds).
+
+        Damps short spikes/dips (e.g. passing clouds) in noisy PV/grid readings
+        without meaningfully delaying reaction to a genuine, sustained change.
+        """
+        if not tau_s or tau_s <= 0 or prev is None:
+            return raw
+        alpha = 1 - math.exp(-ENGINE_LOOP_INTERVAL / tau_s)
+        return prev + alpha * (raw - prev)
 
     def add_log_entry(self, message):
         timestamp = time.strftime("%H:%M:%S")
@@ -255,7 +268,10 @@ class MiningEngine:
                         house_state = self.hass.states.get(house_sensor)
                         if house_state and house_state.state not in ["unknown", "unavailable"]:
                             try:
-                                global_pv_surplus = -float(house_state.state)
+                                raw_surplus = -float(house_state.state)
+                                tau = float(config.get("pv_smoothing", 30) or 30)
+                                self._pv_surplus_ema = self._ema_step(self._pv_surplus_ema, raw_surplus, tau)
+                                global_pv_surplus = self._pv_surplus_ema
                             except ValueError:
                                 _LOGGER.warning(f"House power sensor '{house_sensor}' has non-numeric state: {house_state.state}")
 
@@ -506,7 +522,14 @@ class MiningEngine:
             off_threshold = float(miner.get("pv_off", 500))
             
             # Surplus balancing (Simplified for modular use)
-            effective_pv = global_pv_surplus if global_pv_surplus is not None else pv_value
+            if global_pv_surplus is not None:
+                effective_pv = global_pv_surplus
+            else:
+                # No house sensor configured — smooth the raw PV reading per-miner
+                # so brief cloud-cover dips/spikes don't delay/flap the decision.
+                tau = float(self.hass.data.get(DOMAIN, {}).get("config", {}).get("pv_smoothing", 30) or 30)
+                state["pv_ema"] = self._ema_step(state.get("pv_ema"), pv_value, tau)
+                effective_pv = state["pv_ema"]
             
             allow_battery = miner.get("allow_battery", False)
             battery_min_soc = float(miner.get("battery_min_soc", 100))
