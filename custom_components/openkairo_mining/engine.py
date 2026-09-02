@@ -967,6 +967,13 @@ class MiningEngine:
                 await self.hass.services.async_call("number", "set_value", {"entity_id": p_ent, "value": float(target_p)})
 
         elif turn_off_condition and is_on:
+            # Mindestlaufzeit: der eigene Verbrauch des gerade gestarteten Miners
+            # lässt den gemessenen Überschuss kurzzeitig einbrechen (Sensor-Trägheit,
+            # EMA noch nicht eingeschwungen) — das darf nicht sofort wieder abschalten.
+            last_on_ts = state.get("_last_turn_on_ts", 0)
+            min_on_s = float(miner.get("min_on_time", 90))
+            if last_on_ts and current_time - last_on_ts < min_on_s:
+                return None
             state.pop("_last_turn_on_ts", None)
             # Retry-Cooldown: nicht jeden Zyklus senden, nur alle 60s.
             # Wichtig: im Cooldown-Pfad None zurückgeben (nicht True), damit der

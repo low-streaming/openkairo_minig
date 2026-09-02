@@ -59,8 +59,22 @@ class MinerPowerLimitNumber(CoordinatorEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         if self.coordinator.miner_obj:
             try:
-                _LOGGER.info(f"[{self.coordinator.miner_ip}] Setting power limit to {value}W")
-                await self.coordinator.miner_obj.set_power_limit(int(value))
+                target = int(value)
+                is_avalon = "avalon" in str(self.coordinator.miner_make or "").lower()
+                if is_avalon:
+                    # pyasic's AvalonMiner.set_power_limit() doesn't take real
+                    # wattage for this hardware — it maps >100W to level 2 and
+                    # 80-100W to level 1, so continuous/step wattage targets always
+                    # collapse onto the same 1-2 levels and Eco (0) is never hit.
+                    # Passing 0/1/2 directly selects the level instead.
+                    p_min = self._attr_native_min_value or 0
+                    p_max = self._attr_native_max_value or 1
+                    frac = (target - p_min) / max(1.0, p_max - p_min)
+                    target = 0 if frac < 1 / 3 else (1 if frac < 2 / 3 else 2)
+                    _LOGGER.info(f"[{self.coordinator.miner_ip}] Setting Avalon power level to {target} (0=Eco/1=Normal/2=Turbo, from {value}W)")
+                else:
+                    _LOGGER.info(f"[{self.coordinator.miner_ip}] Setting power limit to {target}W")
+                await self.coordinator.miner_obj.set_power_limit(target)
                 await self.coordinator.async_request_refresh()
             except Exception as e:
                 _LOGGER.error(f"Error setting power limit: {e}")

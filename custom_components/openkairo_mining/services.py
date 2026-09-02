@@ -94,7 +94,11 @@ async def async_setup_services(hass):
                         if mode != "restart":
                             mode_map = {"low": "0", "normal": "1", "high": "2"}
                             mode_val = mode_map.get(mode, "1")
-                            await miner.api.send_command("ascset", parameter=f"0,workmode,set,{mode_val}")
+                            # cgminer ascset target is "worklevel" (matches pyasic's
+                            # AvalonMiner.set_power_limit) — "workmode" is not a
+                            # command the firmware recognizes, so it silently no-ops.
+                            resp = await miner.api.send_command("ascset", parameter=f"0,worklevel,set,{mode_val}")
+                            _LOGGER.info(f"[{coord.miner_ip}] worklevel,set,{mode_val} response: {resp}")
                 else:
                     # Non-Avalon miners (e.g. VNish, BOS+)
                     if mode == "standby":
