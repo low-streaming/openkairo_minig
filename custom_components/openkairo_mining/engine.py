@@ -541,11 +541,14 @@ class MiningEngine:
                 if bat_state and bat_state.state not in ["unknown", "unavailable"]:
                     battery_soc = float(bat_state.state)
 
+            # Battery-SOC gating only ever applies to turn_off (see below) — it lets the
+            # battery *sustain* a running miner down to battery_min_soc. It must never
+            # block turn_on: with enough PV surplus, no battery is needed at all, so a
+            # low SOC is irrelevant here.
             turn_on = False
             if effective_pv >= on_threshold:
-                if not allow_battery or battery_soc >= battery_min_soc:
-                    turn_on = True
-                    state["log_reason_on"] = f"(PV-Überschuss {effective_pv:.0f}W >= {on_threshold}W)"
+                turn_on = True
+                state["log_reason_on"] = f"(PV-Überschuss {effective_pv:.0f}W >= {on_threshold}W)"
 
             # Price Awareness: cheap grid allows mining even if PV is insufficient
             price_sensor = miner.get("electricity_price_sensor")
