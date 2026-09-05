@@ -3216,7 +3216,11 @@ class OpenKairoMiningPanel extends LitElement {
                 .entities="${this.getEntitiesByDomain('sensor')}"
                 @change="${(e) => { this.config.house_power_sensor = e.target.value; this.saveConfig(true); }}">
               </openkairo-entity-picker>
-              <small style="color: #888;">Netz-Sensor (z.B. Shelly EM, Tibber Pulse). <b>Negativ = Bezug, Positiv = Einspeisung.</b> Wenn gesetzt, berechnet der PV-Modus den echten Überschuss statt der Rohproduktion.</small>
+              <small style="color: #888;">Netz-Sensor (z.B. Shelly EM, Tibber Pulse). Standard: <b>Positiv = Bezug, Negativ = Einspeisung</b> (übliche Konvention bei Shelly/Smart-Metern). Wenn gesetzt, berechnet der PV-Modus den echten Überschuss statt der Rohproduktion.</small>
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 8px;">
+                <input type="checkbox" ?checked="${this.config.house_power_invert}" @change="${(e) => { this.config.house_power_invert = e.target.checked; this.saveConfig(true); }}" style="width: 18px; height: 18px; accent-color: #0bc4e2;">
+                <span style="font-size: 0.85em;">Vorzeichen umkehren (mein Sensor zeigt Positiv = Einspeisung/Überschuss)</span>
+              </label>
             </div>
             <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
               <label>PV-Glättung (Sekunden)</label>

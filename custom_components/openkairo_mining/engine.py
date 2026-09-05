@@ -268,7 +268,8 @@ class MiningEngine:
                         house_state = self.hass.states.get(house_sensor)
                         if house_state and house_state.state not in ["unknown", "unavailable"]:
                             try:
-                                raw_surplus = -float(house_state.state)
+                                sign = 1.0 if config.get("house_power_invert") else -1.0
+                                raw_surplus = sign * float(house_state.state)
                                 tau = float(config.get("pv_smoothing", 30) or 30)
                                 self._pv_surplus_ema = self._ema_step(self._pv_surplus_ema, raw_surplus, tau)
                                 global_pv_surplus = self._pv_surplus_ema
